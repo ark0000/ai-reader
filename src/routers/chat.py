@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from src.dependencies import resolve_user
 from src.llm_adapter import ProviderFactory
-from src.rag_indexer import search_document
 from src.task_queue import task_queue
+from src.rag.manager import RAGManager
+# Import default provider so it registers itself
+import src.rag.providers.local_chroma 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -45,7 +47,8 @@ async def api_chat(req: ChatRequestWithConnection, request: Request, user_data: 
                         raise HTTPException(status_code=409, detail="Document indexing is still in progress. Please wait a moment and try again.")
                         
                     logger.info(f"Searching ChromaDB for file: {req.file_id} with query: '{user_msg}'")
-                    context = search_document(req.file_id, user_msg)
+                    rag_provider = RAGManager.get_provider("default")
+                    context = rag_provider.search_document(req.file_id, user_msg) if rag_provider else []
                     if context:
                         logger.info(f"Found {len(context)} context chunks. Injecting into user prompt.")
                         context_str = "\n\n".join(context)

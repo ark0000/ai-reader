@@ -14,7 +14,7 @@ from src.dependencies import resolve_user
 from src.database import HistoryRepository
 from src.storage import get_storage
 from src.task_queue import task_queue
-from src.rag_indexer import index_document
+from src.rag.manager import RAGManager
 from src.pdf_converter import convert_pdf_to_dark_mode
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,11 @@ class IndexTextRequest(BaseModel):
 async def api_index_text(req: IndexTextRequest, user_data: dict = Depends(resolve_user)):
     if not req.text.strip():
         return {"status": "skipped", "message": "No text provided"}
-    task_queue.add_task(f"rag_{req.file_id}", index_document, req.file_id, req.text)
+    
+    rag_provider = RAGManager.get_provider("default")
+    if rag_provider:
+        task_queue.add_task(f"rag_{req.file_id}", rag_provider.index_document, req.file_id, req.text)
+    
     return {"status": "queued", "file_id": req.file_id}
 
 @router.post("/api/upload")

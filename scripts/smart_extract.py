@@ -1,6 +1,6 @@
-﻿import os
+import os
 
-with open("src/static/js/reader-core.js", "r", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "../src/static/js/reader-core.js"), "r", encoding="utf-8") as f:
     core_content = f.read()
 
 def extract_block(text, start_pattern):
@@ -42,7 +42,7 @@ for f in ai_funcs:
     res = extract_block(core_content, f)
     if res: ai_out += res + ";\n\n"
 
-with open("src/static/js/ai-chat.js", "w", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "../src/static/js/ai-chat.js"), "w", encoding="utf-8") as f:
     f.write(ai_out)
 
 # dictionary-tools.js
@@ -65,7 +65,7 @@ for f in dict_funcs:
         res = extract_block(core_content, f)
         if res: dict_out += res + ";\n\n"
 
-with open("src/static/js/dictionary-tools.js", "w", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "../src/static/js/dictionary-tools.js"), "w", encoding="utf-8") as f:
     f.write(dict_out)
     
 # ui-components.js
@@ -87,7 +87,7 @@ for f in ui_funcs:
     res = extract_block(core_content, f)
     if res: ui_out += res + ";\n\n"
     
-with open("src/static/js/ui-components.js", "w", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "../src/static/js/ui-components.js"), "w", encoding="utf-8") as f:
     f.write(ui_out)
 
 print("Extraction successful.")

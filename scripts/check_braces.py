@@ -1,4 +1,5 @@
-﻿with open("src/static/js/ai-chat.js", "r") as f:
+import os
+with open(os.path.join(os.path.dirname(__file__), "../src/static/js/ai-chat.js"), "r", encoding="utf-8") as f:
     text = f.read()
 
 count = 0
