@@ -131,6 +131,11 @@ button {
   outline: none;
   line-height: 1.5;
   max-height: 120px; /* prevent infinite vertical growth */
+  scrollbar-width: none; /* Firefox */
+}
+
+#chat-input::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Edge */
 }
 
 #chat-input::placeholder {
