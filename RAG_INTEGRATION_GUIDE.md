@@ -4,6 +4,10 @@ This guide explains how to easily integrate your own custom Retrieval-Augmented 
 
 Because the application uses a strict **Plugin Architecture**, you can swap out the default embedding models, vector databases, and chunking logic without modifying any core UI or API routing code.
 
+## Future Scope: Complete RAG Pipelines
+
+Currently, the application uses a simple, local ChromaDB and SentenceTransformer implementation. However, the system is designed to support a **complete RAG pipeline** in the future. By adhering to the `IRAGProvider` interface, you can seamlessly integrate complex orchestrators like **LangChain** or **LlamaIndex**. This will allow for advanced routing, multi-document cross-referencing, re-ranking, and hybrid search capabilities to be added as self-contained plugins.
+
 ## The `IRAGProvider` Interface
 
 All RAG integrations must implement the `IRAGProvider` interface located in `src/rag/interface.py`. This interface acts as a "black box" that completely handles the RAG lifecycle.
@@ -15,7 +19,14 @@ from typing import List
 class IRAGProvider(ABC):
     @abstractmethod
     def index_document(self, file_id: str, text: str, progress_callback: callable = None) -> None:
-        """Executes the complete ingestion pipeline (chunking, embedding, storage)."""
+        """Executes the complete ingestion pipeline (chunking, embedding, storage).
+        
+        Args:
+            file_id (str): The unique identifier for the document.
+            text (str): The raw text extracted from the document.
+            progress_callback (callable, optional): A function taking (current_chunks, total_chunks) 
+                                                    to report real-time indexing progress to the UI.
+        """
         pass
         
     @abstractmethod
