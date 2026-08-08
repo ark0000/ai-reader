@@ -54,19 +54,19 @@ app = FastAPI(
 # UI Routes
 @app.get("/", response_class=HTMLResponse)
 async def get_root():
-    static_index = os.path.join(os.path.dirname(__file__), "static", "index.html")
-    if os.path.exists(static_index):
-        with open(static_index, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    raise HTTPException(status_code=404, detail="Frontend file index.html not found")
-
-@app.get("/v2", response_class=HTMLResponse)
-async def get_root_v2():
     static_index = os.path.join(os.path.dirname(__file__), "static", "index_v2.html")
     if os.path.exists(static_index):
         with open(static_index, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     raise HTTPException(status_code=404, detail="Frontend file index_v2.html not found")
+
+@app.get("/legacy", response_class=HTMLResponse)
+async def get_legacy():
+    static_index = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(static_index):
+        with open(static_index, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="Frontend file index.html not found")
 
 @app.get("/reader", response_class=HTMLResponse)
 async def get_reader():

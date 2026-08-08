@@ -183,7 +183,7 @@ window.connMgrTest = async function() {
     if (data.status === "success") {
       alert("✅ Connection successful!");
     } else {
-      alert("❌ Test failed: " + data.message);
+      alert("❌ Test failed: " + (data.message || data.detail || JSON.stringify(data)));
     }
   } catch(e) {
     alert("❌ Test failed: " + e.message);

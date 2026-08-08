@@ -19,4 +19,4 @@ def resolve_user(
         if data:
             return data
             
-    raise HTTPException(status_code=401, detail="Unauthorized")
+    return _GUEST

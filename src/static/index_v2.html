@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emanation PDF - Premium Dark Mode PDF Converter V2</title>
+    <title>🌀Converter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,12 +15,11 @@
     <div class="app-container">
         <header class="app-header glass-panel">
             <div class="logo" style="gap: 2px;">
-                <span class="logo-icon" style="font-size: 2rem;">🌀</span>
-                <h1 id="brand-title">converter</h1>
+                <h1 id="brand-title">🌀Converter</h1>
             </div>
             <div style="display: flex; gap: 15px; align-items: center;">
                 <button class="btn-secondary" onclick="window.location.href='/reader-enhanced'">📖 Open AI Reader</button>
-                <button class="btn-secondary" onclick="window.location.href='/'">Switch to Legacy UI</button>
+                <button class="btn-secondary" onclick="window.location.href='/legacy'">Switch to Legacy UI</button>
                 
                 <!-- Auth Status Area -->
                 <div id="auth-header-panel" style="margin-left: 20px; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 20px;">
@@ -291,7 +290,7 @@
             settingsHeader.addEventListener('click', () => {
                 clickCount++;
                 if (clickCount >= 5) {
-                    brandTitle.innerHTML = 'EmanationPDF <span>converter</span>';
+                    brandTitle.innerHTML = '🌀Converter';
                     clickCount = 0;
                 }
             });

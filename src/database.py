@@ -111,6 +111,11 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO providers (id, name, type, base_url_template, auth_type) VALUES (?, ?, ?, ?, ?)", providers)
 
+    # Seed guest user if empty
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO users (id, username, hashed_password) VALUES (1, 'guest', 'none')")
+
     conn.commit()
     conn.close()
     logger.info("SQLite database initialized successfully.")
