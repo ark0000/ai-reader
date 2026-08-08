@@ -5,8 +5,8 @@
 window.sanitizeHTML = function(html) {
   if (typeof DOMPurify !== 'undefined') {
     return DOMPurify.sanitize(html, { 
-      ALLOWED_TAGS: ['strong', 'em', 'code', 'pre', 'br', 'a', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
-      ALLOWED_ATTR: ['href', 'style', 'class', 'target']
+      ALLOWED_TAGS: ['strong', 'em', 'code', 'pre', 'br', 'a', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mspace', 'mtext', 'annotation'],
+      ALLOWED_ATTR: ['href', 'style', 'class', 'target', 'xmlns', 'display', 'encoding']
     });
   }
   var div = document.createElement('div');

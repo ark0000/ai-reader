@@ -284,6 +284,14 @@ window.addMsg = function(txt,type){
 };
 
 window.fmt = function(t){
+  if (typeof marked !== 'undefined') {
+    if (typeof markedKatex !== 'undefined' && !window.markedKatexInitialized) {
+      marked.use(markedKatex({ throwOnError: false }));
+      window.markedKatexInitialized = true;
+    }
+    return marked.parse(t);
+  }
+  
   return t.replace(/```([\s\S]*?)```/g,'<pre style="margin:4px 0;background:rgba(0,0,0,.3);padding:7px;border-radius:5px;overflow:auto"><code>$1<\/code><\/pre>')
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1<\/strong>')
     .replace(/`([^`]+)`/g,'<code style="background:rgba(99,179,237,.14);color:#63b3ed;padding:.1em .35em;border-radius:3px;font-size:.87em">$1<\/code>')

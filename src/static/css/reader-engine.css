@@ -2031,3 +2031,84 @@ body.presentation-mode #main-content {
   top: 0 !important;
   height: 100vh !important;
 }
+
+/* --- Markdown Formatting for Chat Messages --- */
+.msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.msg h1 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+.msg h2 { font-size: 1.2em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+.msg h3 { font-size: 1.1em; }
+.msg p {
+  margin-top: 0;
+  margin-bottom: 0.8em;
+}
+.msg p:last-child {
+  margin-bottom: 0;
+}
+.msg ul, .msg ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.8em;
+  padding-left: 1.8em;
+}
+.msg li {
+  margin-bottom: 0.3em;
+}
+.msg blockquote {
+  margin: 0.8em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  color: var(--text-2);
+  border-radius: 0 4px 4px 0;
+  font-style: italic;
+}
+.msg pre {
+  margin: 0.8em 0;
+  background: rgba(0,0,0,0.3);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.msg code {
+  font-family: 'JetBrains Mono', 'Source Code Pro', monospace;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: color-mix(in srgb, var(--accent) 80%, white);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.msg pre code {
+  background: transparent;
+  color: var(--text-1);
+  padding: 0;
+}
+.msg table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.msg th, .msg td {
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  padding: 8px 12px;
+  text-align: left;
+}
+.msg th {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  font-weight: 600;
+}
+.msg tr:nth-child(even) {
+  background: color-mix(in srgb, var(--text-1) 3%, transparent);
+}
+.msg .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5em 0;
+}
+/* ------------------------------------------- */
