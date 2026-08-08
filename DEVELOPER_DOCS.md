@@ -95,7 +95,18 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 3: Run the FastAPI Server
+### Step 3: Set Up Configuration
+The repository includes an `.env.example` file. You must copy it to create your local `.env` configuration file:
+```bash
+# On Windows
+copy .env.example .env
+
+# On Mac/Linux
+cp .env.example .env
+```
+*(Optional)* Open `.env` and add any API keys you wish to use (e.g., OpenAI, Anthropic), or leave them blank to configure them later in the UI.
+
+### Step 4: Run the FastAPI Server
 Do not `cd` into the `src` folder. Run the application as a module from the root of the project:
 ```bash
 python -m uvicorn src.main:app --port 8080 --reload
