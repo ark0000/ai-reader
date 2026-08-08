@@ -11,6 +11,8 @@ from src.database import init_db
 from src.task_queue import task_queue
 from src.config import settings
 from src.routers import auth, chat, connections, files, themes
+from src.rag.manager import RAGManager
+from src.rag.providers.local_chroma import LocalChromaRAG
 
 log_level = logging.INFO if settings.debug_console == "1" else logging.WARNING
 logging.basicConfig(level=log_level)
@@ -35,6 +37,14 @@ async def periodic_temp_cleanup():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    
+    # Initialize RAG Provider
+    try:
+        provider = LocalChromaRAG()
+        RAGManager.register_provider("default", provider)
+    except Exception as e:
+        logger.error(f"Failed to initialize RAG Provider: {e}")
+        
     await task_queue.start()
     asyncio.create_task(periodic_temp_cleanup())
     

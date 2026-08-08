@@ -120,6 +120,10 @@ class DocumentTaskQueue:
                 # Run the blocking function in a separate executor thread
                 await loop.run_in_executor(None, fn, *args, **kwargs)
                 
+                logger.info(f"Worker-{worker_id}: Successfully completed task {task_id}.")
+                self.tasks[task_id]["status"] = "completed"
+                self.tasks[task_id]["completed_at"] = time.time()
+                
             except Exception as e:
                 logger.error(f"Worker-{worker_id}: Exception in task {task_id}: {e}", exc_info=True)
                 self.set_failed(task_id, str(e))
