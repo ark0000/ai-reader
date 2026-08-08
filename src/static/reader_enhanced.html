@@ -510,92 +510,7 @@
       </div>
         <div id="settings-scroll-body" style="padding:16px; overflow-y:auto; overflow-x:hidden; flex:1;">
           <div class="cfg" style="border:none;padding:0">
-            <label class="settings-header">&#128190; Saved State</label>
-            <div class="settings-group" id="state-save-group">
-              <div class="settings-row" style="padding:8px 0; font-size:12px; color:var(--text-2); border-bottom: none;">
-                Choose which preferences are remembered after you close the tab. Everything else is session-only.
-              </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Reading Theme</span>
-                  <span class="settings-help">Dark mode, sepia, custom colors.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="save-reading-theme-cb" role="switch"
-                    onchange="window.toggleStateKey('aura-reading-theme', this.checked); window.toggleStateKey('aura-reading-theme-custom', this.checked);">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Font &amp; Rendering</span>
-                  <span class="settings-help">High-DPI, text thickness, etc.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="save-font-quality-cb" role="switch"
-                    onchange="window.toggleStateKey('AuraFontQuality', this.checked);">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Performance Settings</span>
-                  <span class="settings-help">Memory Saver, Lazy Loading, Deep Search.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="save-perf-cb" role="switch"
-                    onchange="['aura-pdf-virt','aura-pdf-lazy','aura-pdf-deep-search','aura-perf-dashboard'].forEach(k => window.toggleStateKey(k, this.checked));">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-            </div>
-
-            <label class="settings-header">Active AI Connection</label>
-          <div class="settings-group">
-            <div id="active-connection-display"
-              style="padding: 8px; background: var(--bg-body); border:1px solid var(--border); border-radius: 4px; margin-bottom: 8px; font-size: 13px; color: var(--text-2);">
-              Loading...</div>
-            <button onclick="if(window.openConnectionManager) window.openConnectionManager();" class="tb-btn"
-              style="width:100%; justify-content:center; background:var(--accent); color:#fff; border:none; margin-bottom: 4px; font-weight:600;">&#9881;
-              Manage AI Connections</button>
-          </div>
-
-          <label class="settings-header">Dictionary Mode</label>
-          <div class="settings-group">
-            <div class="settings-row" style="border-bottom:none;padding-bottom:0;padding-top:6px;">
-              <div class="settings-label-container">
-                <span class="settings-label">Mode</span>
-              </div>
-              <select id="dict-sel" class="tb-sel">
-                <option value="offline">offline glosaary</option>
-                <option value="online">Online Dictionary API</option>
-              </select>
-            </div>
-          </div>
-          <div class="settings-group">
-            <div class="settings-row">
-              <div class="settings-label-container">
-                <span class="settings-label">Auto-Explain Code on Click</span>
-                <span class="settings-help">(only for markdown)</span>
-              </div>
-              <label class="toggle-switch" aria-label="Auto-Explain Code on Click">
-                <input type="checkbox" id="auto-explain-cb" role="switch">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="settings-row developer-option">
-              <div class="settings-label-container">
-                <span class="settings-label">Capture UI Screenshots</span>
-                <span class="settings-help">Developer Tool for Exporting UI Logs</span>
-              </div>
-              <label class="toggle-switch" aria-label="Capture UI Screenshots">
-                <input type="checkbox" id="capture-screenshots-cb" role="switch">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <label class="settings-header"><span class="ai-icon">✦</span> Reading Experience</label>
+<label class="settings-header"><span class="ai-icon">✦</span> Reading Experience</label>
           <div class="settings-group">
             <div id="reading-theme-grid" class="reading-theme-grid"></div>
             <div id="reading-theme-detail" class="reading-theme-detail" style="display:none;"></div>
@@ -676,6 +591,91 @@
             </div>
           </div>
 
+          <label class="settings-header">Active AI Connection</label>
+          <div class="settings-group">
+            <div id="active-connection-display"
+              style="padding: 8px; background: var(--bg-body); border:1px solid var(--border); border-radius: 4px; margin-bottom: 8px; font-size: 13px; color: var(--text-2);">
+              Loading...</div>
+            <button onclick="if(window.openConnectionManager) window.openConnectionManager();" class="tb-btn"
+              style="width:100%; justify-content:center; background:var(--accent); color:#fff; border:none; margin-bottom: 4px; font-weight:600;">&#9881;
+              Manage AI Connections</button>
+          </div>
+
+          <label class="settings-header">Dictionary Mode</label>
+          <div class="settings-group">
+            <div class="settings-row" style="border-bottom:none;padding-bottom:0;padding-top:6px;">
+              <div class="settings-label-container">
+                <span class="settings-label">Mode</span>
+              </div>
+              <select id="dict-sel" class="tb-sel">
+                <option value="offline">offline glosaary</option>
+                <option value="online">Online Dictionary API</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Auto-Explain Code on Click</span>
+                <span class="settings-help">(only for markdown)</span>
+              </div>
+              <label class="toggle-switch" aria-label="Auto-Explain Code on Click">
+                <input type="checkbox" id="auto-explain-cb" role="switch">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row developer-option">
+              <div class="settings-label-container">
+                <span class="settings-label">Capture UI Screenshots</span>
+                <span class="settings-help">Developer Tool for Exporting UI Logs</span>
+              </div>
+              <label class="toggle-switch" aria-label="Capture UI Screenshots">
+                <input type="checkbox" id="capture-screenshots-cb" role="switch">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <label class="settings-header">&#128190; Saved State</label>
+            <div class="settings-group" id="state-save-group">
+              <div class="settings-row" style="padding:8px 0; font-size:12px; color:var(--text-2); border-bottom: none;">
+                Choose which preferences are remembered after you close the tab. Everything else is session-only.
+              </div>
+              <div class="settings-row">
+                <div class="settings-label-container">
+                  <span class="settings-label">Reading Theme</span>
+                  <span class="settings-help">Dark mode, sepia, custom colors.</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="save-reading-theme-cb" role="switch"
+                    onchange="window.toggleStateKey('aura-reading-theme', this.checked); window.toggleStateKey('aura-reading-theme-custom', this.checked);">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <div class="settings-label-container">
+                  <span class="settings-label">Font &amp; Rendering</span>
+                  <span class="settings-help">High-DPI, text thickness, etc.</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="save-font-quality-cb" role="switch"
+                    onchange="window.toggleStateKey('AuraFontQuality', this.checked);">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <div class="settings-label-container">
+                  <span class="settings-label">Performance Settings</span>
+                  <span class="settings-help">Memory Saver, Lazy Loading, Deep Search.</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="save-perf-cb" role="switch"
+                    onchange="['aura-pdf-virt','aura-pdf-lazy','aura-pdf-deep-search','aura-perf-dashboard'].forEach(k => window.toggleStateKey(k, this.checked));">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
           <label class="settings-header developer-block">Performance Settings</label>
           <div class="settings-group developer-block">
             <div class="settings-row developer-option">
@@ -726,6 +726,7 @@
               </label>
             </div>
           </div>
+
           <button class="developer-option" onclick="if(window.exportUITrace) window.exportUITrace();"
             style="margin-top:16px;width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;transition:opacity 0.2s;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
