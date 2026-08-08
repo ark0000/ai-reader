@@ -32,7 +32,14 @@ async def api_chat(req: ChatRequestWithConnection, request: Request, user_data: 
                 if context:
                     context_str = "\n\n".join(context)
                     context_msg = f"Context from document:\n{context_str}\n\nUse this context to answer the user's question. Cite the context if used."
-                    messages.insert(0, {"role": "system", "content": context_msg})
+                    
+                    # Consolidate all system messages into a single system message
+                    system_msgs = [m["content"] for m in messages if m["role"] == "system"]
+                    other_msgs = [m for m in messages if m["role"] != "system"]
+                    
+                    combined_system_content = "\n\n".join(system_msgs + [context_msg])
+                    messages = [{"role": "system", "content": combined_system_content}] + other_msgs
+                    
                     logger.info(f"Injected RAG context for {req.file_id}")
 
         adapter = ProviderFactory.get_provider_by_connection(

@@ -463,7 +463,7 @@ window.loadPdf = async function (buf, isConverted, skipReloadBuf) {
       });
     }
 
-    // ── Background TTS text extraction ─────────────────────────────────────
+    // ── Background TTS & RAG text extraction ─────────────────────────────────────
     if (isFirstLoad) {
       setTimeout(async function () {
         if (!window.pdfParts) window.pdfParts = [];
@@ -472,6 +472,20 @@ window.loadPdf = async function (buf, isConverted, skipReloadBuf) {
             var p = await pdf.getPage(j);
             var tc = await p.getTextContent();
             window.pdfParts[j - 1] = tc.items.map(function (it) { return it.str; }).join(' ');
+          } catch (e) { }
+        }
+        
+        if (window.pdfParts.length > 0) {
+          var fullText = window.pdfParts.join('\n\n');
+          if (!window.currentFileId) {
+            window.currentFileId = 'local_' + Math.random().toString(36).substr(2, 9);
+          }
+          try {
+            fetch('/api/rag/index_text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ file_id: window.currentFileId, text: fullText })
+            }).catch(e => console.error("RAG Index error:", e));
           } catch (e) { }
         }
       }, 500);

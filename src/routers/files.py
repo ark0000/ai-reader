@@ -32,6 +32,17 @@ class PubSubEnvelope(BaseModel):
     message: PubSubMessage
     subscription: str
 
+class IndexTextRequest(BaseModel):
+    file_id: str
+    text: str
+
+@router.post("/api/rag/index_text")
+async def api_index_text(req: IndexTextRequest, user_data: dict = Depends(resolve_user)):
+    if not req.text.strip():
+        return {"status": "skipped", "message": "No text provided"}
+    task_queue.add_task(f"rag_{req.file_id}", index_document, req.file_id, req.text)
+    return {"status": "queued", "file_id": req.file_id}
+
 @router.post("/api/upload")
 async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
     ext = file.filename.lower().split('.')[-1]
