@@ -40,7 +40,16 @@ class IndexTextRequest(BaseModel):
 async def api_index_text(req: IndexTextRequest, user_data: dict = Depends(resolve_user)):
     if not req.text.strip():
         return {"status": "skipped", "message": "No text provided"}
-    task_queue.add_task(f"rag_{req.file_id}", index_document, req.file_id, req.text)
+    
+    rag_provider = RAGManager.get_provider("default")
+    if rag_provider:
+        def rag_index_wrapper(fid: str, txt: str):
+            def progress_cb(progress, total):
+                task_queue.update_progress(f"rag_{fid}", progress, total)
+            rag_provider.index_document(fid, txt, progress_callback=progress_cb)
+            
+        task_queue.add_task(f"rag_{req.file_id}", rag_index_wrapper, req.file_id, req.text)
+    
     return {"status": "queued", "file_id": req.file_id}
 
 @router.post("/api/upload")
