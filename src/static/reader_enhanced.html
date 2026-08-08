@@ -322,6 +322,32 @@
 
     body.dev-mode-active button.developer-option {
       display: block !important;
+    }    /* Book-Like View for Two-Page Mode */
+    body.two-page-mode #content {
+      padding-top: 20px;
+      padding-bottom: 20px;
+    }
+    
+    body.two-page-mode .pdf-page-wrapper {
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      position: relative;
+    }
+    
+    body.two-page-mode .pdf-page-wrapper:nth-child(odd) {
+      /* Left Page */
+      border-right: 1px solid rgba(0, 0, 0, 0.15) !important;
+      border-top-left-radius: 8px !important;
+      border-bottom-left-radius: 8px !important;
+      box-shadow: -10px 10px 20px rgba(0,0,0,0.12), inset -4px 0 10px rgba(0,0,0,0.04) !important;
+    }
+    
+    body.two-page-mode .pdf-page-wrapper:nth-child(even) {
+      /* Right Page */
+      border-left: 1px solid rgba(255, 255, 255, 0.4) !important;
+      border-top-right-radius: 8px !important;
+      border-bottom-right-radius: 8px !important;
+      box-shadow: 10px 10px 20px rgba(0,0,0,0.12), inset 4px 0 10px rgba(0,0,0,0.04) !important;
     }
   </style>
 </head>
