@@ -38,11 +38,33 @@ window.ThemeEngine = (function() {
 
     // Brightness (Debounced)
     var brightRange = document.getElementById('bright-range');
+    var autoBrightCb = document.getElementById('auto-bright-cb');
+    
     if (brightRange) {
       brightRange.addEventListener('input', debounce(function(e) {
+        if (autoBrightCb && autoBrightCb.checked) {
+          // Manual override turns off auto
+          autoBrightCb.checked = false;
+        }
         var val = e.target.value / 100;
         var dp = document.getElementById('doc-pane'); if (dp) dp.style.setProperty('--reader-brightness', val); else root.style.setProperty('--reader-brightness', val);
+        
+        // Train AI
+        if (window.BrightnessManager) window.BrightnessManager.recordManualOverride(val);
       }, 50));
+    }
+    
+    if (autoBrightCb) {
+      autoBrightCb.addEventListener('change', function(e) {
+        if (e.target.checked && window.BrightnessManager) {
+          window.BrightnessManager.enableAuto(function(brightness) {
+             if (brightRange) brightRange.value = brightness * 100;
+             var dp = document.getElementById('doc-pane'); if (dp) dp.style.setProperty('--reader-brightness', brightness); else root.style.setProperty('--reader-brightness', brightness);
+          });
+        } else if (window.BrightnessManager) {
+          window.BrightnessManager.disableAuto();
+        }
+      });
     }
 
     // Width selector

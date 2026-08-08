@@ -538,25 +538,43 @@ window.pdfFitWidth = function (w) {
   }
 
   var containerWidth = window.getPdfContainerWidth();
-  var targetWidth;
-  if (w === '100%' || w === 'full') {
-    targetWidth = containerWidth;
-  } else if (typeof w === 'string' && w.endsWith('px')) {
-    targetWidth = Math.min(parseInt(w, 10), containerWidth);
-  } else if (typeof w === 'number') {
-    targetWidth = Math.min(w, containerWidth);
-  } else {
-    targetWidth = Math.min(parseInt(w, 10) || containerWidth, containerWidth);
-  }
+  var containerHeight = window.contentEl ? window.contentEl.clientHeight : window.innerHeight;
+  var newScale = 1.2;
 
   if (!window.pdfDefaultPageWidth || window.pdfDefaultPageWidth <= 0) return;
 
-  // If Two-Page mode is active, we need to fit TWO pages inside the target width
-  if (window.isTwoPageMode) {
-    targetWidth = (targetWidth - 40) / 2; // account for 20px gap and some padding
+  if (w === 'fit-page' && window.pdfDefaultPageHeight) {
+    // Fit the entire page within the viewport height and width
+    var scaleWidth = containerWidth / window.pdfDefaultPageWidth;
+    // Account for padding by taking 95% of the container height
+    var scaleHeight = (containerHeight * 0.95) / window.pdfDefaultPageHeight;
+    newScale = Math.min(scaleWidth, scaleHeight);
+    
+    // If Two-Page mode is active, width might be the constraint
+    if (window.isTwoPageMode) {
+        var twoPageScaleWidth = ((containerWidth - 40) / 2) / window.pdfDefaultPageWidth;
+        newScale = Math.min(twoPageScaleWidth, scaleHeight);
+    }
+  } else {
+    var targetWidth;
+    if (w === '100%' || w === 'full' || w === 'fit-page') {
+      targetWidth = containerWidth;
+    } else if (typeof w === 'string' && w.endsWith('px')) {
+      targetWidth = Math.min(parseInt(w, 10), containerWidth);
+    } else if (typeof w === 'number') {
+      targetWidth = Math.min(w, containerWidth);
+    } else {
+      targetWidth = Math.min(parseInt(w, 10) || containerWidth, containerWidth);
+    }
+
+    // If Two-Page mode is active, we need to fit TWO pages inside the target width
+    if (window.isTwoPageMode) {
+      targetWidth = (targetWidth - 40) / 2; // account for 20px gap and some padding
+    }
+
+    newScale = targetWidth / window.pdfDefaultPageWidth;
   }
 
-  var newScale = targetWidth / window.pdfDefaultPageWidth;
   newScale = Math.max(0.3, Math.min(newScale, 6.0));
   window.pdfScale = newScale;
 
@@ -781,6 +799,7 @@ document.addEventListener('DOMContentLoaded', function () {
       window.pageTextCache = new Map();
       window.docText = '';
       window.pdfPageLabels = null;
+      window.currentFileId = null;
 
       var docParser = new DOMParser();
       var decodedName = docParser.parseFromString(f.name.replace(/&_039_/g, "'"), "text/html").documentElement.textContent;
@@ -1663,7 +1682,7 @@ window.toggleTwoPageMode = function () {
 
       // Auto-fit to the screen optimally!
       if (window.currentPdfDoc) {
-        window.pdfFitWidth('full');
+        window.pdfFitWidth();
       } else {
         window.pdfScale = 0.7; // fallback
       }
@@ -1675,7 +1694,7 @@ window.toggleTwoPageMode = function () {
       content.style.gap = '0px';
 
       if (window.currentPdfDoc) {
-        window.pdfFitWidth('full'); // fit single page
+        window.pdfFitWidth(); // fit single page based on selected dropdown
       } else {
         window.pdfScale = 1.2; // fallback
       }
