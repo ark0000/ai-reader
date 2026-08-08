@@ -102,6 +102,10 @@ class ApiTracker extends TelemetryPlugin {
             if (window.AuraPerf && window.AuraPerf.core && window.AuraPerf.core.metrics) {
                 window.AuraPerf.core.metrics.aiLatencyMs = duration.toFixed(1);
             }
+        } else if (url && url.includes('/api/rag')) {
+            if (window.AuraPerf && window.AuraPerf.core && window.AuraPerf.core.metrics) {
+                window.AuraPerf.core.metrics.ragLatencyMs = duration.toFixed(1);
+            }
         }
         
         return response;
@@ -136,7 +140,8 @@ class PerformanceCore {
     this.metrics = {
       fps: 0, activeCanvases: 0, domNodes: 0, estimatedRamMB: 0,
       jsHeapMB: 'N/A', resourceCount: 0, resourcePayloadMB: 0,
-      lastRenderTimeMs: 0, apiCount: 0, apiLatencyMs: 0
+      lastRenderTimeMs: 0, apiCount: 0, apiLatencyMs: 0,
+      ragLatencyMs: 0, mathRenderTimeMs: 0
     };
     this.plugins = [];
     this.customStats = []; // For UI extension
@@ -366,6 +371,14 @@ window.AuraPerf.registerCustomStat({ id: 'lastRenderTimeMs', label: 'PDF Render 
 
 // Register AI specific metrics
 window.AuraPerf.registerCustomStat({ id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' });
+window.AuraPerf.registerCustomStat({ id: 'ragLatencyMs', label: 'RAG Latency', tooltip: 'Time taken for backend vector search / document indexing.', formatter: v => v > 0 ? v + ' ms' : 'N/A' });
+window.AuraPerf.registerCustomStat({ id: 'mathRenderTimeMs', label: 'Math Rendering', tooltip: 'Time taken by KaTeX to parse and format mathematical markup.', formatter: v => v > 0 ? v + ' ms' : 'N/A' });
+
+window.AuraPerf.recordFormatTime = function(ms) {
+    if (window.AuraPerf && window.AuraPerf.core && window.AuraPerf.core.metrics) {
+        window.AuraPerf.core.metrics.mathRenderTimeMs = ms.toFixed(1);
+    }
+};
 
 
 

@@ -284,19 +284,26 @@ window.addMsg = function(txt,type){
 };
 
 window.fmt = function(t){
-  if (typeof marked !== 'undefined') {
-    if (typeof markedKatex !== 'undefined' && !window.markedKatexInitialized) {
-      marked.use(markedKatex({ throwOnError: false }));
-      window.markedKatexInitialized = true;
+    const start = performance.now();
+    let result = t;
+    if (typeof marked !== 'undefined') {
+      if (typeof markedKatex !== 'undefined' && !window.markedKatexInitialized) {
+        marked.use(markedKatex({ throwOnError: false }));
+        window.markedKatexInitialized = true;
+      }
+      result = marked.parse(t);
+    } else {
+      result = t.replace(/```([\s\S]*?)```/g,'<pre style="margin:4px 0;background:rgba(0,0,0,.3);padding:7px;border-radius:5px;overflow:auto"><code>$1<\/code><\/pre>')
+        .replace(/\*\*(.*?)\*\*/g,'<strong>$1<\/strong>')
+        .replace(/`([^`]+)`/g,'<code style="background:rgba(99,179,237,.14);color:#63b3ed;padding:.1em .35em;border-radius:3px;font-size:.87em">$1<\/code>')
+        .replace(/\n/g,'<br>');
     }
-    return marked.parse(t);
-  }
-  
-  return t.replace(/```([\s\S]*?)```/g,'<pre style="margin:4px 0;background:rgba(0,0,0,.3);padding:7px;border-radius:5px;overflow:auto"><code>$1<\/code><\/pre>')
-    .replace(/\*\*(.*?)\*\*/g,'<strong>$1<\/strong>')
-    .replace(/`([^`]+)`/g,'<code style="background:rgba(99,179,237,.14);color:#63b3ed;padding:.1em .35em;border-radius:3px;font-size:.87em">$1<\/code>')
-    .replace(/\n/g,'<br>');
-};
+    const end = performance.now();
+    if (window.AuraPerf && window.AuraPerf.recordFormatTime) {
+      window.AuraPerf.recordFormatTime(end - start);
+    }
+    return result;
+  };
 
 window.authHeaders = function() { 
   var token = localStorage.getItem('token');
