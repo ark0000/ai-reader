@@ -113,6 +113,14 @@ python -m uvicorn src.main:app --port 8080 --reload
 ```
 The application will be running at `http://localhost:8080`.
 
+### Step 5 (Optional): Frontend Tooling & Tests
+If you want to run the Playwright End-to-End tests or modify the UnoCSS styling, install the Node dependencies:
+```bash
+npm install
+npm run build:css   # To compile CSS changes
+npx playwright test # To run E2E tests
+```
+
 ---
 
 ## 2. System Architecture
