@@ -14,7 +14,7 @@ from typing import List
 
 class IRAGProvider(ABC):
     @abstractmethod
-    def index_document(self, file_id: str, text: str) -> None:
+    def index_document(self, file_id: str, text: str, progress_callback: callable = None) -> None:
         """Executes the complete ingestion pipeline (chunking, embedding, storage)."""
         pass
         
@@ -43,11 +43,14 @@ class MyCustomRAGProvider(IRAGProvider):
         # Initialize your custom vector database or embedding models here
         pass
 
-    def index_document(self, file_id: str, text: str) -> None:
+    def index_document(self, file_id: str, text: str, progress_callback: callable = None) -> None:
         # 1. Chunk the text
-        # 2. Embed the chunks
+        # 2. Embed the chunks in batches
         # 3. Store the embeddings in your custom database under the 'file_id' namespace
+        # 4. If progress_callback is provided, call it with (current_chunks, total_chunks) to update the UI
         print(f"Indexing {file_id}...")
+        if progress_callback:
+            progress_callback(100, 100) # Example: instantly 100% complete
 
     def search_document(self, file_id: str, query: str, top_k: int = 3) -> List[str]:
         # 1. Embed the user's query
