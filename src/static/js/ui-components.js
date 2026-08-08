@@ -4,7 +4,7 @@ window.togglePanel = function() {
   if (fab) {
     fab.style.display = window.panel.classList.contains('hidden') ? 'flex' : 'none';
   }
-  logUI('ai-toggle');
+  if (window.logUI) window.logUI('ai-toggle');
 };
 
 window.switchTab = function(name){
