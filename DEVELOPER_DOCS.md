@@ -73,6 +73,13 @@ AuraPDF is a **premium dark-mode PDF converter** and **universal document reader
 
 Follow these steps to quickly get the backend running locally. Note: All imports are relative to the root project folder, so you **must** run the server from the root directory.
 
+### Step 0: Fork and Clone the Repository
+If you are contributing, first fork the repository on GitHub. Then clone your fork locally:
+```bash
+git clone https://github.com/<your-username>/app-agentic.git
+cd app-agentic
+```
+
 ### Step 1: Create a Virtual Environment (Recommended)
 ```bash
 python -m venv venv
