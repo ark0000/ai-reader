@@ -46,13 +46,17 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize RAG Provider: {e}")
         
     await task_queue.start()
-    asyncio.create_task(periodic_temp_cleanup())
+    cleanup_task = asyncio.create_task(periodic_temp_cleanup())
     
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        app.state.http_client = client
-        yield
-        
-    await task_queue.stop()
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            app.state.http_client = client
+            yield
+    except asyncio.CancelledError:
+        pass
+    finally:
+        cleanup_task.cancel()
+        await task_queue.stop()
 
 app = FastAPI(
     title="AuraReader Pro API",
