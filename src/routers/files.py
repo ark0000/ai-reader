@@ -99,7 +99,14 @@ async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
             logger.error(f"Failed to extract EPUB text for RAG: {e}")
 
     if doc_text.strip():
-        task_queue.add_task(f"rag_{task_id}", index_document, task_id, doc_text)
+        def rag_index_wrapper(fid: str, txt: str):
+            rag_provider = RAGManager.get_provider("default")
+            if rag_provider:
+                def progress_cb(progress, total):
+                    task_queue.update_progress(f"rag_{fid}", progress, total)
+                rag_provider.index_document(fid, txt, progress_callback=progress_cb)
+                
+        task_queue.add_task(f"rag_{task_id}", rag_index_wrapper, task_id, doc_text)
             
     task_user_mapping[task_id] = {
         "user_id": user_id,
