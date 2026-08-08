@@ -30,4 +30,4 @@ COPY src/ /app/src/
 EXPOSE 8080
 
 # Command to run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}
