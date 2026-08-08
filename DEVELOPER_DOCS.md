@@ -69,6 +69,34 @@ AuraPDF is a **premium dark-mode PDF converter** and **universal document reader
 
 ---
 
+## 1.1 Quick Start: Setup & Run Local Development
+
+Follow these steps to quickly get the backend running locally. Note: All imports are relative to the root project folder, so you **must** run the server from the root directory.
+
+### Step 1: Create a Virtual Environment (Recommended)
+```bash
+python -m venv venv
+
+# On Windows:
+venv\Scripts\activate
+# On Mac/Linux:
+source venv/bin/activate
+```
+
+### Step 2: Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Step 3: Run the FastAPI Server
+Do not `cd` into the `src` folder. Run the application as a module from the root of the project:
+```bash
+python -m uvicorn src.main:app --port 8080 --reload
+```
+The application will be running at `http://localhost:8080`.
+
+---
+
 ## 2. System Architecture
 
 ### 2.1 High-Level Architecture Diagram
@@ -1088,9 +1116,9 @@ mindmap
 ### Local Development
 
 ```bash
-cd src
+# Make sure you are in the root directory (not inside src/)
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 ### Docker
