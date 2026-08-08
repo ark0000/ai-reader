@@ -1,0 +1,668 @@
+// AuraPDF Frontend Application JS
+
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM Elements
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    
+    // Color Swatch Elements
+    
+    // File Selected Card Elements
+    const fileSelectedCard = document.getElementById('file-selected-card');
+    const selectedFilename = document.getElementById('selected-filename');
+    const selectedFilesize = document.getElementById('selected-filesize');
+    const applyAllBtn = document.getElementById('apply-all-btn');
+    const changeFileBtn = document.getElementById('change-file-btn');
+    
+    // Page preview and AI DOM Elements
+    const aiPromptInput = document.getElementById('ai-prompt-input');
+    const aiSubmitBtn = document.getElementById('ai-submit-btn');
+    const aiStatus = document.getElementById('ai-status');
+    
+    // Preview Images
+    const previewLightImg = document.getElementById('preview-light-img');
+    const previewDarkImg = document.getElementById('preview-dark-img');
+    const defaultLightSrc = previewLightImg.src;
+    const defaultDarkSrc = previewDarkImg.src;
+    
+    // View Panels
+    const uploadSection = document.getElementById('upload-section');
+    const processingSection = document.getElementById('processing-section');
+    const completedSection = document.getElementById('completed-section');
+    
+    // Progress Indicators
+    const progressCircle = document.getElementById('progress-circle');
+    const progressPercent = document.getElementById('progress-percent');
+    const progressPageCount = document.getElementById('progress-page-count');
+    const statusTitle = document.getElementById('status-title');
+    const statusDetail = document.getElementById('status-detail');
+    const consoleLog = document.getElementById('console-log');
+    
+    // Results
+    const resFilename = document.getElementById('res-filename');
+    const resPages = document.getElementById('res-pages');
+    const downloadBtn = document.getElementById('download-btn');
+    const convertAnotherBtn = document.getElementById('convert-another-btn');
+    
+    // PDF Viewer iframe Elements
+    const pdfViewerContainer = document.getElementById('pdf-viewer-container');
+    const pdfViewerIframe = document.getElementById('pdf-viewer-iframe');
+    
+    // Auth DOM Elements
+    const openLoginBtn = document.getElementById('open-login-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const authModal = document.getElementById('auth-modal');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const authModalTitle = document.getElementById('auth-modal-title');
+    const authUsernameInput = document.getElementById('auth-username-input');
+    const authPasswordInput = document.getElementById('auth-password-input');
+    const authSubmitBtn = document.getElementById('auth-submit-btn');
+    const authToggleLink = document.getElementById('auth-toggle-link');
+    const authToggleMsg = document.getElementById('auth-toggle-msg');
+    const authLoggedOut = document.getElementById('auth-logged-out');
+    const authLoggedIn = document.getElementById('auth-logged-in');
+    const authUsername = document.getElementById('auth-username');
+    const userDashboardPanel = document.getElementById('user-dashboard-panel');
+    const historyList = document.getElementById('history-list');
+    const historyCount = document.getElementById('history-count');
+    
+    let currentTaskId = null;
+    let customTheme = null;
+    let uploadFileObject = null;
+    let isRegisterMode = false;
+    
+    // Circle progress calculations
+    const radius = progressCircle.r.baseVal.value;
+    const circumference = 2 * Math.PI * radius;
+    
+    progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+    progressCircle.style.strokeDashoffset = circumference;
+    
+    function setProgress(percent) {
+        const offset = circumference - (percent / 100) * circumference;
+        progressCircle.style.strokeDashoffset = offset;
+        progressPercent.textContent = `${Math.round(percent)}%`;
+    }
+
+    // Color conversion helper functions
+    function rgbToHex(r, g, b) {
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+    
+    function hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+        ] : [0, 0, 0];
+    }
+
+    // UI Slider Updates
+    });
+
+    });
+
+    });
+
+    // Logging helpers
+    function addLog(message, type = 'system') {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        consoleLog.appendChild(entry);
+        consoleLog.scrollTop = consoleLog.scrollHeight;
+    }
+
+    // View switcher
+    function switchView(viewName) {
+        [uploadSection, processingSection, completedSection].forEach(section => {
+            section.classList.remove('active');
+        });
+        
+        if (viewName === 'upload') {
+            uploadSection.classList.add('active');
+        } else if (viewName === 'processing') {
+            processingSection.classList.add('active');
+        } else if (viewName === 'completed') {
+            completedSection.classList.add('active');
+        }
+    }
+
+    // Interactive Preview updates
+    function updateLivePreview() {
+        if (!currentTaskId) return;
+        
+        const pageNum = parseInt(previewPageInput.value) || 1;
+        const colorMode = colorModeSelect.value;
+        const smartInvert = smartInvertCheckbox.checked;
+        const brightness = brightnessSlider.value;
+        
+        let urlParams = `task_id=${currentTaskId}&page_num=${pageNum}&color_mode=${colorMode}&brightness=${brightness}&smart_invert=${smartInvert}&dpi=100`;
+        
+        if (colorMode === 'custom' && customTheme) {
+            urlParams += `&custom_bg_r=${customTheme.bg_color[0]}&custom_bg_g=${customTheme.bg_color[1]}&custom_bg_b=${customTheme.bg_color[2]}`;
+            urlParams += `&custom_text_r=${customTheme.text_color[0]}&custom_text_g=${customTheme.text_color[1]}&custom_text_b=${customTheme.text_color[2]}`;
+            urlParams += `&custom_sat=${customTheme.sat_factor}`;
+        }
+        
+        // Show local loading state
+        previewLightImg.style.opacity = 0.5;
+        previewDarkImg.style.opacity = 0.5;
+        
+        const newLightImg = new Image();
+        newLightImg.onload = () => {
+            previewLightImg.src = newLightImg.src;
+            previewLightImg.style.opacity = 1;
+        };
+        newLightImg.onerror = () => { previewLightImg.style.opacity = 1; addLog("Error loading original preview.", "system"); };
+        newLightImg.src = `/api/preview/render?${urlParams}&preview_type=original`;
+        
+        const newDarkImg = new Image();
+        newDarkImg.onload = () => {
+            previewDarkImg.src = newDarkImg.src;
+            previewDarkImg.style.opacity = 1;
+        };
+        newDarkImg.onerror = () => { previewDarkImg.style.opacity = 1; addLog("Error loading dark preview.", "system"); };
+        newDarkImg.src = `/api/preview/render?${urlParams}&preview_type=dark`;
+    }
+
+    function syncColorSwatches() {
+        if (bgColorPicker && bgColorPicker.nextElementSibling) {
+            bgColorPicker.nextElementSibling.style.background = bgColorPicker.value;
+        }
+        if (textRgbPicker && textRgbPicker.nextElementSibling) {
+            textRgbPicker.nextElementSibling.style.background = textRgbPicker.value;
+        }
+    }
+
+    // Synchronize color swatches when preset is changed
+        const mode = colorModeSelect.value;
+        if (mode === 'comfort') {
+            bgColorPicker.value = '#191919';
+            textRgbPicker.value = '#e1e1e1';
+        } else if (mode === 'deep_space') {
+            bgColorPicker.value = '#000000';
+            textRgbPicker.value = '#e1e1e1';
+        } else if (mode === 'monochrome') {
+            bgColorPicker.value = '#000000';
+            textRgbPicker.value = '#ffffff';
+        } else if (mode === 'classic') {
+            bgColorPicker.value = '#000000';
+            textRgbPicker.value = '#ffffff';
+        }
+        syncColorSwatches();
+        updateLivePreview();
+    });
+
+    // Handle manual color adjustments via color pickers
+    function handleManualColorChange() {
+        const bgRgb = hexToRgb(bgColorPicker.value);
+        const textRgb = hexToRgb(textRgbPicker.value);
+        
+        customTheme = {
+            name: "Custom Palette",
+            bg_color: bgRgb,
+            text_color: textRgb,
+            sat_factor: 0.8
+        };
+        
+        // Ensure "Custom Style" option is in the select dropdown and selected
+        let customOpt = document.getElementById('custom-theme-option');
+        if (!customOpt) {
+            customOpt = document.createElement('option');
+            customOpt.id = 'custom-theme-option';
+            customOpt.value = 'custom';
+            colorModeSelect.appendChild(customOpt);
+        }
+        customOpt.textContent = `Custom Style`;
+        customOpt.selected = true;
+        
+        syncColorSwatches();
+        updateLivePreview();
+    }
+
+
+    // Attach general preview listeners
+
+    // Creative Theme Mixer
+    const creativeThemeBtn = document.getElementById('creative-theme-btn');
+    if (creativeThemeBtn) {
+        creativeThemeBtn.addEventListener('click', () => {
+            aiStatus.textContent = '🎨 Mixing a surprise theme...';
+            
+            const themes = [
+                { name: "Neon Cyberpunk", bg: [20, 10, 35], text: [0, 255, 200], sat: 1.2, bri: 1.4 },
+                { name: "Deep Ocean", bg: [5, 15, 30], text: [150, 220, 255], sat: 1.0, bri: 1.2 },
+                { name: "Sunset Ember", bg: [35, 15, 10], text: [255, 200, 150], sat: 1.1, bri: 1.3 },
+                { name: "Forest Moss", bg: [15, 25, 15], text: [180, 255, 180], sat: 0.9, bri: 1.1 },
+                { name: "Velvet Night", bg: [25, 5, 20], text: [255, 150, 220], sat: 1.0, bri: 1.2 },
+                { name: "Golden Hour", bg: [30, 25, 15], text: [255, 220, 100], sat: 1.1, bri: 1.3 }
+            ];
+            
+            setTimeout(() => {
+                const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+                
+                customTheme = {
+                    name: randomTheme.name,
+                    bg_color: randomTheme.bg,
+                    text_color: randomTheme.text,
+                    sat_factor: randomTheme.sat,
+                    brightness_factor: randomTheme.bri
+                };
+                
+                aiStatus.textContent = `✨ Surprise Theme: "${randomTheme.name}" applied!`;
+                addLog(`Mixed creative theme: bg=[${randomTheme.bg}], text=[${randomTheme.text}]`);
+                
+                bgColorPicker.value = rgbToHex(randomTheme.bg[0], randomTheme.bg[1], randomTheme.bg[2]);
+                textRgbPicker.value = rgbToHex(randomTheme.text[0], randomTheme.text[1], randomTheme.text[2]);
+                syncColorSwatches();
+                
+                let customOpt = document.getElementById('custom-theme-option');
+                if (!customOpt) {
+                    customOpt = document.createElement('option');
+                    customOpt.id = 'custom-theme-option';
+                    customOpt.value = 'custom';
+                    colorModeSelect.appendChild(customOpt);
+                }
+                customOpt.textContent = `Mixer: ${randomTheme.name}`;
+                customOpt.selected = true;
+                
+                updateLivePreview();
+            }, 400);
+        });
+    }
+
+
+    // Drag and Drop events
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('dragover');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('dragover');
+        }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            handleFile(fileInput.files[0]);
+        }
+    });
+
+    // Handle Upload and Preview phase
+    function handleFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['pdf', 'epub', 'md'].includes(ext)) {
+            alert('Please upload a valid PDF, EPUB, or Markdown document.');
+            return;
+        }
+        
+        uploadFileObject = file;
+        currentTaskId = null;
+        
+        // Hide PDF Preview Viewer
+        pdfViewerContainer.style.display = 'none';
+        pdfViewerIframe.src = '';
+        
+        // Show upload indicator state
+        addLog(`Uploading file context to server: ${file.name}...`);
+        
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', file);
+        
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        fetch('/api/upload', {
+            method: 'POST',
+            body: uploadFormData,
+            headers: headers
+        })
+        .then(async res => {
+            if (!res.ok) { const txt = await res.text(); throw new Error(txt || 'Upload context initialization failed.'); }
+            return res.json();
+        })
+        .then(data => {
+            currentTaskId = data.task_id;
+            
+            // If it's an EPUB or MD, instantly redirect to the Reader
+            if (data.ext === 'epub' || data.ext === 'md') {
+                addLog(`Native format detected. Redirecting to Reader...`);
+                window.location.href = `/reader-enhanced?task_id=${data.task_id}`;
+                return;
+            }
+            
+            // Set slider limits based on actual page count
+            previewPageInput.max = data.total_pages;
+            if (parseInt(previewPageInput.value) > data.total_pages) {
+                previewPageInput.value = data.total_pages;
+            }
+            
+            // Update File Selection UI Card
+            selectedFilename.textContent = file.name;
+            selectedFilesize.innerHTML = `${(file.size / 1024 / 1024).toFixed(2)} MB &bull; ${data.total_pages} pages`;
+            
+            dropZone.style.display = 'none';
+            fileSelectedCard.style.display = 'block';
+            
+            addLog(`File context ready on server! Total pages: ${data.total_pages}. Loading page preview...`);
+            updateLivePreview();
+        })
+        .catch(err => {
+            addLog(`Error during upload: ${err.message}`, 'system');
+            alert(`Upload failed: ${err.message}`);
+        });
+    }
+
+    // Trigger full conversion
+    applyAllBtn.addEventListener('click', () => {
+        if (!currentTaskId || !uploadFileObject) return;
+        
+        switchView('processing');
+        setProgress(0);
+        consoleLog.innerHTML = '';
+        addLog(`Compiling full document in parallel: ${uploadFileObject.name}...`);
+        
+        const convertFormData = new FormData();
+        convertFormData.append('dpi', dpiSlider.value);
+        convertFormData.append('quality', qualitySlider.value);
+        convertFormData.append('smart_invert', smartInvertCheckbox.checked);
+        convertFormData.append('brightness', brightnessSlider.value);
+        
+        const colorMode = colorModeSelect.value;
+        convertFormData.append('color_mode', colorMode);
+        convertFormData.append('threads', threadsSelect.value);
+        
+        if (colorMode === 'custom' || colorModeSelect.value === 'custom') {
+            const bgRgb = hexToRgb(bgColorPicker.value);
+            const textRgb = hexToRgb(textRgbPicker.value);
+            const sat = customTheme ? customTheme.sat_factor : 0.8;
+            
+            convertFormData.append('custom_bg_r', bgRgb[0]);
+            convertFormData.append('custom_bg_g', bgRgb[1]);
+            convertFormData.append('custom_bg_b', bgRgb[2]);
+            convertFormData.append('custom_text_r', textRgb[0]);
+            convertFormData.append('custom_text_g', textRgb[1]);
+            convertFormData.append('custom_text_b', textRgb[2]);
+            convertFormData.append('custom_sat', sat);
+        }
+        
+        fetch(`/api/convert/${currentTaskId}`, {
+            method: 'POST',
+            body: convertFormData
+        })
+        .then(async res => {
+            if (!res.ok) { const txt = await res.text(); throw new Error(txt || 'Conversion task launch failed.'); }
+            return res.json();
+        })
+        .then(data => {
+            addLog(`Parallel task running on backend! Scheduling status polls...`);
+            pollStatus(currentTaskId, uploadFileObject.name);
+        })
+        .catch(err => {
+            addLog(`Launch Error: ${err.message}`, 'system');
+            statusTitle.textContent = 'Launch Failed';
+            statusDetail.textContent = err.message;
+        });
+    });
+
+    // Handle Reset/Change File button click
+    function resetUploader() {
+        fileInput.value = '';
+        currentTaskId = null;
+        uploadFileObject = null;
+        previewLightImg.src = defaultLightSrc;
+        previewDarkImg.src = defaultDarkSrc;
+        pdfViewerIframe.src = '';
+        pdfViewerContainer.style.display = 'none';
+        
+        fileSelectedCard.style.display = 'none';
+        dropZone.style.display = 'flex';
+        switchView('upload');
+        loadUserHistory(); // Reload history log dashboard
+    }
+
+    changeFileBtn.addEventListener('click', resetUploader);
+    convertAnotherBtn.addEventListener('click', resetUploader);
+
+    // Poll conversion status
+    function pollStatus(taskId, filename) {
+        let pollCount = 0;
+        const maxPolls = 300;
+        const intervalId = setInterval(() => {
+            pollCount++;
+            if (pollCount > maxPolls) {
+                clearInterval(intervalId);
+                addLog("Status polling timed out after 5 minutes.", "system");
+                statusTitle.textContent = 'Timed Out';
+                statusDetail.textContent = 'Server took too long to respond.';
+                return;
+            }
+            fetch(`/api/status/${taskId}`)
+            .then(async res => {
+                if (!res.ok) { const txt = await res.text(); throw new Error(txt || 'Status check failed'); }
+                return res.json();
+            })
+            .then(data => {
+                if (data.status === 'pending') {
+                    statusTitle.textContent = 'Pending in Queue...';
+                    statusDetail.textContent = `Queue position: ${data.queue_position}`;
+                    addLog(`In queue (Position ${data.queue_position}). Please wait...`);
+                }
+                else if (data.status === 'processing') {
+                    statusTitle.textContent = 'Processing PDF...';
+                    statusDetail.textContent = `Rendering and mapping pages in parallel`;
+                    
+                    const progress = data.total > 0 ? (data.progress / data.total) * 100 : 0;
+                    setProgress(progress);
+                    progressPageCount.textContent = `Page ${data.progress} of ${data.total}`;
+                    
+                    if (data.progress > 0) {
+                        addLog(`Processed page ${data.progress}/${data.total}`, 'progress');
+                    }
+                } 
+                else if (data.status === 'completed') {
+                    clearInterval(intervalId);
+                    setProgress(100);
+                    addLog('Document processing complete!', 'progress');
+                    addLog('Finalizing searchable text overlays...');
+                    
+                    // Show success screen
+                    setTimeout(() => {
+                        resFilename.textContent = filename;
+                        resPages.textContent = data.total;
+                        downloadBtn.href = `/api/download-file/${taskId}`;
+                        
+                        const readerBtn = document.getElementById('open-reader-btn');
+                        if (readerBtn) readerBtn.href = `/reader-enhanced?task_id=${taskId}`;
+                        
+                        // Set PDF.js inline viewer iframe source
+                        pdfViewerIframe.src = `/api/download/${taskId}`;
+                        pdfViewerContainer.style.display = 'block';
+                        
+                        switchView('completed');
+                    }, 800);
+                } 
+                else if (data.status === 'failed') {
+                    clearInterval(intervalId);
+                    addLog(`Error during conversion: ${data.error}`, 'system');
+                    statusTitle.textContent = 'Conversion Failed';
+                    statusDetail.textContent = data.error;
+                }
+            })
+            .catch(err => {
+                clearInterval(intervalId);
+                addLog(`Connection error: ${err.message}`, 'system');
+                statusTitle.textContent = 'Connection Lost';
+                statusDetail.textContent = 'Failed to fetch task updates';
+            });
+        }, 1000);
+    }
+
+    // ----------------- User Authentication & Dashboard Logic -----------------
+
+    function updateAuthStateUI() {
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        
+        if (token && username) {
+            authLoggedOut.style.display = 'none';
+            authLoggedIn.style.display = 'inline';
+            authUsername.textContent = username;
+            loadUserHistory();
+        } else {
+            authLoggedOut.style.display = 'inline';
+            authLoggedIn.style.display = 'none';
+            userDashboardPanel.style.display = 'none';
+        }
+    }
+
+    function loadUserHistory() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        fetch('/api/history', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(async res => {
+            if (!res.ok) { const txt = await res.text(); throw new Error(txt || 'Failed to fetch history log'); }
+            return res.json();
+        })
+        .then(data => {
+            historyList.innerHTML = '';
+            historyCount.textContent = `${data.length} files`;
+            
+            if (data.length === 0) {
+                historyList.innerHTML = `<div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No conversions recorded yet.</div>`;
+            } else {
+                data.forEach(item => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.justifyContent = 'space-between';
+                    row.style.background = 'rgba(255, 255, 255, 0.03)';
+                    row.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+                    row.style.borderRadius = '8px';
+                    row.style.padding = '10px 14px';
+                    row.style.fontSize = '0.85rem';
+                    
+                    const dateStr = new Date(item.created_at * 1000).toLocaleDateString();
+                    row.innerHTML = `
+                        <div style="font-weight: 500; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">📄 ${item.filename}</div>
+                        <div style="color: var(--text-secondary);">${item.pages_count} pages &bull; ${dateStr}</div>
+                    `;
+                    historyList.appendChild(row);
+                });
+            }
+            userDashboardPanel.style.display = 'block';
+        })
+        .catch(err => {
+            console.error('History load failed:', err);
+            addLog(`History load failed: ${err.message}`, 'system');
+        });
+    }
+
+    // Modal UI events
+    openLoginBtn.addEventListener('click', () => {
+        authUsernameInput.value = '';
+        authPasswordInput.value = '';
+        isRegisterMode = false;
+        authModalTitle.textContent = '🔑 Sign In';
+        authSubmitBtn.textContent = 'Sign In';
+        authToggleMsg.textContent = "Don't have an account?";
+        authToggleLink.textContent = 'Register here';
+        authModal.style.display = 'flex';
+    });
+
+    closeModalBtn.addEventListener('click', () => {
+        authModal.style.display = 'none';
+    });
+
+    authToggleLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        isRegisterMode = !isRegisterMode;
+        if (isRegisterMode) {
+            authModalTitle.textContent = '📝 Register';
+            authSubmitBtn.textContent = 'Create Account';
+            authToggleMsg.textContent = 'Already have an account?';
+            authToggleLink.textContent = 'Sign in here';
+        } else {
+            authModalTitle.textContent = '🔑 Sign In';
+            authSubmitBtn.textContent = 'Sign In';
+            authToggleMsg.textContent = "Don't have an account?";
+            authToggleLink.textContent = 'Register here';
+        }
+    });
+
+    authSubmitBtn.addEventListener('click', () => {
+        const username = authUsernameInput.value.trim();
+        const password = authPasswordInput.value;
+        
+        if (!username || !password) {
+            alert('Please enter both username and password.');
+            return;
+        }
+        
+        const path = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
+        authSubmitBtn.textContent = 'Verifying...';
+        authSubmitBtn.disabled = true;
+        
+        fetch(path, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        })
+        .then(async res => {
+            if (!res.ok) { const txt = await res.text(); throw new Error(txt || (isRegisterMode ? 'Registration failed.' : 'Invalid credentials.')); }
+            return res.json();
+        })
+        .then(data => {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('username', data.username);
+            authModal.style.display = 'none';
+            authSubmitBtn.disabled = false;
+            updateAuthStateUI();
+        })
+        .catch(err => {
+            authSubmitBtn.disabled = false;
+            authSubmitBtn.textContent = isRegisterMode ? 'Create Account' : 'Sign In';
+            alert(err.message);
+        });
+    });
+
+    logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        updateAuthStateUI();
+    });
+
+    // Initialize Auth UI state on start
+    updateAuthStateUI();
+});

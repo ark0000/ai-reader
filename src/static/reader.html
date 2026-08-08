@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Universal AI Reader</title>
+
+    <!-- Marked for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Mermaid for Diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+
+    <!-- PDF.js Core and Viewer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep:      #0b0d12;
+            --bg-panel:     rgba(13, 17, 24, 0.65);
+            --bg-glass:     rgba(255, 255, 255, 0.03);
+            --bg-glass-hov: rgba(255, 255, 255, 0.06);
+            --border:       rgba(255, 255, 255, 0.06);
+            --border-glow:  rgba(0, 255, 255, 0.4);
+            --accent:       #00e5ff;
+            --accent2:      #b300ff;
+            --accent-grad:  linear-gradient(135deg, #00e5ff 0%, #b300ff 100%);
+            --text-primary: #ffffff;
+            --text-muted:   #94a3b8;
+            --text-dim:     #475569;
+            --gold:         #fbbf24;
+            --success:      #10b981;
+            --glow-cyan:    0 0 25px rgba(0, 229, 255, 0.3);
+            --glow-purple:  0 0 25px rgba(179, 0, 255, 0.3);
+            --radius-lg:    20px;
+            --radius-md:    12px;
+            --radius-sm:    8px;
+            --transition:   all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        * { box-sizing: border-box; }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            display: flex;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-deep);
+            background-image:
+                radial-gradient(ellipse at 20% 20%, rgba(0, 229, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(179, 0, 255, 0.05) 0%, transparent 50%);
+            overflow: hidden;
+            color: var(--text-primary);
+        }
+
+        /* ─── Left Reading Pane ─── */
+        #left-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: radial-gradient(circle at top left, #12151f 0%, #0b0d12 100%);
+            border-right: 1px solid var(--border);
+            transition: padding-right 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* ─── Toolbar ─── */
+        #toolbar {
+            background: rgba(11, 13, 18, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 16px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 10;
+        }
+
+        #doc-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: 0.03em;
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ─── Content Area ─── */
+        #content-container {
+            flex: 1;
+            padding: 2.5rem 2rem;
+            overflow-y: auto;
+            box-sizing: border-box;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(99,179,237,0.25) transparent;
+        }
+
+        #content-container::-webkit-scrollbar { width: 5px; }
+        #content-container::-webkit-scrollbar-track { background: transparent; }
+        #content-container::-webkit-scrollbar-thumb {
+            background: rgba(0,229,255,0.25);
+            border-radius: 10px;
+        }
+
+        /* ─── Markdown Content ─── */
+        .md-content {
+            max-width: 900px;
+            width: 100%;
+            background: rgba(13, 17, 24, 0.5);
+            backdrop-filter: blur(8px);
+            padding: 3rem 4.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            line-height: 1.75;
+            flex-shrink: 0;
+        }
+
+        .md-content h1, .md-content h2, .md-content h3 {
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+        }
+
+        .md-content pre {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(99,179,237,0.15);
+            padding: 18px;
+            border-radius: var(--radius-md);
+            overflow: auto;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .md-content pre:hover {
+            border-color: var(--accent);
+            box-shadow: var(--glow-cyan);
+            background: rgba(0,0,0,0.5);
+        }
+
+        .md-content code {
+            font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+            background: rgba(99, 179, 237, 0.1);
+            color: var(--accent);
+            padding: 0.15em 0.45em;
+            border-radius: 4px;
+            font-size: 0.88em;
+        }
+
+        .md-content pre code { background: transparent; color: #c8d8e8; padding: 0; }
+
+        .md-content table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+        .md-content th, .md-content td {
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            text-align: left;
+        }
+        .md-content th {
+            background: rgba(99,179,237,0.1);
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .md-content tr:hover td { background: var(--bg-glass); }
+
+        .md-content blockquote {
+            border-left: 3px solid var(--accent2);
+            padding: 0.5em 1em;
+            margin: 1em 0;
+            background: rgba(167,139,250,0.06);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            color: var(--text-muted);
+        }
+
+        .md-content img { max-width: 100%; border-radius: var(--radius-md); margin: 10px 0; }
+
+        /* ─── Mermaid ─── */
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 24px 0;
+            background: rgba(0,0,0,0.3);
+            padding: 24px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+        }
+
+        /* ─── PDF Pages ─── */
+        .pdf-page-wrapper {
+            position: relative;
+            margin-bottom: 24px;
+            border-radius: var(--radius-md);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px var(--border);
+            overflow: hidden;
+            animation: pageIn 0.4s ease both;
+            flex-shrink: 0;
+        }
+
+        @keyframes pageIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .textLayer {
+            position: absolute;
+            left: 0; top: 0; right: 0; bottom: 0;
+            overflow: hidden;
+            opacity: 0.2;
+            line-height: 1.0;
+        }
+
+        .textLayer > span {
+            color: transparent;
+            position: absolute;
+            white-space: pre;
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
+
+        /* ─── Buttons ─── */
+        .btn {
+            background: var(--accent-grad);
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: inherit;
+            letter-spacing: 0.02em;
+            transition: var(--transition);
+            box-shadow: 0 2px 12px rgba(0,229,255,0.25);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0));
+            pointer-events: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(0,229,255,0.4);
+        }
+
+        .btn:active { transform: translateY(0); }
+
+        /* ─── AI Panel ─── */
+        #ai-panel {
+            width: 400px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-shadow: -10px 0 40px rgba(0,0,0,0.6);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position: fixed;
+            right: 0; top: 0;
+            z-index: 500;
+        }
+
+        #ai-panel.hidden { transform: translateX(100%); }
+
+        /* ─── AI Header ─── */
+        #ai-header {
+            background: linear-gradient(135deg, rgba(0,229,255,0.15) 0%, rgba(179,0,255,0.15) 100%);
+            border-bottom: 1px solid var(--border-glow);
+            color: var(--text-primary);
+            padding: 16px 20px;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        #ai-header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: var(--accent-grad);
+            opacity: 0.6;
+        }
+
+        #ai-header span:first-child {
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #close-panel-btn {
+            opacity: 0.6;
+            transition: var(--transition);
+            font-size: 1.2rem;
+            line-height: 1;
+            width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            background: transparent;
+        }
+
+        #close-panel-btn:hover {
+            opacity: 1;
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* ─── Toggle Chat Button ─── */
+        #toggle-panel-btn {
+            position: fixed;
+            right: 20px;
+            bottom: 24px;
+            background: var(--accent-grad);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 54px;
+            height: 54px;
+            font-size: 22px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,229,255,0.4), 0 0 0 0 rgba(0,229,255,0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+
+        @keyframes pulseRing {
+            0%   { box-shadow: 0 4px 20px rgba(0,229,255,0.4), 0 0 0 0 rgba(0,229,255,0.25); }
+            70%  { box-shadow: 0 4px 20px rgba(0,229,255,0.4), 0 0 0 14px rgba(0,229,255,0); }
+            100% { box-shadow: 0 4px 20px rgba(0,229,255,0.4), 0 0 0 0 rgba(0,229,255,0); }
+        }
+
+        #toggle-panel-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 28px rgba(0,229,255,0.6);
+        }
+
+        /* ─── Config Panel ─── */
+        .config-container {
+            padding: 14px 16px;
+            background: rgba(0,0,0,0.25);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            color: var(--text-muted);
+        }
+
+        .config-container label { font-weight: 500; color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .config-container input,
+        .config-container select {
+            width: 100%;
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .config-container input:focus,
+        .config-container select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(0,229,255,0.2);
+            background: rgba(0,229,255,0.07);
+        }
+
+        .config-container select option { background: #1a1f2e; color: var(--text-primary); }
+
+        /* ─── Chat Window ─── */
+        #chat-window {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: transparent;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(99,179,237,0.2) transparent;
+        }
+
+        #chat-window::-webkit-scrollbar { width: 4px; }
+        #chat-window::-webkit-scrollbar-thumb { background: rgba(99,179,237,0.25); border-radius: 10px; }
+
+        /* ─── Messages ─── */
+        .message {
+            padding: 11px 14px;
+            border-radius: var(--radius-md);
+            max-width: 92%;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            word-wrap: break-word;
+            animation: msgIn 0.2s ease both;
+        }
+
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(8px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .msg-user {
+            background: linear-gradient(135deg, rgba(0,229,255,0.15) 0%, rgba(0,229,255,0.05) 100%);
+            color: #d6fbff;
+            align-self: flex-end;
+            border: 1px solid rgba(0,229,255,0.25);
+            border-bottom-right-radius: 3px;
+        }
+
+        .msg-ai {
+            background: rgba(255,255,255,0.04);
+            color: var(--text-primary);
+            align-self: flex-start;
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 3px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .msg-dict {
+            background: linear-gradient(135deg, rgba(246,201,14,0.12) 0%, rgba(246,201,14,0.06) 100%);
+            color: #f6d97b;
+            align-self: flex-start;
+            border: 1px solid rgba(246,201,14,0.2);
+            border-bottom-left-radius: 3px;
+        }
+
+        /* ─── Input Area ─── */
+        #input-container {
+            padding: 14px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #chat-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            resize: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.875rem;
+            outline: none;
+            transition: var(--transition);
+            line-height: 1.5;
+        }
+
+        #chat-input:focus {
+            border-color: var(--accent);
+            background: rgba(0,229,255,0.07);
+            box-shadow: 0 0 0 2px rgba(0,229,255,0.12);
+        }
+
+        #chat-input::placeholder { color: var(--text-dim); }
+
+        /* ─── Popup Selection Menu ─── */
+        .popup-menu {
+            position: fixed;
+            background: rgba(15, 18, 28, 0.96);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-glow);
+            border-radius: var(--radius-md);
+            display: none;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6), var(--glow-blue);
+            z-index: 2000;
+            overflow: hidden;
+            flex-direction: column;
+            animation: popIn 0.15s ease both;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.92) translateY(-4px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .popup-menu button {
+            background: none;
+            border: none;
+            padding: 10px 16px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 0.82rem;
+            font-family: inherit;
+            font-weight: 500;
+            color: var(--text-primary);
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .popup-menu button:hover {
+            background: var(--bg-glass-hov);
+            color: white;
+        }
+
+        .popup-menu button.dict-btn {
+            border-top: 1px solid var(--border);
+            color: var(--gold);
+        }
+
+        .popup-menu button.dict-btn:hover { background: rgba(246,201,14,0.08); }
+
+        .popup-menu button.search-btn {
+            border-top: 1px solid var(--border);
+            color: var(--success);
+        }
+
+        .popup-menu button.search-btn:hover { background: rgba(72,187,120,0.08); }
+
+        /* ─── Welcome Splash ─── */
+        .welcome-splash {
+            text-align: center;
+            margin-top: 12vh;
+            padding: 60px 50px;
+            background: rgba(13, 17, 24, 0.5);
+            backdrop-filter: blur(24px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+            max-width: 600px;
+            animation: splashIn 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) both;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .welcome-splash::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(ellipse at center, rgba(0,229,255,0.05) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        @keyframes splashIn {
+            from { opacity: 0; transform: translateY(30px) scale(0.96); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .welcome-splash h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .welcome-splash p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .upload-big-btn {
+            background: var(--accent-grad);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            border-radius: 30px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(0,229,255,0.3);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.03em;
+        }
+
+        .upload-big-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .upload-big-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(99,179,237,0.5); }
+        .upload-big-btn:hover::before { left: 100%; }
+        .upload-big-btn:active { transform: translateY(0); }
+
+        /* ─── Config HR ─── */
+        .config-container hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+    </style>
+
+</head>
+
+<body>
+    <div id="left-pane">
+        <div id="toolbar">
+            <span id="doc-title" style="font-weight: bold; font-size: 1.2rem;">Universal AI Reader</span>
+            <div>
+                <input type="file" id="file-upload" accept=".md,.txt,.pdf" style="display:none;">
+                <button class="btn" onclick="document.getElementById('file-upload').click()">📁 Open Document</button>
+            </div>
+        </div>
+        <div id="content-container">
+            <div class="welcome-splash">
+                <h1>📚 Universal AI Reader</h1>
+                <p>Welcome to your personal AI study environment! To get started, upload any <strong>PDF, Markdown, or
+                        Text file</strong> from your computer. <br><br>Once loaded, you can highlight text to get
+                    instant dictionary definitions, Google searches, and AI explanations completely securely.</p>
+                <button class="upload-big-btn" onclick="document.getElementById('file-upload').click()">Choose File to
+                    Read</button>
+            </div>
+        </div>
+    </div>
+
+    <button id="toggle-panel-btn">💬</button>
+
+    <div id="ai-panel">
+        <div id="ai-header">
+            <span><span class="ai-icon">✦</span> AI Assistant</span>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="settings-btn" style="cursor:pointer; font-size: 18px; opacity: 0.6; transition: 0.3s;" title="Settings">⚙️</span>
+                <span id="close-panel-btn" style="cursor:pointer; font-size: 20px;">&times;</span>
+            </div>
+        </div>
+        <div class="config-container" id="config-panel" style="display: none;">
+            <label><strong>Local LLM Endpoint:</strong></label>
+            <input type="text" id="api-endpoint" value="http://localhost:11434/v1/chat/completions">
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="rag-enabled-cb" style="width: auto;">
+                <label for="rag-enabled-cb" style="cursor: pointer;">Search Entire Document (RAG)</label>
+            </div>
+            <hr style="width: 100%; border: 0.5px solid var(--border); margin: 8px 0;">
+            <label><strong>Dictionary Mode:</strong></label>
+            <select id="dict-provider">
+                <option value="online">Online English Dictionary</option>
+                <option selected value="offline">Offline ML & API Glossary</option>
+            </select>
+        </div>
+        <div id="chat-window">
+            <div class="message msg-ai">
+                <span class="ai-icon">✦</span> <strong>AI Assistant Ready!</strong> — Powered by your backend server (no API key needed).
+                <br><br>📄 Highlight any text in your document to <strong>Explain Concept</strong>, look up definitions, or search the web.
+                <br><br>💬 Or type any question below about software engineering, design patterns, algorithms, or the document you're reading.
+            </div>
+        </div>
+        <div id="input-container">
+            <textarea id="chat-input" rows="3" placeholder="Ask a question about this document..."></textarea>
+            <button class="btn" id="ask-btn">Ask AI</button>
+        </div>
+    </div>
+
+    <div id="popup-menu" class="popup-menu">
+        <button id="explain-btn"><span class="ai-icon">✦</span> Explain Concept (AI)</button>
+        <button id="dict-btn" class="dict-btn">📖 Define Word (Dictionary)</button>
+        <button id="search-btn" class="search-btn">🌐 Search Web (Google)</button>
+    </div>
+
+    <script>
+        const panel = document.getElementById('ai-panel');
+        const leftPane = document.getElementById('left-pane');
+        const toggleBtn = document.getElementById('toggle-panel-btn');
+        const closeBtn = document.getElementById('close-panel-btn');
+        const dictProviderSelect = document.getElementById('dict-provider');
+        const endpointInput = document.getElementById('api-endpoint');
+        const ragEnabledCb = document.getElementById('rag-enabled-cb');
+        const chatWindow = document.getElementById('chat-window');
+        const chatInput = document.getElementById('chat-input');
+        const askBtn = document.getElementById('ask-btn');
+        const popupMenu = document.getElementById('popup-menu');
+        const explainBtn = document.getElementById('explain-btn');
+        const dictBtn = document.getElementById('dict-btn');
+        const searchBtn = document.getElementById('search-btn');
+        const fileUpload = document.getElementById('file-upload');
+        const contentContainer = document.getElementById('content-container');
+        const docTitle = document.getElementById('doc-title');
+        
+        const settingsBtn = document.getElementById('settings-btn');
+        const configPanel = document.getElementById('config-panel');
+
+        settingsBtn.addEventListener('click', () => {
+            if (configPanel.style.display === 'none') {
+                configPanel.style.display = 'flex';
+                settingsBtn.style.opacity = '1';
+                settingsBtn.style.transform = 'rotate(90deg)';
+            } else {
+                configPanel.style.display = 'none';
+                settingsBtn.style.opacity = '0.6';
+                settingsBtn.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        let selectedText = "";
+
+        mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+
+        async function renderMermaidDiagrams() {
+            const mermaidBlocks = document.querySelectorAll('code.language-mermaid, code.mermaid');
+            mermaidBlocks.forEach((el) => {
+                const pre = el.parentElement;
+                if (pre && pre.tagName === 'PRE') {
+                    const div = document.createElement('div');
+                    div.className = 'mermaid';
+                    div.textContent = el.textContent;
+                    pre.parentNode.replaceChild(div, pre);
+                }
+            });
+            try { await mermaid.run({ nodes: document.querySelectorAll('.mermaid'), }); }
+            catch (err) { console.error("Mermaid error:", err); }
+        }
+
+        async function loadPdfFromArrayBuffer(arrayBuffer) {
+            try {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+
+                contentContainer.innerHTML = '<p style="background: rgba(99,179,237,0.12); color: #63b3ed; padding: 10px 16px; border-radius: 8px; border: 1px solid rgba(99,179,237,0.25); font-weight: 600; font-size: 0.85rem; width: 100%; max-width: 900px; margin-top: 12px; letter-spacing:0.02em;">✅ PDF Loaded — ' + pdf.numPages + ' page' + (pdf.numPages !== 1 ? 's' : '') + ' in Visual Graphics Mode</p>';
+
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const scale = 1.5;
+                    const viewport = page.getViewport({ scale });
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'pdf-page-wrapper';
+                    wrapper.style.width = viewport.width + 'px';
+                    wrapper.style.height = viewport.height + 'px';
+                    // White background is essential so PDF content renders correctly
+                    wrapper.style.background = '#ffffff';
+
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    canvas.style.display = 'block';
+
+                    // Fill canvas white before rendering so transparent PDF areas aren't dark
+                    context.fillStyle = '#ffffff';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+
+                    wrapper.appendChild(canvas);
+
+                    const textLayerDiv = document.createElement('div');
+                    textLayerDiv.className = 'textLayer';
+                    textLayerDiv.style.width = viewport.width + 'px';
+                    textLayerDiv.style.height = viewport.height + 'px';
+                    textLayerDiv.style.setProperty('--scale-factor', scale);
+                    wrapper.appendChild(textLayerDiv);
+
+                    contentContainer.appendChild(wrapper);
+
+                    const renderContext = { canvasContext: context, viewport: viewport };
+                    await page.render(renderContext).promise;
+
+                    const textContent = await page.getTextContent();
+                    pdfjsLib.renderTextLayer({
+                        textContentSource: textContent,
+                        container: textLayerDiv,
+                        viewport: viewport,
+                        textDivs: []
+                    });
+                }
+            } catch (err) {
+                contentContainer.innerHTML = '<h2 style="color: #fc8181; padding: 2rem;">❌ Error reading PDF: ' + err.message + '</h2>';
+            }
+        }
+
+        // Use addEventListener('load') so this cannot be overwritten by other code
+        window.addEventListener('load', async function() {
+            renderMermaidDiagrams();
+
+            const params = new URLSearchParams(window.location.search);
+            const taskId = params.get('task_id');
+            console.log('[AI Reader] task_id from URL:', taskId);
+            if (!taskId) return; // No task_id means normal manual upload mode
+
+            // Show a loading spinner while we fetch the PDF from the backend
+            contentContainer.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; gap:20px;">
+                    <div style="width:60px; height:60px; border:6px solid #e8f0fe; border-top-color:#1a73e8; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+                    <p style="color:#1a73e8; font-size:1.1rem; font-weight:600;">Loading your converted PDF...</p>
+                </div>
+                <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+            `;
+
+            // Wait up to 5s for pdfjsLib to be ready (CDN latency guard)
+            let waited = 0;
+            while (typeof pdfjsLib === 'undefined' && waited < 5000) {
+                await new Promise(r => setTimeout(r, 100));
+                waited += 100;
+            }
+            console.log('[AI Reader] pdfjsLib available:', typeof pdfjsLib !== 'undefined');
+            if (typeof pdfjsLib === 'undefined') {
+                contentContainer.innerHTML = '<h2 style="color:red; padding:2rem;">❌ PDF.js library failed to load. Check your internet connection and refresh.</h2>';
+                return;
+            }
+
+            try {
+                console.log('[AI Reader] Fetching PDF from /api/download/' + taskId);
+                const res = await fetch(`/api/download/${taskId}`);
+                console.log('[AI Reader] Response status:', res.status, res.ok);
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.detail || `Server returned ${res.status}`);
+                }
+                const arrayBuffer = await res.arrayBuffer();
+                console.log('[AI Reader] Got arrayBuffer, bytes:', arrayBuffer.byteLength);
+                docTitle.innerText = 'Dark_Mode_Converted.pdf';
+                await loadPdfFromArrayBuffer(arrayBuffer);
+            } catch(e) {
+                console.error('[AI Reader] Error:', e);
+                contentContainer.innerHTML = `<div style="padding:2rem;"><h2 style="color:red;">❌ Failed to load PDF</h2><p style="color:#555;">${e.message}</p><p>Please go back and try converting the file again.</p></div>`;
+            }
+        });
+
+        const offlineDictionary = {
+            "zenml": "[ZenML] An open-source MLOps framework used to build reproducible and cacheable ML pipelines.",
+            "pipeline": "[ZenML] @pipeline decorator. Connects multiple steps into a Directed Acyclic Graph (DAG).",
+            "step": "[ZenML] @step decorator. Turns a Python function into a cacheable ML pipeline node.",
+            "client": "[ZenML] Client(). Provides access to the ZenML server, allowing you to fetch models, pipelines.",
+            "model": "[ZenML] Model(name=...). Defines a ZenML Model instance to track artifacts and metadata.",
+            "get_step_context": "[ZenML] Returns the context of the currently executing step.",
+            "log_metadata": "[ZenML] Function to log key-value pairs (like accuracy, epoch) to the ZenML dashboard.",
+            "artifact_config": "[ZenML] Configuration to define how step outputs are saved and versioned.",
+            "pymongo": "[PyMongo] The official Python driver for MongoDB.",
+            "mongoclient": "[PyMongo] MongoClient(uri). Connects to a MongoDB server cluster.",
+            "insert_one": "[PyMongo] Collection.insert_one(document). Inserts a single document.",
+            "insert_many": "[PyMongo] Collection.insert_many(documents). Inserts multiple documents efficiently.",
+            "find": "[PyMongo] Collection.find(query). Returns a cursor to iterate over matching documents.",
+            "find_one": "[PyMongo] Collection.find_one(query). Returns the first matching document.",
+            "update_one": "[PyMongo] Collection.update_one(filter, update). Modifies a single document.",
+            "replace_one": "[PyMongo] Collection.replace_one(filter, replacement). Replaces an entire document.",
+            "delete_one": "[PyMongo] Collection.delete_one(filter). Removes a single document matching the filter.",
+            "delete_many": "[PyMongo] Collection.delete_many(filter). Removes all documents matching the filter.",
+            "create_index": "[PyMongo] Collection.create_index(keys). Creates an index on the specified fields.",
+            "cursor": "[PyMongo] An iterable object returned by .find() containing the query results.",
+            "qdrant": "[Qdrant] A high-performance vector database optimized for storing high-dimensional embeddings.",
+            "qdrantclient": "[Qdrant] QdrantClient(url, api_key). The main client used to connect to the Qdrant server.",
+            "upsert": "[Qdrant] Client.upsert(collection_name, points). Inserts or updates vectors in a collection.",
+            "search": "[Qdrant] Client.search(collection_name, query_vector, limit). Performs a vector similarity search.",
+            "pointstruct": "[Qdrant] models.PointStruct(id, vector, payload). Defines a single vector point to be stored.",
+            "vectorparams": "[Qdrant] models.VectorParams(size, distance). Defines the configuration for a collection's vectors.",
+            "distance": "[Qdrant] models.Distance.COSINE. Enum for the distance metric used to compare vectors.",
+            "create_collection": "[Qdrant] Client.create_collection(name, vectors_config). Creates a new vector index space.",
+            "collection_exists": "[Qdrant] Client.collection_exists(name). Checks if a collection is already created.",
+            "pydantic": "[Pydantic] A Python validation library enforcing type hints at runtime to prevent data corruption.",
+            "basemodel": "[Pydantic] The core base class used to define schemas and domain models.",
+            "basesettings": "[Pydantic] A class that automatically reads and validates configurations from environment variables.",
+            "model_dump": "[Pydantic] BaseModel.model_dump(). Converts a Pydantic model into a standard Python dictionary.",
+            "model_dump_json": "[Pydantic] BaseModel.model_dump_json(). Converts a Pydantic model into a JSON string.",
+            "field": "[Pydantic] Field(default, ...). Used to define extra validation, descriptions, or default factories.",
+            "validator": "[Pydantic] @validator decorator. Used to add custom logic to fields.",
+            "model_validate": "[Pydantic] BaseModel.model_validate(obj). Validates a dictionary against the model schema.",
+            "sentencetransformers": "[SentenceTransformers] Library to load pre-trained transformer models for text embeddings.",
+            "encode": "[SentenceTransformers] model.encode(sentences). Converts text into mathematical vectors.",
+            "crossencoder": "[SentenceTransformers] A reranking model that takes a query-document pair and scores their relevance.",
+            "predict": "[SentenceTransformers] cross_encoder.predict([query, doc]). Generates a similarity score for reranking.",
+            "fastapi": "[FastAPI] A modern, fast Python web framework for building REST APIs. Uses Pydantic for validation.",
+            "uvicorn": "[Uvicorn] An ASGI web server implementation for Python, used to run FastAPI applications.",
+            "api_router": "[FastAPI] APIRouter(). Used to group related API endpoints together.",
+            "get": "[FastAPI] @app.get('/path'). Decorator to define a GET request handler.",
+            "post": "[FastAPI] @app.post('/path'). Decorator to define a POST request handler.",
+            "httpexception": "[FastAPI] HTTPException(status_code, detail). Exception raised to return a specific HTTP error.",
+            "beautifulsoup": "[bs4] BeautifulSoup(html, 'html.parser'). Library for parsing and extracting data from static HTML/XML.",
+            "html2text": "Library that converts structural HTML (like h1, ul) into token-efficient Markdown.",
+            "selenium": "A tool that controls a real web browser to scrape dynamic, JavaScript-heavy web pages.",
+            "webdriver": "[Selenium] webdriver.Chrome(). The object that controls the browser instance.",
+            "sagemaker": "AWS cloud service for training and deploying machine learning models on GPUs.",
+            "boto3": "The Amazon Web Services (AWS) SDK for Python.",
+            "rag": "Retrieval-Augmented Generation. Enhances AI by fetching external facts before generating an answer.",
+            "llm": "Large Language Model. An AI model (GPT-4, Gemini) trained on vast text data.",
+            "embedding": "A dense mathematical vector representing text. Similar concepts map to nearby points in space.",
+            "chunking": "Splitting large documents into smaller pieces to fit inside an LLM's context window.",
+            "singleton": "A design pattern ensuring a class (e.g., a heavy ML model) is instantiated exactly once in memory.",
+            "lora": "Low-Rank Adaptation. A technique to fine-tune LLMs efficiently by updating only a tiny fraction of weights.",
+            "dpo": "Direct Preference Optimization. An algorithm that aligns LLMs by teaching them to prefer chosen responses.",
+            "metaclass": "The 'class of a class'. Used in this project to implement thread-safe Singleton patterns.",
+            "typevar": "Used to define Generics in Python. Allows classes to operate on unspecified types safely.",
+            "generic": "A class that can work with any data type while maintaining type safety (e.g., DataHandler[T]).",
+            "classmethod": "A method that takes 'cls' instead of 'self'. Used as alternative constructors.",
+            "staticmethod": "A method that belongs to a class logically but takes neither 'self' nor 'cls'. A pure function.",
+            "property": "A method decorated with @property that is accessed like an attribute.",
+            "yield": "A keyword that turns a function into a Generator, returning values one at a time to save memory.",
+            "async": "Allows Python to release the thread while waiting for I/O (like DB calls), serving other requests concurrently.",
+            "await": "Pauses an async function until the awaited task (e.g., a database query) finishes.",
+            "abc": "Abstract Base Class. Enforces a contract requiring subclasses to implement specific methods.",
+            "abstractmethod": "A decorator inside an ABC. Subclasses must implement this method or Python throws an error."
+        };
+
+        function togglePanel() {
+            panel.classList.toggle('hidden');
+            if (panel.classList.contains('hidden')) { leftPane.style.paddingRight = "0"; }
+            else { leftPane.style.paddingRight = "400px"; }
+        }
+        toggleBtn.addEventListener('click', togglePanel);
+        closeBtn.addEventListener('click', togglePanel);
+
+
+
+        function addMessage(text, type = 'ai') {
+            const msg = document.createElement('div');
+            let className = 'message ';
+            if (type === 'user') className += 'msg-user';
+            else if (type === 'dict') className += 'msg-dict';
+            else className += 'msg-ai';
+
+            msg.className = className;
+            let formattedText = text.replace(/```(.*?)```/gs, '<pre style="margin: 5px 0;"><code>$1</code></pre>');
+            formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            formattedText = formattedText.replace(/\n/g, '<br>');
+            msg.innerHTML = formattedText;
+            chatWindow.appendChild(msg);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            bindCodeBlocks();
+        }
+
+        async function askAI(prompt) {
+            const endpoint = endpointInput.value.trim();
+            const isRagEnabled = ragEnabledCb.checked;
+
+            if (panel.classList.contains('hidden')) togglePanel();
+            addMessage(prompt, 'user');
+            chatInput.value = '';
+
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'message msg-ai';
+            loadingMsg.innerText = '⏳ Thinking...';
+            chatWindow.appendChild(loadingMsg);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const taskId = params.get('task_id') || "";
+                
+                const res = await fetch('/api/local_chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        local_endpoint: endpoint,
+                        prompt: prompt,
+                        rag_enabled: isRagEnabled,
+                        task_id: taskId
+                    })
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(errText || `Server returned ${res.status}`);
+                }
+
+                const data = await res.json();
+                chatWindow.removeChild(loadingMsg);
+                addMessage(data.response, 'ai');
+            } catch (err) {
+                chatWindow.removeChild(loadingMsg);
+                addMessage('❌ ' + err.message, 'ai');
+                console.error('[AI Reader] askAI error:', err);
+            }
+        }
+
+        async function fetchDictionary(word) {
+            if (panel.classList.contains('hidden')) togglePanel();
+            addMessage("Lookup: " + word, 'user');
+
+            let cleanWord = word.toLowerCase().trim();
+            cleanWord = cleanWord.replace(/\(\)|\.|\(|\)/g, '');
+
+            const dictMode = dictProviderSelect.value;
+            if (dictMode === 'offline') {
+                if (offlineDictionary[cleanWord]) {
+                    addMessage(`📖 **${cleanWord}** (Offline API Doc): ${offlineDictionary[cleanWord]}`, 'dict');
+                } else {
+                    addMessage(`Word '${cleanWord}' not found in the offline API Dictionary. Switch to Online Dictionary, ask the AI, or use the Web Search.`, 'dict');
+                }
+                return;
+            }
+
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'message msg-dict';
+            loadingMsg.innerText = 'Searching...';
+            chatWindow.appendChild(loadingMsg);
+
+            try {
+                const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + cleanWord);
+                chatWindow.removeChild(loadingMsg);
+                if (!res.ok) { addMessage("No online dictionary definition found.", 'dict'); return; }
+                const data = await res.json();
+                const meaning = data[0].meanings[0].definitions[0].definition;
+                addMessage(`📖 **${data[0].word}**: ${meaning}`, 'dict');
+            } catch (err) {
+                chatWindow.removeChild(loadingMsg);
+                addMessage("Dictionary Error: " + err.message, 'dict');
+            }
+        }
+
+        askBtn.addEventListener('click', () => { if (chatInput.value.trim()) askAI(chatInput.value); });
+
+        function bindCodeBlocks() {
+            document.querySelectorAll('pre').forEach(block => {
+                if (!block.dataset.bound && !block.querySelector('.language-mermaid') && !block.classList.contains('mermaid')) {
+                    block.addEventListener('click', () => { askAI("Please explain this code block:\n\n```\n" + block.innerText + "\n```"); });
+                    block.dataset.bound = 'true';
+                }
+            });
+        }
+
+        document.addEventListener('mouseup', (e) => {
+            const text = window.getSelection().toString().trim();
+            if (text.length > 0 && e.target.id !== 'chat-input') {
+                selectedText = text;
+                popupMenu.style.display = 'flex';
+                popupMenu.style.left = e.pageX + 'px';
+                popupMenu.style.top = (e.pageY + 10) + 'px';
+            } else {
+                setTimeout(() => popupMenu.style.display = 'none', 100);
+            }
+        });
+
+        explainBtn.addEventListener('click', () => { askAI("Explain this text:\n\n" + selectedText); popupMenu.style.display = 'none'; });
+        dictBtn.addEventListener('click', () => { fetchDictionary(selectedText); popupMenu.style.display = 'none'; });
+        searchBtn.addEventListener('click', () => {
+            const query = encodeURIComponent(selectedText.trim());
+            window.open('https://www.google.com/search?q=' + query, '_blank');
+            popupMenu.style.display = 'none';
+        });
+
+        fileUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            docTitle.innerText = file.name;
+            contentContainer.innerHTML = '<h2 style="color: #1a73e8; margin-top: 30px;">Loading document, please wait...</h2>';
+
+            if (ext === 'md' || ext === 'txt') {
+                const text = await file.text();
+                contentContainer.innerHTML = '<div class="md-content">' + ((ext === 'md') ? marked.parse(text) : '<pre style="white-space: pre-wrap;">' + text + '</pre>') + '</div>';
+
+                renderMermaidDiagrams();
+                bindCodeBlocks();
+
+            } else if (ext === 'pdf') {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    await loadPdfFromArrayBuffer(arrayBuffer);
+                } catch (err) {
+                    contentContainer.innerHTML = '<h2 style="color: red;">Error reading PDF: ' + err.message + '</h2>';
+                }
+            } else {
+                contentContainer.innerHTML = '<h2 style="color: red;">Unsupported file type.</h2>';
+            }
+        });
+
+        leftPane.style.paddingRight = "400px";
+    </script>
+
+</body>
+
+</html>

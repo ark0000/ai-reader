@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+.env.*
+
+# Application specifics
+*.db
+*.sqlite
+*.sqlite3
+chroma_db/
+temp/
+src/temp/
+src/chroma_db/
+src/database.db
+*.pdf
+*.jpg
+*.png
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/*.dylib
+src-tauri/*.so
+src-tauri/*.dll
+src-tauri/*.a
+src-tauri/*.dSYM
+src-tauri/*.pdb
+
+# Build scripts
+C:/temp/pyi_build
+C:/temp/pyi_dist

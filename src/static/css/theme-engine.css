@@ -1,0 +1,296 @@
+/* THEME VARIABLES (COLORS & TYPOGRAPHY) */
+:root {
+  /* Typography & Spacing Scale */
+  --font-base: 'Inter', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --size-xs: 12px;
+  --size-sm: 14px;
+  --size-md: 15px;
+  /* Or 16px as requested */
+  --size-lg: 18px;
+
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --r-sm: 10px;
+  --radius: 10px;
+
+  --accent: #6c63ff;
+  --accent-hover: #5a52d5;
+  --accent-grad: linear-gradient(135deg, #6c63ff, #8b5cf6);
+  --ai-grad: linear-gradient(135deg, #4f46e5, #9333ea, #db2777);
+  --ai-glow: color-mix(in srgb, #9333ea 40%, transparent);
+  --accent2: #805ad5;
+  --gold: #d69e2e;
+  --success: #38a169;
+  --danger: #e53e3e;
+  --bg-body: #f7fafc;
+  --bg-pane: #ffffff;
+  --bg-toolbar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-overlay: rgba(255, 255, 255, 0.96);
+  --bg-input: rgba(0, 0, 0, 0.04);
+  --border: #e2e8f0;
+  --border-hi: #cbd5e0;
+  --border-glow: rgba(49, 130, 206, 0.3);
+  --text-1: #2d3748;
+  --text-2: #718096;
+  --text-3: #a0aec0;
+  --reader-font: 'Inter', sans-serif;
+  --reader-size: 16px;
+  --reader-lh: 1.75;
+  --reader-brightness: 1;
+  --reader-width: 900px;
+  --radius: 8px;
+  --r-sm: 4px;
+  --t: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
+  --accent-grad: linear-gradient(135deg, var(--accent), var(--accent2));
+}
+
+body.th-light {
+  --bg-body: #f0f2f5;
+  --bg-pane: #ffffff;
+  --bg-toolbar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-panel: #f5f7fa;
+  --bg-overlay: rgba(245, 247, 250, 0.97);
+  --bg-input: rgba(0, 0, 0, 0.04);
+  --border: #e2e8f0;
+  --border-hi: #cbd5e0;
+  --border-glow: rgba(49, 130, 206, 0.25);
+  --text-1: #1a202c;
+  --text-2: #4a5568;
+  --text-3: #718096;
+}
+
+body.th-dark {
+  --bg-body: #0f1115;
+  --bg-pane: #171923;
+  --bg-toolbar: #171923;
+  --bg-card: #171923;
+  --bg-panel: #171923;
+  --bg-overlay: rgba(15, 17, 21, 0.97);
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --border: #2a2f3a;
+  --border-hi: #3a3f4a;
+  --border-glow: rgba(99, 179, 237, 0.3);
+  --text-1: #f3f4f6;
+  --text-2: #9ca3af;
+  --text-3: #6b7280;
+}
+
+body.th-sepia {
+  --bg-body: #f4ecd8;
+  --bg-pane: #fdf6e3;
+  --bg-toolbar: #fdf6e3;
+  --bg-card: #fdf6e3;
+  --bg-panel: #eee8d5;
+  --bg-overlay: rgba(238, 232, 213, 0.97);
+  --bg-input: rgba(92, 75, 55, 0.08);
+  --border: #e6dcbc;
+  --border-hi: #d5c4a1;
+  --border-glow: rgba(214, 158, 46, 0.3);
+  --text-1: #5c4b37;
+  --text-2: #7b6851;
+  --text-3: #998771;
+}
+
+body.th-night {
+  /* Night theme overrides */
+  --font-base: 'Lato', 'DMSans', 'Helvetica Neue', Helvetica, sans-serif;
+  --bg-body: #000000;
+  --bg-pane: #111111;
+  --bg-toolbar: #000000;
+  --bg-card: #111111;
+  --bg-panel: #111111;
+  --bg-overlay: rgba(0, 0, 0, 0.97);
+  --bg-input: #4a4e58;
+  --border: #4a4e58;
+  --border-hi: #59595b;
+  --border-glow: rgba(255, 94, 0, 0.3);
+  --text-1: #ffffff;
+  --text-2: #a0a0a0;
+  --text-3: #59595b;
+  --accent: #ff5e00;
+  --accent-hover: #e05300;
+  --accent-grad: linear-gradient(135deg, #ff5e00, #2abdbb);
+  --radius: 8px;
+  --r-sm: 4px;
+}
+
+/* Smooth theme transitions — NO filter/will-change to preserve font quality */
+body {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Brightness uses opacity approach — no filter that degrades text rendering */
+#doc-pane {
+  transition: opacity 0.3s ease;
+  opacity: var(--reader-brightness, 1);
+}
+
+/* Hardware accelerated PDF theme inversion */
+body.th-sepia .pdf-page-wrapper {
+  filter: sepia(1);
+  transition: filter 0.4s ease;
+}
+
+body.th-dark .pdf-page-wrapper {
+  /* Seamless immersive dark mode integration without visible page borders */
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  filter: none !important;
+  transition: background-color 0.4s ease;
+}
+
+body.th-dark .pdf-page-wrapper canvas {
+  filter: invert(1) hue-rotate(180deg) contrast(1.1) brightness(1.1) !important;
+  mix-blend-mode: screen;
+}
+
+body.th-night .pdf-page-wrapper {
+  /* Softer invert to avoid glaring pure white on pure black which causes halation/eye-strain */
+  filter: invert(0.9) hue-rotate(180deg) contrast(0.9) brightness(1.1);
+  transition: filter 0.4s ease;
+}
+
+body.th-dark .pdf-page-wrapper mark.hl,
+body.th-night .pdf-page-wrapper mark.hl {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Custom Curated Themes PDF Blending */
+#doc-pane.th-custom-light .pdf-page-wrapper {
+  background: var(--bg-pane) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.1) !important;
+  transition: background-color 0.4s ease;
+  filter: none !important;
+}
+
+#doc-pane.th-custom-dark .pdf-page-wrapper {
+  background: var(--bg-pane) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08) !important;
+  transition: background-color 0.4s ease;
+  filter: none !important;
+}
+
+#doc-pane.th-custom-light .pdf-page-wrapper canvas {
+  mix-blend-mode: multiply;
+  filter: none !important;
+}
+
+#doc-pane.th-custom-dark .pdf-page-wrapper canvas {
+  filter: invert(1) hue-rotate(180deg) !important;
+  mix-blend-mode: screen;
+}
+
+/* Preserve Font Quality Algos */
+#doc-pane.th-custom-dark .algo-smart-contrast .pdf-page-wrapper canvas {
+  filter: invert(1) hue-rotate(180deg) contrast(1.15) brightness(1.1);
+}
+
+#doc-pane.th-custom-dark .algo-thicker .pdf-page-wrapper canvas {
+  filter: invert(1) hue-rotate(180deg) contrast(1.2) saturate(1.1) brightness(1.05);
+}
+
+#doc-pane.th-custom-dark .pdf-page-wrapper mark.hl {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Markdown & Notes Image Theme Logic */
+body.th-dark .md-content img,
+body.th-night .md-content img,
+#doc-pane.th-custom-dark .md-content img,
+body.th-dark #notes-list img,
+body.th-night #notes-list img,
+#doc-pane.th-custom-dark #notes-list img,
+body.th-dark #rte-editor img,
+body.th-night #rte-editor img,
+#doc-pane.th-custom-dark #rte-editor img,
+body.th-dark .md-content .mermaid,
+body.th-night .md-content .mermaid,
+#doc-pane.th-custom-dark .md-content .mermaid {
+  filter: invert(.93) hue-rotate(180deg) brightness(.95);
+  transition: filter 0.4s ease;
+}
+
+/* Curated Themes UI Settings Grid */
+.curated-theme-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.curated-theme-btn:hover {
+  transform: translateY(-2px);
+}
+
+.curated-theme-btn.active .curated-theme-preview {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.curated-theme-preview {
+  height: 60px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.curated-theme-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+/* ==========================================================================
+   APP SHELL ISOLATION (VISION THEORY & COLOR GUIDE)
+   Ensures that Settings DOES NOT inherit the document's reading theme.
+   Uses a scientifically-designed 'Tinted Slate' palette with Indigo/Sky 
+   accents to reduce eye strain and maximize aesthetic luxury.
+   ========================================================================== */
+#settings-popup {
+  /* Default Shell Theme (Light Mode: Warm Slate + Indigo) */
+  --bg-body: #f8fafc !important;
+  --bg-pane: #ffffff !important;
+  --bg-panel: #ffffff !important;
+  --bg-card: #ffffff !important;
+  --bg-input: rgba(15, 23, 42, 0.04) !important;
+  --bg-hover: rgba(15, 23, 42, 0.06) !important;
+  --border: #e2e8f0 !important;
+  --border-hi: #cbd5e1 !important;
+  --text-1: #0f172a !important;
+  --text-2: #475569 !important;
+  --text-3: #64748b !important;
+  --accent: #4f46e5 !important; /* Indigo 600 */
+}
+
+
+/* Manual Dark Mode Override: Forces Settings to Night Shell if user toggles Dark Mode */
+body.dark #settings-popup,
+body.th-night #settings-popup {
+    --bg-body: #0f172a !important;
+    --bg-pane: #1e293b !important;
+    --bg-panel: #1e293b !important;
+    --bg-card: #1e293b !important;
+    --bg-input: rgba(255, 255, 255, 0.06) !important;
+    --bg-hover: rgba(255, 255, 255, 0.08) !important;
+    --border: #334155 !important;
+    --border-hi: #475569 !important;
+    --text-1: #f8fafc !important;
+    --text-2: #94a3b8 !important;
+    --text-3: #64748b !important;
+    --accent: #38bdf8 !important; /* Sky 400 */
+}

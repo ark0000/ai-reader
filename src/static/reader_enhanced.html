@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emanation Reader — Enhanced AI Reader</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js?v=1005"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css?v=1005"
+    crossorigin="anonymous">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js?v=1005"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js?v=1005"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js?v=1005"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Source+Code+Pro:wght@400;500&family=Lato:wght@300;400;700&family=Open+Sans:wght@300;400;600&family=Atkinson+Hyperlegible&family=Source+Serif+4:wght@400;700&family=IBM+Plex+Sans:wght@400;450;700&family=Source+Sans+3:wght@400;700&family=Lexend:wght@400;700&family=Nunito+Sans:wght@400;700&family=Alegreya+Sans:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Charis+SIL&display=swap"
+    rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/static/css/theme-engine.css?v=1005">
+  <link rel="stylesheet" href="/static/css/reader-engine.css?v=1006">
+  <link rel="stylesheet" href="/static/css/uno.css?v=1005">
+  <style>
+    /* ═══════════ TOC POPUP — Premium Glassmorphic Sidebar ═══════════ */
+    #toc-popup {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      height: 100vh !important;
+      width: 340px !important;
+      max-height: 100vh !important;
+      background: rgba(15, 18, 28, 0.82) !important;
+      backdrop-filter: blur(28px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+      border: none !important;
+      border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      box-shadow: 8px 0 40px rgba(0, 0, 0, 0.45), inset -1px 0 0 rgba(255, 255, 255, 0.05) !important;
+      z-index: 9999 !important;
+      overflow: hidden !important;
+      transform: translateX(-100%);
+      transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex !important;
+      flex-direction: column !important;
+    }
+
+    #toc-popup.open,
+    #toc-popup.active {
+      transform: translateX(0);
+    }
+
+    /* ── Header ── */
+    #toc-popup .toc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    #toc-popup .toc-header h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.92);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #toc-popup .toc-header h3 .toc-icon {
+      font-size: 16px;
+      opacity: 0.7;
+    }
+
+    #toc-popup .toc-badge {
+      background: var(--accent, #6c63ff);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 20px;
+      padding: 2px 8px;
+      letter-spacing: 0.05em;
+      opacity: 0.85;
+    }
+
+    #toc-popup .toc-close-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 18px;
+      cursor: pointer;
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      line-height: 1;
+    }
+
+    #toc-popup .toc-close-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.95);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── Scrollable Body ── */
+    #toc-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 0 24px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+    }
+
+    #toc-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #toc-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #toc-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+    }
+
+    /* ── TOC Items (unified for all file types) ── */
+    .toc-item {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 20px 10px 20px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      border-left: 3px solid transparent;
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 13.5px;
+      line-height: 1.5;
+      text-decoration: none;
+      position: relative;
+    }
+
+    .toc-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-left-color: var(--accent, #6c63ff);
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .toc-item.active {
+      background: rgba(255, 255, 255, 0.08);
+      border-left-color: var(--accent, #6c63ff);
+      color: rgba(255, 255, 255, 0.95);
+      font-weight: 500;
+    }
+
+    .toc-item.toc-level-1 {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.80);
+      padding-left: 20px;
+      border-left-width: 3px;
+    }
+
+    .toc-item.toc-level-1:hover {
+      color: #fff;
+    }
+
+    .toc-item.toc-level-2 {
+      padding-left: 32px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .toc-item.toc-level-3 {
+      padding-left: 44px;
+      font-size: 12.5px;
+    }
+
+    .toc-item.toc-level-4 {
+      padding-left: 56px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.40);
+    }
+
+    .toc-item-title {
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .toc-item-page {
+      flex-shrink: 0;
+      font-size: 10.5px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.45);
+      border-radius: 10px;
+      padding: 2px 7px;
+      letter-spacing: 0.03em;
+      transition: all 0.18s ease;
+    }
+
+    .toc-item:hover .toc-item-page {
+      background: var(--accent, #6c63ff);
+      color: #fff;
+      opacity: 0.85;
+    }
+
+    .toc-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 8px 20px;
+    }
+
+    .toc-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255, 255, 255, 0.3);
+      padding: 12px 20px 4px;
+    }
+
+    .toc-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 13px;
+      font-style: italic;
+      line-height: 1.8;
+    }
+
+    .toc-empty .toc-empty-icon {
+      font-size: 32px;
+      display: block;
+      margin-bottom: 10px;
+      opacity: 0.4;
+    }
+
+    /* Light-theme overrides */
+    [data-theme="light"] #toc-popup,
+    .theme-light #toc-popup {
+      background: rgba(248, 250, 255, 0.92) !important;
+      border-right-color: rgba(0, 0, 0, 0.08) !important;
+      box-shadow: 8px 0 40px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    [data-theme="light"] .toc-item,
+    .theme-light .toc-item {
+      color: rgba(0, 0, 0, 0.50);
+    }
+
+    [data-theme="light"] .toc-item:hover,
+    .theme-light .toc-item:hover {
+      background: rgba(0, 0, 0, 0.04);
+      color: rgba(0, 0, 0, 0.88);
+    }
+
+    [data-theme="light"] .toc-item.active,
+    .theme-light .toc-item.active {
+      background: rgba(0, 0, 0, 0.06);
+      color: rgba(0, 0, 0, 0.95);
+      font-weight: 500;
+      border-left-color: var(--accent);
+    }
+
+    [data-theme="light"] .toc-item.toc-level-1,
+    .theme-light .toc-item.toc-level-1 {
+      color: rgba(0, 0, 0, 0.80);
+    }
+
+    [data-theme="light"] #toc-popup .toc-header,
+    .theme-light #toc-popup .toc-header {
+      background: rgba(0, 0, 0, 0.03);
+      border-color: rgba(0, 0, 0, 0.08);
+    }
+
+    [data-theme="light"] #toc-popup .toc-header h3,
+    .theme-light #toc-popup .toc-header h3 {
+      color: rgba(0, 0, 0, 0.88);
+    }
+
+    [data-theme="light"] .toc-item-page,
+    .theme-light .toc-item-page {
+      background: rgba(0, 0, 0, 0.06);
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    [data-theme="light"] .toc-divider,
+    .theme-light .toc-divider {
+      background: rgba(0, 0, 0, 0.07);
+    }
+
+    [data-theme="light"] .toc-empty,
+    .theme-light .toc-empty {
+      color: rgba(0, 0, 0, 0.35);
+    }
+
+    .developer-option,
+    .developer-block {
+      display: none !important;
+    }
+
+    body.dev-mode-active .developer-option {
+      display: flex !important;
+    }
+
+    body.dev-mode-active .developer-block {
+      display: block !important;
+    }
+
+    body.dev-mode-active button.developer-option {
+      display: block !important;
+    }
+  </style>
+</head>
+
+<body class="th-night dark">
+  <div id="top-bar">
+    <div class="toolbar-group">
+      <span id="doc-title" title="Emanation Reader">🌀Reader</span>
+      <input type="file" id="file-upload" accept=".pdf,.md,.txt" style="display:none">
+      <button class="tb-btn" onclick="document.getElementById('file-upload').click()">&#128193; Open</button>
+    </div>
+
+    <div class="toolbar-group">
+      <div class="yt-search-container pdf-only" id="yt-search-container">
+        <div class="yt-search-input-wrapper">
+          <span class="yt-search-icon">&#128269;</span>
+          <input type="text" id="doc-query-box" placeholder="Find in document..." aria-label="Search text"
+            autocomplete="off" spellcheck="false" data-form-type="other" readonly
+            onfocus="this.removeAttribute('readonly'); if(window.openCustomSearch) window.openCustomSearch()">
+          <div class="yt-search-filters">
+            <button type="button" id="search-filter-case" class="yt-filter-btn" title="Match Case"
+              onclick="this.classList.toggle('active'); if(window.AuraSearch) window.AuraSearch.triggerSearch();">Aa</button>
+            <button type="button" id="search-filter-word" class="yt-filter-btn" title="Whole Word"
+              onclick="this.classList.toggle('active'); if(window.AuraSearch) window.AuraSearch.triggerSearch();">\b</button>
+            <button type="button" id="search-clear" class="yt-clear-btn hidden" title="Clear">&times;</button>
+          </div>
+        </div>
+        <div id="yt-search-dropdown" class="yt-search-dropdown hidden">
+          <div class="yt-search-dropdown-header">
+            <span id="search-count">0 matches</span>
+            <div class="search-nav-buttons">
+              <button type="button" id="search-prev" aria-label="Previous result" class="yt-nav-btn"
+                title="Previous">&#8593;</button>
+              <button type="button" id="search-next" aria-label="Next result" class="yt-nav-btn"
+                title="Next">&#8595;</button>
+            </div>
+          </div>
+          <div id="search-results" class="search-results-list" role="listbox"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar-group" style="margin-left:auto;">
+      <span id="font-size-controls" style="display:none; align-items:center; gap:8px;">
+        <span class="tb-lbl">Font</span>
+        <select class="tb-sel" id="font-sel">
+          <option value="Inter,sans-serif">Inter</option>
+          <option value="Merriweather,serif">Merriweather</option>
+          <option value="Lato,sans-serif">Lato</option>
+          <option value="Open Sans,sans-serif">Open Sans</option>
+          <option value="Georgia,serif">Georgia</option>
+          <option value="'Source Code Pro',monospace">Code</option>
+        </select>
+        <span class="tb-lbl">Size</span>
+        <input class="tb-range" type="range" id="sz-range" min="12" max="24" value="16" title="Font size"
+          style="width:60px;">
+      </span>
+
+      <span class="tb-sep"></span>
+      <span class="tb-lbl">Theme</span>
+      <button class="theme-btn" id="th-dark" style="background:#1a202c" title="Dark"
+        onclick="setTheme('dark')"></button>
+      <button class="theme-btn" id="th-light" style="background:#f7fafc" title="Light"
+        onclick="setTheme('light')"></button>
+      <button class="theme-btn" id="th-sepia" style="background:#f4efe6" title="Sepia"
+        onclick="setTheme('sepia')"></button>
+      <button class="theme-btn active" id="th-night" style="background:#000000" title="Night"
+        onclick="setTheme('night')"></button>
+
+      <span class="tb-sep"></span>
+      <span class="tb-lbl">&#9728;</span>
+      <input class="tb-range" type="range" id="bright-range" min="50" max="150" value="100" title="Brightness"
+        style="width:60px;">
+
+      <span class="tb-sep"></span>
+      <span class="tb-lbl">Width</span>
+      <select class="tb-sel" id="width-sel">
+        <option value="650px">Narrow</option>
+        <option value="900px" selected>Normal</option>
+        <option value="1200px">Wide</option>
+        <option value="100%">Full Width</option>
+        <option value="fit-page">Fit Page</option>
+      </select>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="settings-btn-global" onclick="if(window.toggleSettings) window.toggleSettings(event)"
+        title="Preferences">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" class="settings-gear-icon">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+          </path>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div id="secondary-toolbar"
+    style="display:none;align-items:center;background:var(--bg-toolbar);padding:6px 12px;border-bottom:1px solid var(--border);gap:8px;font-size:14px;box-shadow:var(--shadow)">
+    <button class="tb-btn" title="Contents" onclick="toggleToc(event)">&#9776; Contents</button>
+    <span class="tb-sep pdf-only"></span>
+    <button class="tb-btn active pdf-only" id="pdf-btn-pan" title="Pan (Default)"
+      onclick="setPdfTool('pan')">&#128400;</button>
+    <button class="tb-btn pdf-only" id="pdf-btn-crop" title="Crop/Screenshot" onclick="setPdfTool('crop')">&#9986;
+      Screenshot</button>
+      <span class="tb-sep pdf-only" style="margin-left:auto"></span>
+      <button class="tb-btn" title="Toggle Fullscreen" onclick="toggleFullScreen()">&#x26F6;</button>
+      <button class="tb-btn pdf-only" title="Zoom Out" onclick="pdfZoom(-0.25)">&#8722;</button>
+    <button class="tb-btn pdf-only" title="Zoom In" onclick="pdfZoom(0.25)">&#43;</button>
+    <button class="tb-btn pdf-only" title="Fit to Width" onclick="pdfFitWidth()">&#8596;</button>
+    <button class="tb-btn pdf-only" id="pdf-btn-twopage" title="Two-Page View"
+      onclick="toggleTwoPageMode()">&#128214;</button>
+    <span class="tb-sep pdf-only"></span>
+    <input type="number" id="pdf-page-in" class="pdf-only"
+      style="width:50px;background:var(--bg-panel);color:var(--text-1);border:1px solid var(--border);border-radius:4px;text-align:center"
+      value="1" min="1" onchange="pdfGotoPage(this.value)">
+    <span class="pdf-only" style="color:var(--text-2)">of <span id="pdf-page-count">1</span></span>
+    <span id="pdf-book-page" class="pdf-only" style="color:var(--accent); font-weight: 500; margin-left: 6px;"></span>
+    <span class="tb-sep pdf-only"></span>
+    <button class="tb-btn pdf-only" title="Rotate" onclick="pdfRotate()">&#8635;</button>
+  </div>
+  <div id="toc-popup">
+    <div class="toc-header">
+      <h3><span class="toc-icon">&#9776;</span> Contents <span class="toc-badge" id="toc-count"></span></h3>
+      <button class="toc-close-btn" onclick="closeToc()" title="Close">&times;</button>
+    </div>
+    <div id="toc-list"></div>
+  </div>
+  <div id="settings-backdrop" onclick="if(window.toggleSettings) window.toggleSettings(event)"></div>
+  <div id="settings-popup" role="dialog" aria-modal="true" aria-labelledby="settings-title"
+    style="display:none;position:fixed;top:54px;right:16px;transform-origin:top right;background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);z-index:5001;width:420px;max-width:90vw;overflow:hidden;animation:popInDropdown 0.15s ease both;">
+    <div style="display:flex; flex-direction:column; max-height:85vh;">
+      <div style="padding:16px; border-bottom:1px solid var(--border); background:var(--bg-panel); flex-shrink:0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3 id="settings-title"
+            style="margin:0; font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;"
+            onclick="if(window.handleSettingsTitleClick) window.handleSettingsTitleClick();">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+              </path>
+            </svg>
+            Preferences
+          </h3>
+          <button onclick="if(window.toggleSettings) window.toggleSettings(event)"
+            style="background:none; border:none; font-size:20px; line-height:1; color:var(--text-2); cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; border-radius:4px;"
+            title="Close Settings">&times;</button>
+        </div>
+        <input type="search" id="settings-search" class="settings-search-bar" placeholder="Search settings..."
+          onkeyup="filterSettings(this.value)">
+      </div>
+        <div id="settings-scroll-body" style="padding:16px; overflow-y:auto; overflow-x:hidden; flex:1;">
+          <div class="cfg" style="border:none;padding:0">
+            <label class="settings-header">&#128190; Saved State</label>
+            <div class="settings-group" id="state-save-group">
+              <div class="settings-row" style="padding:8px 0; font-size:12px; color:var(--text-2); border-bottom: none;">
+                Choose which preferences are remembered after you close the tab. Everything else is session-only.
+              </div>
+              <div class="settings-row">
+                <div class="settings-label-container">
+                  <span class="settings-label">Reading Theme</span>
+                  <span class="settings-help">Dark mode, sepia, custom colors.</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="save-reading-theme-cb" role="switch"
+                    onchange="window.toggleStateKey('aura-reading-theme', this.checked); window.toggleStateKey('aura-reading-theme-custom', this.checked);">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <div class="settings-label-container">
+                  <span class="settings-label">Font &amp; Rendering</span>
+                  <span class="settings-help">High-DPI, text thickness, etc.</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="save-font-quality-cb" role="switch"
+                    onchange="window.toggleStateKey('AuraFontQuality', this.checked);">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="settings-row">
+                <div class="settings-label-container">
+                  <span class="settings-label">Performance Settings</span>
+                  <span class="settings-help">Memory Saver, Lazy Loading, Deep Search.</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="save-perf-cb" role="switch"
+                    onchange="['aura-pdf-virt','aura-pdf-lazy','aura-pdf-deep-search','aura-perf-dashboard'].forEach(k => window.toggleStateKey(k, this.checked));">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <label class="settings-header">Active AI Connection</label>
+          <div class="settings-group">
+            <div id="active-connection-display"
+              style="padding: 8px; background: var(--bg-body); border:1px solid var(--border); border-radius: 4px; margin-bottom: 8px; font-size: 13px; color: var(--text-2);">
+              Loading...</div>
+            <button onclick="if(window.openConnectionManager) window.openConnectionManager();" class="tb-btn"
+              style="width:100%; justify-content:center; background:var(--accent); color:#fff; border:none; margin-bottom: 4px; font-weight:600;">&#9881;
+              Manage AI Connections</button>
+          </div>
+
+          <label class="settings-header">Dictionary Mode</label>
+          <div class="settings-group">
+            <div class="settings-row" style="border-bottom:none;padding-bottom:0;padding-top:6px;">
+              <div class="settings-label-container">
+                <span class="settings-label">Mode</span>
+              </div>
+              <select id="dict-sel" class="tb-sel">
+                <option value="offline">offline glosaary</option>
+                <option value="online">Online Dictionary API</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Auto-Explain Code on Click</span>
+                <span class="settings-help">(only for markdown)</span>
+              </div>
+              <label class="toggle-switch" aria-label="Auto-Explain Code on Click">
+                <input type="checkbox" id="auto-explain-cb" role="switch">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row developer-option">
+              <div class="settings-label-container">
+                <span class="settings-label">Capture UI Screenshots</span>
+                <span class="settings-help">Developer Tool for Exporting UI Logs</span>
+              </div>
+              <label class="toggle-switch" aria-label="Capture UI Screenshots">
+                <input type="checkbox" id="capture-screenshots-cb" role="switch">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <label class="settings-header"><span class="ai-icon">✦</span> Reading Experience</label>
+          <div class="settings-group">
+            <div id="reading-theme-grid" class="reading-theme-grid"></div>
+            <div id="reading-theme-detail" class="reading-theme-detail" style="display:none;"></div>
+
+            <div class="custom-theme-mixer">
+              <div class="custom-theme-mixer-title"><span class="ai-icon">✦</span> Build Your Own Theme</div>
+              <div class="custom-theme-controls">
+                <label class="ct-color-picker">
+                  Bg <input type="color" id="custom-theme-bg" value="#140A23">
+                </label>
+                <label class="ct-color-picker">
+                  Panel <input type="color" id="custom-theme-panel" value="#201533">
+                </label>
+                <label class="ct-color-picker">
+                  Text <input type="color" id="custom-theme-text" value="#00FFC8">
+                </label>
+                <label class="ct-color-picker">
+                  Accent <input type="color" id="custom-theme-accent" value="#FF00A0">
+                </label>
+                <select id="custom-theme-font" class="ct-select" style="margin-top: 8px;">
+                  <option value="'Atkinson Hyperlegible', sans-serif">Atkinson</option>
+                  <option value="'Source Serif 4', serif">Source Serif</option>
+                  <option value="'Inter', sans-serif">Inter</option>
+                </select>
+              </div>
+              <div class="settings-row" style="margin-top: 12px; padding: 0;">
+                <div class="settings-label-container">
+                  <span class="settings-label" style="font-size: 0.8rem;">Glossy Glassmorphism</span>
+                </div>
+                <label class="toggle-switch" aria-label="Glassmorphic">
+                  <input type="checkbox" id="custom-theme-glass" role="switch">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <button id="btn-surprise-mix" class="ct-btn-surprise" style="margin-top: 12px;">
+                🎲 Generate Surprise Mix
+              </button>
+            </div>
+          </div>
+
+          <label class="settings-header">Font &amp; Rendering Quality</label>
+          <div class="settings-group">
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Ultra-Crisp Text (Retina)</span>
+                <span class="settings-help">Makes fonts significantly sharper, especially when zoomed out. May slow down
+                  older devices.</span>
+              </div>
+              <label class="toggle-switch" aria-label="High-DPI Supersampling">
+                <input type="checkbox" id="font-highdpi-cb" role="switch"
+                  onchange="if(window.toggleHighDPI) window.toggleHighDPI(this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Font Thickness</span>
+                <span class="settings-help">Adjust how thick and bold the text appears on the page.</span>
+              </div>
+              <select id="font-algo-sel" class="tb-sel" style="max-width: 120px;"
+                onchange="if(window.setFontAlgo) window.setFontAlgo(this.value);">
+                <option value="none">None</option>
+                <option value="smart">Smart Contrast</option>
+                <option value="thicker">Adobe Style</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Smart Dark Mode Fix</span>
+                <span class="settings-help">Automatically prevents text from looking too thin when you switch to dark
+                  themes.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Theme-Aware Auto Adjust">
+                <input type="checkbox" id="font-themeaware-cb" role="switch"
+                  onchange="if(window.toggleThemeAware) window.toggleThemeAware(this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <label class="settings-header developer-block">Performance Settings</label>
+          <div class="settings-group developer-block">
+            <div class="settings-row developer-option">
+              <div class="settings-label-container">
+                <span class="settings-label" style="color:var(--accent);">Full Deep Search</span>
+                <span class="settings-help">Developer Tool: Overrides memory saver for native Ctrl+F across entire
+                  document.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Full Deep Search">
+                <input type="checkbox" id="perf-deep-search-cb" role="switch"
+                  onchange="if(window.toggleDeepSearch) window.toggleDeepSearch(this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row developer-option" id="row-perf-virt">
+              <div class="settings-label-container">
+                <span class="settings-label">Memory Saver</span>
+                <span class="settings-help">Unloads pages you aren't looking at to prevent the app from crashing on huge
+                  documents.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Performance Mode (Virtualization)">
+                <input type="checkbox" id="perf-virt-cb" checked role="switch"
+                  onchange="if(window.toggleVirtualization) window.toggleVirtualization(this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row developer-option" id="row-perf-lazy">
+              <div class="settings-label-container">
+                <span class="settings-label">Lazy Loading</span>
+                <span class="settings-help">Loads pages instantly. Best for large books.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Performance Mode (Lazy Loading)">
+                <input type="checkbox" id="perf-lazy-cb" checked role="switch"
+                  onchange="if(window.toggleLazyLoading) window.toggleLazyLoading(this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row developer-option" id="row-perf-dashboard">
+              <div class="settings-label-container">
+                <span class="settings-label" style="color:var(--accent2);">Performance Dashboard</span>
+                <span class="settings-help">Display real-time app health metrics (memory usage, speed, and resource
+                  loads) at the top of the screen.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Toggle Performance Dashboard">
+                <input type="checkbox" id="perf-dashboard-cb" role="switch"
+                  onchange="window.togglePerfDashboard(this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <button class="developer-option" onclick="if(window.exportUITrace) window.exportUITrace();"
+            style="margin-top:16px;width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;transition:opacity 0.2s;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export UI Logs
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="layout">
+    <div id="doc-pane">
+      <div id="content">
+        <div class="welcome">
+          <h1 id="reader-logo">🌀Reader</span>
+          <p>Enhanced AI reading environment.<br>Open any <strong>PDF, Markdown, or Text</strong> file.</p>
+          <button class="upload-big-btn" onclick="document.getElementById('file-upload').click()">Choose File to
+            Read</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="ai-panel" class="hidden">
+      <div id="ai-hdr">
+        <span id="ai-hdr-title"><span class="ai-icon">✦</span> AI Assistant</span>
+        <button id="close-btn" onclick="togglePanel()">&#215;</button>
+      </div>
+      <div class="tab-bar">
+        <button class="tab on" onclick="switchTab('chat')">&#128172; Chat</button>
+        <button class="tab" onclick="switchTab('notes')">&#128221; Notes</button>
+        <button class="tab" onclick="switchTab('tts')">&#128266; Voice</button>
+      </div>
+
+      <div id="tab-chat" class="tab-pane on">
+        <div id="chat-win">
+          <div class="msg msg-a"><span class="ai-icon">✦</span> <strong>AI Ready</strong> &mdash; Backend AI
+            active.<br><br>Select text and
+            choose <em>Explain</em>, <em>Highlight</em>, <em>Note</em>, or <em>Read Aloud</em>.</div>
+        </div>
+        <div id="inp-box">
+          <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom: 8px; padding: 0 4px;">
+            <input type="checkbox" id="rag-enabled-cb"
+              style="margin:0 6px 0 0; cursor:pointer; accent-color:var(--accent);">
+            <label for="rag-enabled-cb"
+              style="font-size:11px; font-weight:600; color:var(--text-2); cursor:pointer; margin:0; user-select:none;"
+              title="Search the entire document to answer questions">Search Document (RAG)</label>
+          </div>
+          <div class="chat-input-wrapper">
+            <textarea id="chat-input" rows="1" placeholder="Ask about the document..."
+              oninput="this.style.height='';this.style.height=this.scrollHeight+'px'"></textarea>
+            <button id="ask-btn" onclick="askAI(document.getElementById('chat-input').value)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-notes" class="tab-pane">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border)">
+          <span class="tb-lbl" style="margin-right:auto">Highlight Color:</span>
+          <button class="hl-dot sel" style="background:#fde68a" data-c="#fde68a" onclick="setHL(this)"></button>
+          <button class="hl-dot" style="background:#6ee7b7" data-c="#6ee7b7" onclick="setHL(this)"></button>
+          <button class="hl-dot" style="background:#93c5fd" data-c="#93c5fd" onclick="setHL(this)"></button>
+          <button class="hl-dot" style="background:#f9a8d4" data-c="#f9a8d4" onclick="setHL(this)"></button>
+          <button class="hl-dot" style="background:#fca5a5" data-c="#fca5a5" onclick="setHL(this)"></button>
+        </div>
+        <div style="display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--border)">
+          <button class="tb-btn" onclick="exportNotes('txt')" style="flex:1;justify-content:center">Export TXT</button>
+          <button class="tb-btn" onclick="exportNotes('pdf')" style="flex:1;justify-content:center">Export PDF</button>
+        </div>
+        <div id="notes-list">
+          <div class="msg msg-s">Highlight text &#8594; &quot;Add Note&quot; to annotate. Notes saved for session.</div>
+        </div>
+        <div style="padding:10px; border-top:1px solid var(--border);">
+          <button class="upload-big-btn" style="width:100%; padding:10px; font-size:14px;" onclick="openRteModal()">+
+            Add Note</button>
+        </div>
+      </div>
+
+      <div id="tab-tts" class="tab-pane">
+        <div id="tts-wrap">
+          <div id="tts-ctrls">
+            <label class="tb-lbl">Voice</label>
+            <select id="voice-sel" class="tb-sel" style="width:100%"></select>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="tb-lbl">Speed</span>
+              <input class="tb-range" type="range" id="speed-r" min="0.5" max="2" step="0.1" value="1" style="flex:1"
+                onchange="updateTTSParams()"
+                oninput="document.getElementById('spd-v').textContent=parseFloat(this.value).toFixed(1)+'x'">
+              <span id="spd-v" style="font-size:.78rem;color:var(--text-2);min-width:28px">1.0x</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="tb-lbl">Pitch</span>
+              <input class="tb-range" type="range" id="pitch-r" min="0.5" max="2" step="0.1" value="1" style="flex:1"
+                onchange="updateTTSParams()"
+                oninput="document.getElementById('pitch-v').textContent=parseFloat(this.value).toFixed(1)">
+              <span id="pitch-v" style="font-size:.78rem;color:var(--text-2);min-width:28px">1.0</span>
+            </div>
+            <div class="tts-row" style="margin-bottom:4px;">
+              <button class="tts-btn" onclick="ttsAll()" title="Start from beginning">&#9654; Read All</button>
+              <button class="tts-btn" onclick="ttsFromHere()" title="Start from current view/selection">&#9654; From
+                Here</button>
+            </div>
+            <div class="tts-row media-controls">
+              <button class="tts-btn ctrl-btn" onclick="ttsBackward()" title="Previous sentence">&#9194; Back</button>
+              <button id="tts-pause-btn" class="tts-btn ctrl-btn" onclick="ttsPause()">&#9208; Pause</button>
+              <button class="tts-btn ctrl-btn tts-stop" onclick="ttsStop()">&#9209; Stop</button>
+              <button class="tts-btn ctrl-btn" onclick="ttsForward()" title="Next sentence">&#9193; Fwd</button>
+            </div>
+            <div id="tts-status" class="tts-status">Ready</div>
+            <div id="tts-progress" style="font-size:0.75rem; color:var(--text-2); margin-top:4px;"></div>
+          </div>
+          <div id="tts-prog">
+            <p style="font-size:.78rem;color:var(--text-2);margin-bottom:7px">Currently reading:</p>
+            <div id="tts-box">&mdash;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="fab" onclick="togglePanel()">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+  </button>
+
+  <div id="popup">
+    <button class="pb" onclick="popExplain()"><span class="ai-icon">✦</span> Explain Concept (AI)</button>
+    <button class="pb" onclick="popHL()">&#128396; Highlight</button>
+    <button class="pb sep purp" onclick="popNote()">&#128221; Add Note</button>
+    <button class="pb pink" onclick="popTTS()">&#128266; Read Aloud</button>
+    <button class="pb pink" onclick="popTTSFromHere()">&#9654; Read from here</button>
+    <button class="pb sep gold" onclick="popDict()">&#128214; Define Word</button>
+    <button class="pb grn" onclick="popSearch()">&#127758; Google Search</button>
+  </div>
+
+  <div id="rte-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:5000; align-items:center; justify-content:center;">
+    <div
+      style="background:var(--bg-panel); width:90%; max-width:600px; max-height:90vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:flex; flex-direction:column; overflow:hidden;">
+      <div
+        style="padding:20px 24px 8px 24px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+        <h3 id="rte-title" style="margin:0; font-size:18px; font-weight:600; color:var(--text-1);">Edit Note</h3>
+        <button onclick="document.getElementById('rte-modal').style.display='none'"
+          style="background:none; border:none; color:var(--text-2); font-size:24px; cursor:pointer; line-height:1;">&times;</button>
+      </div>
+      <div id="rte-quote"
+        style="display:none; padding:12px 16px; background:color-mix(in srgb, var(--accent2) 10%, transparent); border-left:3px solid var(--accent2); color:var(--text-2); font-style:italic; font-size:13px; max-height:80px; overflow-y:auto; flex-shrink:0;">
+      </div>
+      <div style="padding:0 20px; display:flex; gap:4px; flex-wrap:wrap; flex-shrink:0; margin-bottom:8px;">
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('undo', false, null)">&#8617; Undo</button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('redo', false, null)">&#8620; Redo</button>
+        <button class="rte-btn" style="margin-left:8px;" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('bold', false, null)"><b>B</b></button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('italic', false, null)"><i>I</i></button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('underline', false, null)"><u>U</u></button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('strikeThrough', false, null)"><s>S</s></button>
+        <button class="rte-btn" style="margin-left:8px;" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('formatBlock', false, 'H2')"><b>H2</b></button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('formatBlock', false, 'H3')"><b>H3</b></button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('formatBlock', false, 'BLOCKQUOTE')">&#10077; Quote</button>
+        <button class="rte-btn" style="margin-left:8px;" onmousedown="event.preventDefault()"
+          onclick="var url = prompt('Enter link URL:'); if(url) document.execCommand('createLink', false, url);">&#128279;
+          Link</button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="var url = prompt('Enter image URL:'); if(url) document.execCommand('insertImage', false, url);">&#128444;
+          Image</button>
+        <button class="rte-btn" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('insertUnorderedList', false, null)">&#8226; List</button>
+        <button class="rte-btn" onmousedown="event.preventDefault()" onclick="insertCodeBlock()">Code</button>
+        <button class="rte-btn" style="margin-left:auto; color:var(--text-3);" onmousedown="event.preventDefault()"
+          onclick="document.execCommand('removeFormat', false, null)">&#10006; Clear</button>
+      </div>
+      <div id="rte-editor" contenteditable="true" data-placeholder="Write your note here..."
+        style="padding:12px 24px; min-height:180px; flex:1; color:var(--text-1); font-family:inherit; outline:none; overflow-y:auto; line-height:1.6; position:relative; font-size:15px;">
+      </div>
+      <div style="padding:16px 24px 24px 24px; display:flex; justify-content:flex-end; gap:12px; flex-shrink:0;">
+        <button class="tb-btn"
+          style="background:transparent; border:none; box-shadow:none; color:var(--text-2); padding:8px 16px;"
+          onclick="document.getElementById('rte-modal').style.display='none'">Cancel</button>
+        <button class="tb-btn"
+          style="background:var(--accent); color:#fff; border:none; border-radius:20px; padding:8px 24px;"
+          onclick="saveRteNote()">Save
+          Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONNECTION MANAGER MODAL -->
+  <div id="conn-mgr-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; animation:fadeIn 0.2s ease-out both;">
+    <div
+      style="background:var(--bg-panel); width:90%; max-width:700px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:flex; flex-direction:column; max-height:85vh; animation:popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; will-change: transform, opacity;">
+
+      <div
+        style="padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0; font-size:18px; color:var(--text-1);">&#9881; Manage AI Connections</h3>
+        <button onclick="document.getElementById('conn-mgr-modal').style.display='none'"
+          style="background:none; border:none; color:var(--text-2); font-size:24px; cursor:pointer;">&times;</button>
+      </div>
+
+      <div style="display:flex; flex:1; overflow:hidden;">
+        <!-- Connections List Sidebar -->
+        <div id="conn-mgr-sidebar"
+          style="width:100%; display:flex; flex-direction:column; background:var(--bg-body); animation:fadeIn 0.2s ease-out both;">
+          <div style="padding:12px; border-bottom:1px solid var(--border);">
+            <button onclick="connMgrShowAdd()" class="tb-btn"
+              style="width:100%; justify-content:center; background:var(--accent); color:#fff; border:none;">+ New
+              Connection</button>
+          </div>
+          <div id="conn-mgr-list" style="flex:1; overflow-y:auto; padding:8px;">
+            <!-- Populated dynamically -->
+            <div style="padding:20px; text-align:center; color:var(--text-2); font-size:13px; font-style:italic;">
+              Loading...</div>
+          </div>
+        </div>
+
+        <!-- Connection Edit/Add View -->
+        <div id="conn-mgr-detail"
+          style="flex:1; padding:20px; overflow-y:auto; display:none; flex-direction:column; gap:12px; animation:fadeIn 0.2s ease-out both;">
+          <h4 id="conn-mgr-title" style="margin:0 0 12px 0; color:var(--text-1); font-size:16px;">Add New Connection
+          </h4>
+          <input type="hidden" id="conn-mgr-id" value="">
+
+          <div>
+            <label
+              style="display:block; font-size:12px; color:var(--text-2); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Provider
+              Type</label>
+            <select id="conn-mgr-provider" class="tb-sel"
+              style="width:100%; max-width:none; padding:10px 12px; border-radius:6px; font-size:14px;"
+              onchange="connMgrProviderChanged()">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div>
+            <label
+              style="display:block; font-size:12px; color:var(--text-2); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Display
+              Name</label>
+            <input type="text" id="conn-mgr-name" placeholder="e.g. My OpenAI Key"
+              style="width:100%; padding:10px 12px; border:1px solid var(--border); background:rgba(0,0,0,0.02); color:var(--text-1); border-radius:6px; font-size:14px; box-sizing:border-box;">
+          </div>
+
+          <div>
+            <label
+              style="display:block; font-size:12px; color:var(--text-2); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Base
+              URL <span style="text-transform:none; font-weight:normal; opacity:0.7;">(Optional override)</span></label>
+            <input type="text" id="conn-mgr-baseurl" placeholder="Leave empty for provider default"
+              style="width:100%; padding:10px 12px; border:1px solid var(--border); background:rgba(0,0,0,0.02); color:var(--text-1); border-radius:6px; font-size:14px; box-sizing:border-box;">
+          </div>
+
+          <div>
+            <label
+              style="display:block; font-size:12px; color:var(--text-2); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Default
+              Model</label>
+            <input type="text" id="conn-mgr-model" placeholder="e.g. gpt-4o, claude-3-5-sonnet-20240620"
+              style="width:100%; padding:10px 12px; border:1px solid var(--border); background:rgba(0,0,0,0.02); color:var(--text-1); border-radius:6px; font-size:14px; box-sizing:border-box;">
+          </div>
+
+          <div>
+            <label
+              style="display:block; font-size:12px; color:var(--text-2); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">API
+              Key <span id="conn-mgr-key-hint"
+                style="text-transform:none; font-weight:normal; color:var(--accent2);"></span></label>
+            <input type="password" id="conn-mgr-apikey" placeholder="Enter API key..."
+              style="width:100%; padding:10px 12px; border:1px solid var(--border); background:rgba(0,0,0,0.02); color:var(--text-1); border-radius:6px; font-size:14px; box-sizing:border-box;">
+            <div
+              style="font-size:11px; color:var(--text-2); margin-top:6px; display:flex; align-items:center; gap:4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              Keys are encrypted at rest (AES-256-GCM) on the server.
+            </div>
+          </div>
+
+          <div
+            style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:12px;background:rgba(0,0,0,0.03);border-radius:6px;border:1px solid var(--border);">
+            <input type="checkbox" id="conn-mgr-active" style="margin:0; cursor:pointer; width:16px; height:16px;">
+            <label for="conn-mgr-active"
+              style="margin:0; cursor:pointer; color:var(--text-1); font-weight:600; font-size:13px;">Set as Active
+              Connection</label>
+          </div>
+
+          <div
+            style="display:flex; justify-content:space-between; margin-top:24px; padding-top:20px; border-top:1px solid var(--border);">
+            <button id="conn-mgr-delete-btn" class="tb-btn"
+              style="color:#ef4444; border-color:rgba(239,68,68,0.3); padding:8px 16px; border-radius:6px; font-weight:600;"
+              onclick="connMgrDelete()">Delete</button>
+            <div style="display:flex; gap:8px;">
+              <button class="tb-btn" style="padding:8px 16px; border-radius:6px; font-weight:600;"
+                onclick="document.getElementById('conn-mgr-sidebar').style.display='flex'; document.getElementById('conn-mgr-detail').style.display='none'">Cancel</button>
+              <button class="tb-btn"
+                style="padding:8px 16px; border-radius:6px; font-weight:600; background:rgba(255,255,255,0.05);"
+                onclick="connMgrTest()">Test</button>
+              <button class="tb-btn"
+                style="background:var(--accent); color:#fff; border:none; padding:8px 20px; border-radius:6px; font-weight:600; box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent);"
+                onclick="connMgrSave()">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Removed empty state to allow list to take full width -->
+
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/reading-experience.js?v=1005"></script>
+  <script src="/static/js/font-engine.js?v=1005"></script>
+  <script src="/static/js/theme-engine.js?v=1005"></script>
+  <script src="/static/js/reader-core.js?v=1012"></script>
+  <script src="/static/js/ui-components.js?v=1008"></script>
+  <script src="/static/js/ai-chat.js?v=1005"></script>
+  <script src="/static/js/dictionary-tools.js?v=1005"></script>
+  <script src="/static/js/notes-tts.js?v=1005"></script>
+  <script src="/static/js/markdown-handler.js?v=1005"></script>
+  <script src="/static/js/epub-handler.js?v=1005"></script>
+  <script src="/static/js/pdf-handler.js?v=1005"></script>
+
+  <script>
+    function filterSettings(query) {
+      query = query.toLowerCase().trim();
+      const groups = document.querySelectorAll('#settings-popup .settings-group');
+
+      groups.forEach(group => {
+        let groupHasVisibleRow = false;
+
+        // Check normal rows
+        const rows = group.querySelectorAll('.settings-row');
+        const isDevMode = document.body.classList.contains('dev-mode-active');
+
+        rows.forEach(row => {
+          // Hide developer options if dev mode is off
+          if (row.classList.contains('developer-option') && !isDevMode) {
+            row.style.setProperty('display', 'none', 'important');
+            return;
+          }
+
+          const text = row.innerText.toLowerCase();
+          if (text.includes(query)) {
+            row.style.setProperty('display', 'flex', 'important');
+            groupHasVisibleRow = true;
+          } else {
+            row.style.setProperty('display', 'none', 'important');
+          }
+        });
+
+        // Check standalone inputs inside groups (like Active AI)
+        const standalone = group.querySelector('#current-ai-name, button');
+        if (standalone && !rows.length) {
+          const text = group.innerText.toLowerCase() + " ai connection";
+          if (text.includes(query)) {
+            groupHasVisibleRow = true;
+          }
+        }
+
+        // Toggle Group visibility
+        group.style.display = groupHasVisibleRow ? 'block' : 'none';
+
+        // Toggle Group Header visibility (previous element sibling)
+        const header = group.previousElementSibling;
+        if (header && header.classList.contains('settings-header')) {
+          header.style.display = groupHasVisibleRow ? 'block' : 'none';
+        }
+      });
+    }
+  </script>
+
+  <script src="/static/js/reading-themes.js?v=1005"></script>
+  <!-- Telemetry Dashboard now injected by perf-monitor.js -->
+  <script src="/static/js/perf-monitor.js?v=1008"></script>
+  <script>
+    window.togglePerfDashboard = function (isEnabled) {
+      if (window.AuraPerf) window.AuraPerf.toggleUI(isEnabled); if (window.safeStorage) window.safeStorage.setItem('aura-perf-dashboard', isEnabled);
+    };
+  </script>
+
+    <script>
+        const readerLogo = document.getElementById('reader-logo');
+        const docTitle = document.getElementById('doc-title');
+        
+        function changeToConverter() {
+            if (readerLogo) readerLogo.innerHTML = '🌀 EmanationPDF converter';
+            if (docTitle) docTitle.innerHTML = '🌀 EmanationPDF converter';
+        }
+        
+        if (readerLogo) readerLogo.style.cursor = 'pointer';
+        let clickCount = 0;
+        if (readerLogo) readerLogo.addEventListener('click', () => {
+            clickCount++;
+            if (clickCount >= 10) changeToConverter();
+        });
+        
+        if (docTitle) docTitle.style.cursor = 'pointer';
+        let docClickCount = 0;
+        if (docTitle) docTitle.addEventListener('click', () => {
+            docClickCount++;
+            if (docClickCount >= 10) changeToConverter();
+        });
+    </script>
+</body>
+
+
+</html>

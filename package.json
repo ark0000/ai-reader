@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "jsdom": "^30.0.1",
+    "playwright": "^1.62.1"
+  },
+  "scripts": {
+    "build:css": "unocss \"src/static/**/*.html\" \"src/static/**/*.js\" -o src/static/css/uno.css",
+    "dev:css": "unocss \"src/static/**/*.html\" \"src/static/**/*.js\" -o src/static/css/uno.css --watch",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@unocss/cli": "^66.7.5",
+    "@unocss/preset-typography": "^66.7.5",
+    "@unocss/preset-uno": "^66.7.5",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "unocss": "^66.7.5"
+  },
+  "jest": {
+    "testEnvironment": "jsdom"
+  }
+}

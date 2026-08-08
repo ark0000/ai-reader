@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emanation PDF - Premium Dark Mode PDF Converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌀</text></svg>">
+</head>
+<body>
+    <div class="background-glow"></div>
+    
+    <div class="app-container">
+        <header class="app-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px;">
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <div class="logo">
+                    <span class="logo-icon">🌀</span>
+                    <h1>Emanation<span>PDF</span></h1>
+                </div>
+                <button class="btn-secondary" style="margin: 0; padding: 8px 16px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; border-radius: 8px;" onclick="window.location.href='/reader-enhanced'">📖 Open AI Reader</button>
+            </div>
+            <!-- Auth Status Area -->
+            <div id="auth-header-panel" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 8px 16px; border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.1); font-size: 0.9rem;">
+                <span id="auth-logged-out">
+                    <button id="open-login-btn" style="background: none; border: none; color: #00f2fe; cursor: pointer; font-weight: 600; font-family: inherit;">🔑 Login / Register</button>
+                </span>
+                <span id="auth-logged-in" style="display: none; color: #ffffff;">
+                    Welcome, <span id="auth-username" style="color: #00f2fe; font-weight: 600;">Guest</span> | 
+                    <button id="logout-btn" style="background: none; border: none; color: #ff4a5a; cursor: pointer; font-family: inherit; margin-left: 5px;">Logout</button>
+                </span>
+            </div>
+        </header>
+
+        <main class="main-card">
+            <!-- Upload View -->
+            <section id="upload-section" class="view-panel active">
+                <div class="drag-zone" id="drop-zone">
+                    <input type="file" id="file-input" accept=".pdf,.epub,.md" style="display: none;">
+                    <div class="upload-graphics">
+                        <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <div class="pulse-ring"></div>
+                    </div>
+                    <div class="upload-text">
+                        <h3>Drag & drop your PDF, EPUB, or MD here</h3>
+                        <p>or <span class="browse-btn">browse files</span> from your device</p>
+                        <span class="file-limits">Supports searchable PDFs up to 50MB</span>
+                    </div>
+                </div>
+
+                <div class="file-selected-card" id="file-selected-card" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 16px; padding: 30px; text-align: center; margin-bottom: 24px; transition: var(--transition-smooth);">
+                    <div style="font-size: 3rem; margin-bottom: 12px; filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.3));">📄</div>
+                    <h3 id="selected-filename" style="font-family: var(--font-heading); font-size: 1.2rem; margin-bottom: 4px; color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">textbook.pdf</h3>
+                    <p id="selected-filesize" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">12.4 MB &bull; 0 pages</p>
+                    <div style="display: flex; gap: 12px; justify-content: center;">
+                        <button id="apply-all-btn" class="btn-primary glow-effect" style="margin: 0; padding: 12px 28px; font-weight: 600;">🚀 Apply & Convert All Pages</button>
+                        <button id="change-file-btn" class="btn-secondary" style="margin: 0; padding: 12px 20px;">Change File</button>
+                    </div>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Theme Preset</span>
+                            <span class="label-desc">Choose a pre-tuned dark-mode palette optimized for reading comfort.</span>
+                        </label>
+                        <div class="select-container">
+                            <select id="theme-select" style="width: 200px;">
+                                <option value="comfort" selected>Comfort Dark</option>
+                                <option value="deep_space">Deep Space</option>
+                                <option value="monochrome">True Black</option>
+                                <option value="classic">Classic Invert</option>
+                                <option value="custom">🎨 Custom Colors</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Custom Colors Panel (Hidden by default) -->
+                    <div id="custom-colors-panel" class="setting-card span-2" style="display: none;">
+                        <div class="custom-color-controls" style="display: flex; gap: 24px; width: 100%; justify-content: space-around; flex-wrap: wrap;">
+                            <div class="color-picker-group">
+                                <label style="display: block; font-family: var(--font-heading); font-size: 0.9rem; margin-bottom: 8px;">Background</label>
+                                <input type="color" id="custom-bg-color" value="#121212">
+                            </div>
+                            <div class="color-picker-group">
+                                <label style="display: block; font-family: var(--font-heading); font-size: 0.9rem; margin-bottom: 8px;">Text Color</label>
+                                <input type="color" id="custom-text-color" value="#e0e0e0">
+                            </div>
+                            <div class="color-picker-group">
+                                <label style="display: block; font-family: var(--font-heading); font-size: 0.9rem; margin-bottom: 8px;">Saturation</label>
+                                <div class="slider-container" style="min-width: 120px;">
+                                    <input type="range" id="custom-sat-slider" min="0" max="2.0" step="0.1" value="1.0">
+                                    <span class="slider-val" id="custom-sat-val">1.0x</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Smart Invert (Recommended)</span>
+                            <span class="label-desc">Keep diagrams, illustrations, and images in their original colors while inverting background and text.</span>
+                        </label>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="smart-invert" checked>
+                            <label for="smart-invert" class="toggle-slider"></label>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Text Brightness Boost</span>
+                            <span class="label-desc">Enhance the contrast/brightness of links, grey text, and secondary details to make them pop.</span>
+                        </label>
+                        <div class="slider-container">
+                            <input type="range" id="brightness-slider" min="1.0" max="2.0" step="0.1" value="1.3">
+                            <span class="slider-val" id="brightness-val">1.3x</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Resolution (DPI)</span>
+                            <span class="label-desc">Higher values improve text crispness but increase the output file size.</span>
+                        </label>
+                        <div class="slider-container">
+                            <input type="range" id="dpi-slider" min="100" max="250" step="25" value="150">
+                            <span class="slider-val" id="dpi-val">150 DPI</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Image Quality</span>
+                            <span class="label-desc">Adjust compression quality to optimize output file size.</span>
+                        </label>
+                        <div class="slider-container">
+                            <input type="range" id="quality-slider" min="60" max="95" step="5" value="80">
+                            <span class="slider-val" id="quality-val">80%</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Parallel Workers (Threads)</span>
+                            <span class="label-desc">Number of parallel threads to speed up multi-page PDF rendering.</span>
+                        </label>
+                        <div class="select-container">
+                            <select id="threads-select" style="width: 200px;">
+                                <option value="1">1 Thread (Single Core)</option>
+                                <option value="2">2 Threads (Dual Core)</option>
+                                <option value="4" selected>4 Threads (Quad Core)</option>
+                                <option value="8">8 Threads (High Performance)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <span class="label-title">Preview Page Number</span>
+                            <span class="label-desc">Which page would you like to render in the live preview below?</span>
+                        </label>
+                        <div class="input-container">
+                            <input type="number" id="preview-page-input" min="1" max="1000" value="10" class="page-num-input">
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <!-- User History Dashboard -->
+                <div id="user-dashboard-panel" class="dashboard-card" style="display: none; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; margin-top: 30px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="font-family: var(--font-heading); color: #fff; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">📊 Conversion History</h3>
+                        <span id="history-count" style="font-size: 0.8rem; background: rgba(0, 242, 254, 0.1); color: #00f2fe; padding: 2px 8px; border-radius: 10px; font-weight: 600;">0 files</span>
+                    </div>
+                    <div id="history-list" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No conversions recorded yet.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Processing View -->
+            <section id="processing-section" class="view-panel">
+                <div class="processing-container">
+                    <div class="progress-ring-wrapper">
+                        <svg class="progress-ring" width="160" height="160">
+                            <circle class="progress-ring__circle-bg" stroke="rgba(255, 255, 255, 0.05)" stroke-width="8" fill="transparent" r="70" cx="80" cy="80"/>
+                            <circle class="progress-ring__circle" id="progress-circle" stroke="url(#gradient)" stroke-width="8" fill="transparent" r="70" cx="80" cy="80"/>
+                            <defs>
+                                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#00f2fe" />
+                                    <stop offset="100%" stop-color="#4facfe" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="progress-text-overlay">
+                            <span class="progress-percent" id="progress-percent">0%</span>
+                            <span class="progress-label" id="progress-page-count">Page 0 of 0</span>
+                        </div>
+                    </div>
+
+                    <div class="processing-details">
+                        <h2 id="status-title">Processing PDF...</h2>
+                        <p id="status-detail">Rendering and mapping pages in parallel</p>
+                    </div>
+
+                    <div class="console-box">
+                        <div class="console-header">
+                            <span>Engine Logs</span>
+                            <div class="console-actions">
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        </div>
+                        <div class="console-log" id="console-log"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Completed View -->
+            <section id="completed-section" class="view-panel">
+                <div class="completed-container">
+                    <div class="success-icon-wrapper">
+                        <div class="success-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        </div>
+                        <div class="upload-icon-container">
+                            <span class="sparkle s1">🌀</span>
+                            <span class="sparkle s2">🌀</span>
+                            <span class="sparkle s3">🌀</span>
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        </div>
+                    </div>
+
+                    <div class="success-details">
+                        <h2>Conversion Complete!</h2>
+                        <p>Your PDF is now converted to dark mode. The searchable text layers have been perfectly preserved.</p>
+                        
+                        <div class="stats-badge-grid">
+                            <div class="stat-badge">
+                                <span class="stat-lbl">File Name</span>
+                                <span class="stat-val" id="res-filename">document.pdf</span>
+                            </div>
+                            <div class="stat-badge">
+                                <span class="stat-lbl">Pages</span>
+                                <span class="stat-val" id="res-pages">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <a id="download-btn" href="#" class="btn-primary glow-effect">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Download Dark PDF
+                        </a>
+                        <a id="open-reader-btn" href="/reader-enhanced" target="_blank" class="btn-secondary glow-effect" style="background: rgba(15, 157, 88, 0.2); border-color: #0f9d58; color: #0f9d58;">
+                            📖 Open in AI Reader
+                        </a>
+                        <button id="convert-another-btn" class="btn-secondary">
+                            Convert Another File
+                        </button>
+                    </div>
+
+                    <!-- Inline PDF Preview Web Viewer -->
+                    <div id="pdf-viewer-container" style="display: none; width: 100%; height: 500px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.15); margin-top: 30px; background: #000;">
+                        <iframe id="pdf-viewer-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Interactive Preview Split-Slider -->
+        <section class="preview-section">
+            <h3 class="section-title">Visual Conversion Preview</h3>
+            <div class="preview-slider-container">
+                <div class="preview-card light" id="preview-light">
+                    <img id="preview-light-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450' viewBox='0 0 800 450'%3E%3Crect width='800' height='450' fill='%23ffffff'/%3E%3Ctext x='50' y='80' font-family='sans-serif' font-size='28' font-weight='bold' fill='%23111111'%3EContributors%3C/text%3E%3Ctext x='50' y='140' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23222222'%3EAbout the authors%3C/text%3E%3Ctext x='50' y='190' font-family='serif' font-size='15' fill='%23333333'%3ELorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod%3C/text%3E%3Ctext x='50' y='215' font-family='serif' font-size='15' fill='%23333333'%3Etempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim%3C/text%3E%3Ctext x='50' y='240' font-family='serif' font-size='15' fill='%23333333'%3Eveniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea%3C/text%3E%3Ctext x='50' y='265' font-family='serif' font-size='15' fill='%23333333'%3Ecommodo consequat. Duis aute irure dolor in reprehenderit in voluptate%3C/text%3E%3Crect x='50' y='300' width='220' height='110' fill='%23e0e0e0' rx='4'/%3E%3Ctext x='160' y='360' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23666666'%3E[Original Image/Diagram]%3C/text%3E%3C/svg%3E" alt="Light mode textbook layout">
+                    <span class="preview-badge light-badge">Original Light PDF</span>
+                </div>
+                
+                <div class="preview-card dark" id="preview-dark">
+                    <img id="preview-dark-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450' viewBox='0 0 800 450'%3E%3Crect width='800' height='450' fill='%230b0f19'/%3E%3Ctext x='50' y='80' font-family='sans-serif' font-size='28' font-weight='bold' fill='%23ffffff'%3EContributors%3C/text%3E%3Ctext x='50' y='140' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23ffffff'%3EAbout the authors%3C/text%3E%3Ctext x='50' y='190' font-family='serif' font-size='15' fill='%23e2e8f0'%3ELorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod%3C/text%3E%3Ctext x='50' y='215' font-family='serif' font-size='15' fill='%23e2e8f0'%3Etempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim%3C/text%3E%3Ctext x='50' y='240' font-family='serif' font-size='15' fill='%23e2e8f0'%3Eveniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea%3C/text%3E%3Ctext x='50' y='265' font-family='serif' font-size='15' fill='%23e2e8f0'%3Ecommodo consequat. Duis aute irure dolor in reprehenderit in voluptate%3C/text%3E%3Crect x='50' y='300' width='220' height='110' fill='%23e0e0e0' rx='4'/%3E%3Ctext x='160' y='360' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23666666'%3E[Original Image/Diagram]%3C/text%3E%3C/svg%3E" alt="Dark mode textbook layout">
+                    <span class="preview-badge dark-badge">Dark Mode (Smart Inverted)</span>
+                </div>
+            </div>
+            <p class="preview-desc">Drag-and-drop settings adapt to keep your diagrams unchanged (Smart Invert active) or completely inverted (Smart Invert disabled).</p>
+        </section>
+    </div>
+
+    <!-- Auth Modal Dialog -->
+    <div id="auth-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px); align-items: center; justify-content: center;">
+        <div style="background: rgba(20, 20, 25, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 20px; width: 360px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); text-align: center; position: relative;">
+            <button id="close-modal-btn" style="position: absolute; right: 15px; top: 15px; background: none; border: none; color: #888; font-size: 1.2rem; cursor: pointer;">&times;</button>
+            <h2 id="auth-modal-title" style="margin-bottom: 20px; font-family: var(--font-heading); color: #fff;">🔑 Sign In</h2>
+            <div style="display: flex; flex-direction: column; gap: 15px; text-align: left;">
+                <div>
+                    <label style="font-size: 0.8rem; color: #aaa; display: block; margin-bottom: 5px;">Username</label>
+                    <input type="text" id="auth-username-input" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit;" placeholder="Enter username...">
+                </div>
+                <div>
+                    <label style="font-size: 0.8rem; color: #aaa; display: block; margin-bottom: 5px;">Password</label>
+                    <input type="password" id="auth-password-input" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; font-family: inherit;" placeholder="Enter password...">
+                </div>
+                <button id="auth-submit-btn" class="btn-primary glow-effect" style="margin-top: 10px; width: 100%; height: 42px;">Sign In</button>
+            </div>
+            <p style="margin-top: 20px; font-size: 0.85rem; color: #888;">
+                <span id="auth-toggle-msg">Don't have an account?</span> 
+                <a href="#" id="auth-toggle-link" style="color: #00f2fe; text-decoration: none; font-weight: 500;">Register here</a>
+            </p>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <p>&copy; 2026 Emanation PDF. Powered by Python, PyMuPDF and Pillow. All files are automatically deleted after conversion.</p>
+    </footer>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>
