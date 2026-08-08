@@ -16,6 +16,7 @@ from src.storage import get_storage
 from src.task_queue import task_queue
 from src.rag_indexer import index_document
 from src.pdf_converter import convert_pdf_to_dark_mode
+from src.rag.manager import RAGManager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])

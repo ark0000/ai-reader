@@ -12,7 +12,7 @@ from src.task_queue import task_queue
 from src.config import settings
 from src.routers import auth, chat, connections, files, themes
 from src.rag.manager import RAGManager
-from src.rag.providers.local_chroma import LocalChromaRAG
+from src.rag.providers.local_chroma import LocalChromaRAGProvider
 
 log_level = logging.INFO if settings.debug_console == "1" else logging.WARNING
 logging.basicConfig(level=log_level)
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     
     # Initialize RAG Provider
     try:
-        provider = LocalChromaRAG()
+        provider = LocalChromaRAGProvider()
         RAGManager.register_provider("default", provider)
     except Exception as e:
         logger.error(f"Failed to initialize RAG Provider: {e}")
