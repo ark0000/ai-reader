@@ -70,33 +70,26 @@ class MyCustomRAGProvider(IRAGProvider):
         return ["Custom context chunk 1", "Custom context chunk 2"]
 ```
 
-### 3. Register your provider
-At the very bottom of your new file, register your class with the `RAGManager`. You must give it a unique string identifier.
+### 3. Register your provider in `main.py`
+Instead of modifying `chat.py` or `files.py`, you simply register your custom provider as the `"default"` provider during the application startup. 
+
+Open `src/main.py`, import your provider, and update the `lifespan` function:
 
 ```python
+# src/main.py
 from src.rag.manager import RAGManager
+from src.rag.providers.my_custom_rag import MyCustomRAGProvider  # Import your custom provider
 
-# Register your custom provider
-RAGManager.register_provider("my_custom", MyCustomRAGProvider())
-```
-
-### 4. Ensure your provider is loaded
-Open `src/rag/providers/__init__.py` and import your new file so it runs when the application starts:
-
-```python
-# src/rag/providers/__init__.py
-import src.rag.providers.local_chroma
-import src.rag.providers.my_custom_rag  # Add this line!
-```
-
-### 5. Switch the active provider
-Finally, tell the application to use your custom provider instead of the default one. 
-
-Open `src/routers/chat.py` and `src/routers/files.py`, and look for where the provider is fetched. Change `"default"` to `"my_custom"`:
-
-```python
-# In chat.py and files.py:
-rag_provider = RAGManager.get_provider("my_custom")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    
+    # Initialize RAG Provider
+    try:
+        provider = MyCustomRAGProvider() # <-- Instantiate your provider
+        RAGManager.register_provider("default", provider) # <-- Register as "default"
+    except Exception as e:
+        logger.error(f"Failed to initialize RAG Provider: {e}")
 ```
 
 ## That's it!
