@@ -48,7 +48,7 @@ async def api_index_text(req: IndexTextRequest, user_data: dict = Depends(resolv
                 task_queue.update_progress(f"rag_{fid}", progress, total)
             rag_provider.index_document(fid, txt, progress_callback=progress_cb)
             
-        task_queue.add_task(f"rag_{req.file_id}", rag_index_wrapper, req.file_id, req.text)
+        task_queue.add_task(f"rag_{req.file_id}", user_data["user_id"], rag_index_wrapper, req.file_id, req.text)
     
     return {"status": "queued", "file_id": req.file_id}
 
@@ -115,7 +115,7 @@ async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
                     task_queue.update_progress(f"rag_{fid}", progress, total)
                 rag_provider.index_document(fid, txt, progress_callback=progress_cb)
                 
-        task_queue.add_task(f"rag_{task_id}", rag_index_wrapper, task_id, doc_text)
+        task_queue.add_task(f"rag_{task_id}", user_data["user_id"], rag_index_wrapper, task_id, doc_text)
             
     task_user_mapping[task_id] = {
         "user_id": user_id,

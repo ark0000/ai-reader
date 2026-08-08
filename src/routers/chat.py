@@ -92,6 +92,9 @@ async def api_chat(req: ChatRequestWithConnection, request: Request, user_data: 
         return response
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        # Re-raise HTTP exceptions so they aren't caught by the generic handler
+        raise
     except Exception as e:
         logger.error(f"Chat completion error: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=str(e))

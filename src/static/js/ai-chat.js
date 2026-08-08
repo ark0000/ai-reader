@@ -255,7 +255,14 @@ window.askAI = async function(prompt) {
       body: JSON.stringify(payload)
     });
     
-    if(!r.ok) throw new Error('API Error: ' + await r.text());
+    if(!r.ok) {
+      let errText = await r.text();
+      try {
+        let errJson = JSON.parse(errText);
+        if (errJson.detail) errText = errJson.detail;
+      } catch (e) {}
+      throw new Error(errText);
+    }
     
     var d = await r.json();
     if (!d.choices || !d.choices[0] || !d.choices[0].message) {
