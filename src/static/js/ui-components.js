@@ -94,7 +94,7 @@ window.toggleSettings = function(e) {
 };
 
 window.handleSettingsTitleClick = function() {
-  window._devClickCount++;
+  window._devClickCount = (window._devClickCount || 0) + 1;
   clearTimeout(window._devClickTimer);
   
   if (window._devClickCount >= 7) {
