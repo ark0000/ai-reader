@@ -56,12 +56,19 @@ class MyCustomRAGProvider(IRAGProvider):
 
     def index_document(self, file_id: str, text: str, progress_callback: callable = None) -> None:
         # 1. Chunk the text
-        # 2. Embed the chunks in batches
-        # 3. Store the embeddings in your custom database under the 'file_id' namespace
-        # 4. If progress_callback is provided, call it with (current_chunks, total_chunks) to update the UI
+        chunks = [text[i:i+500] for i in range(0, len(text), 500)] # Example chunking
+        total_chunks = len(chunks)
+        
         print(f"Indexing {file_id}...")
-        if progress_callback:
-            progress_callback(100, 100) # Example: instantly 100% complete
+        
+        for i, chunk in enumerate(chunks):
+            # 2. Embed the chunk
+            # 3. Store the embedding in your custom database under the 'file_id' namespace
+            
+            # 4. Call progress_callback with (current_chunks, total_chunks)
+            #    The UI will automatically calculate and display the percentage completed!
+            if progress_callback:
+                progress_callback(i + 1, total_chunks)
 
     def search_document(self, file_id: str, query: str, top_k: int = 3) -> List[str]:
         # 1. Embed the user's query
