@@ -122,7 +122,6 @@ window.handleSettingsTitleClick = function() {
     }, 2000);
   }
 };
-
 window.closeToc = function() {
   var s = document.getElementById('toc-popup');
   if (s) { s.classList.remove('open'); s.classList.remove('active'); }
@@ -133,25 +132,35 @@ window.toggleFullScreen = function() {
   const fullscreenElement = document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
 
   if (!fullscreenElement) {
-    if (doc.requestFullscreen) {
-      doc.requestFullscreen().catch(err => console.warn(err));
-    } else if (doc.mozRequestFullScreen) { /* Firefox */
-      doc.mozRequestFullScreen();
-    } else if (doc.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
-      doc.webkitRequestFullscreen();
-    } else if (doc.msRequestFullscreen) { /* IE/Edge */
-      doc.msRequestFullscreen();
+    // Try native fullscreen first
+    const fsPromise = doc.requestFullscreen ? doc.requestFullscreen() :
+                      doc.webkitRequestFullscreen ? doc.webkitRequestFullscreen() :
+                      doc.mozRequestFullScreen ? doc.mozRequestFullScreen() :
+                      doc.msRequestFullscreen ? doc.msRequestFullscreen() :
+                      Promise.reject(new Error('Fullscreen API not supported'));
+
+    if (fsPromise && fsPromise.catch) {
+      fsPromise.catch(function(err) {
+        console.warn('[Fullscreen] Native fullscreen failed:', err.message);
+        // Pseudo-fullscreen fallback: hide toolbars
+        document.body.classList.toggle('pseudo-fullscreen');
+      });
     }
   } else {
     if (document.exitFullscreen) {
       document.exitFullscreen();
-    } else if (document.mozCancelFullScreen) { /* Firefox */
-      document.mozCancelFullScreen();
-    } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+    } else if (document.webkitExitFullscreen) {
       document.webkitExitFullscreen();
-    } else if (document.msExitFullscreen) { /* IE/Edge */
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen();
+    } else if (document.msExitFullscreen) {
       document.msExitFullscreen();
     }
+  }
+
+  // Also toggle pseudo-fullscreen class for toolbar hiding
+  if (!doc.requestFullscreen && !doc.webkitRequestFullscreen) {
+    document.body.classList.toggle('pseudo-fullscreen');
   }
 };
 

@@ -16,6 +16,15 @@ body {
   color: var(--text-1);
 }
 
+/* Pseudo-fullscreen: hides toolbars when native fullscreen API fails */
+body.pseudo-fullscreen #top-bar,
+body.pseudo-fullscreen #secondary-toolbar {
+  display: none !important;
+}
+body.pseudo-fullscreen #content {
+  height: 100vh !important;
+}
+
 button {
   cursor: pointer;
   font-family: inherit;
