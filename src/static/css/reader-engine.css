@@ -359,12 +359,12 @@ mark.hl {
 }
 
 /* MD CONTENT */
-.md-content {
+.md-content.prose, .md-content {
   width: 100%;
   max-width: var(--reader-width);
   margin: 0 auto;
   font-family: var(--reader-font);
-  font-size: var(--reader-size);
+  font-size: var(--reader-size) !important;
   line-height: var(--reader-lh);
   color: var(--text-1);
   background: var(--bg-card);
