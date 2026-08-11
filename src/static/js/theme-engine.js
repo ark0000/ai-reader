@@ -32,7 +32,13 @@ window.ThemeEngine = (function() {
     var szRange = document.getElementById('sz-range');
     if (szRange) {
       szRange.addEventListener('input', debounce(function(e) {
-        var dp = document.getElementById('doc-pane'); if (dp) dp.style.setProperty('--reader-size', e.target.value + 'px'); else root.style.setProperty('--reader-size', e.target.value + 'px');
+        var val = e.target.value + 'px';
+        var dp = document.getElementById('doc-pane'); 
+        if (dp) dp.style.setProperty('--reader-size', val); 
+        else root.style.setProperty('--reader-size', val);
+        document.querySelectorAll('.md-content').forEach(function(el){
+          el.style.fontSize = val;
+        });
       }, 50));
     }
 

@@ -838,3 +838,59 @@ input[type="color"]::-moz-color-swatch {
     border: none;
     border-radius: 50%;
 }
+
+
+/* Structural Recognizer Overlays */
+.structural-overlay {
+    position: absolute;
+    background: rgba(0, 150, 255, 0.03);
+    border: 1px dashed rgba(0, 150, 255, 0.3);
+    border-radius: 6px;
+    pointer-events: auto;
+    transition: all 0.2s ease;
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 4px;
+    box-sizing: border-box;
+}
+.structural-overlay:hover {
+    background: rgba(0, 150, 255, 0.1);
+    border: 1px solid rgba(0, 150, 255, 0.5);
+    backdrop-filter: blur(2px);
+}
+.structural-overlay.image-overlay {
+    background: rgba(255, 100, 0, 0.03);
+    border: 1px dashed rgba(255, 100, 0, 0.3);
+}
+.structural-overlay.image-overlay:hover {
+    background: rgba(255, 100, 0, 0.1);
+    border: 1px solid rgba(255, 100, 0, 0.5);
+}
+.overlay-actions {
+    display: none;
+    gap: 8px;
+}
+.structural-overlay:hover .overlay-actions {
+    display: flex;
+}
+.overlay-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: transform 0.1s;
+}
+.overlay-btn:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+}
+.overlay-btn.img-btn {
+    background: #ff6a00;
+}

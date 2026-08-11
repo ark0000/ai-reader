@@ -21,17 +21,6 @@ body {
   background: var(--bg-body) !important;
 }
 
-#content:fullscreen, 
-#content:-webkit-full-screen, 
-#content:-moz-full-screen, 
-#content:-ms-fullscreen {
-  background: var(--bg-body) !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  padding: 2rem 1.5rem !important;
-  overflow-y: auto !important;
-}
-
 /* Pseudo-fullscreen: hides toolbars when native fullscreen API fails */
 body.pseudo-fullscreen #top-bar,
 body.pseudo-fullscreen #secondary-toolbar {
@@ -2136,4 +2125,3 @@ body.presentation-mode #main-content {
   overflow-y: hidden;
   padding: 0.5em 0;
 }
-/* ------------------------------------------- */

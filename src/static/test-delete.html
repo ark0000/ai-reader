@@ -1,0 +1,41 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Delete Test</title>
+</head>
+<body>
+<h1>Testing Delete...</h1>
+<div id="log"></div>
+<script>
+function log(msg) { document.getElementById("log").innerHTML += msg + "<br>"; }
+(async function() {
+  const iframe = document.createElement("iframe");
+  iframe.src = "/reader-enhanced";
+  iframe.style = "width:100%;height:300px;";
+  document.body.appendChild(iframe);
+  await new Promise(r => iframe.onload = r);
+  await new Promise(r => setTimeout(r, 1000));
+  
+  const w = iframe.contentWindow;
+  w.confirm = () => true; // Override confirm to ALWAYS return true!
+  
+  log("Saving test doc...");
+  await w.storageRepository.saveDocument("testuser_testdel.pdf", new Blob(["test"], {type:"application/pdf"}), "testdel.pdf", "pdf");
+  
+  let meta = await w.storageRepository.getLibraryMeta("testuser");
+  log("Docs before delete: " + meta.length);
+  
+  log("Deleting doc...");
+  await w.storageRepository.deleteDocument("testuser_testdel.pdf");
+  
+  meta = await w.storageRepository.getLibraryMeta("testuser");
+  log("Docs after delete: " + meta.length);
+  
+  if (meta.length === 0) log("DELETE SUCCESSFUL!");
+  else log("DELETE FAILED!");
+})();
+</script>
+</body>
+</html>
+

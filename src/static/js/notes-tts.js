@@ -20,8 +20,7 @@ window.popHL = function(){
   var txt = window.selText;
   var noteId = Date.now();
   window.notes.push({q: '', txt: '<blockquote>' + txt + '</blockquote><br>', id: noteId, isHl: true, color: window.hlColor});
-  window.renderNotes();
-
+  
   var finalColor = window.hlColor;
   
   if (window.currentExt === 'pdf') {
@@ -83,6 +82,7 @@ window.popHL = function(){
   
   window.getSelection().removeAllRanges();
   window.hidePopup();
+  window.renderNotes();
 };
 
 /* NOTES */
@@ -210,6 +210,14 @@ window.cancelEdit = function(id) {
 };
 
 window.renderNotes = function(){
+  // Save notes to IndexedDB for persistence if enabled
+  if (window.safeStorage && window.safeStorage.getItem('aura-notes-state') === 'true' && window.currentFileName) {
+    if (window.storageRepository) {
+      var uname = window.currentUsername || (window.safeStorage && window.safeStorage.getItem('username')) || 'guest';
+      window.storageRepository.saveNotes(uname + '_' + window.currentFileName, window.notes, window.pdfHighlights);
+    }
+  }
+
   var notesList = document.getElementById('notes-list');
   notesList.innerHTML = window.notes.length ? '' : '<div class="msg msg-s">No notes yet.</div>';
   var hIdx=1;
@@ -268,7 +276,9 @@ window.exportNotes = function(format) {
     
     var doc = iframe.contentWindow.document;
     doc.open();
-    doc.write('<html><head><title>Emanation Reader Notes</title></head><body style="padding:20px;font-family:sans-serif;color:#000;background:#fff;">');
+    var preserveColors = window.safeStorage && window.safeStorage.getItem('aura-pdf-colors') === 'true';
+    var styleOverride = preserveColors ? '' : '<style>* { color: #000 !important; } pre, code { background-color: #f5f5f5 !important; }</style>';
+    doc.write('<html><head><title>Emanation Reader Notes</title>' + styleOverride + '</head><body style="padding:20px;font-family:sans-serif;color:#000;background:#fff;">');
     doc.write('<h2>Emanation Reader Notes</h2><hr>' + window.notes.map(function(n) {
       var noteTxt = n.isHl ? '<span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:'+n.color+';color:#000;text-align:center;line-height:20px;font-weight:bold;font-size:12px;">' + (hIdxPdf++) + '</span>' : n.txt;
       var qColor = n.isHl ? n.color : '#ccc';
@@ -603,36 +613,33 @@ window.ttsFromHere = async function() {
 };
 
 window.ttsPause = function() {
-  if (typeof speechSynthesis === 'undefined') return;
-  var btn = document.getElementById('tts-pause-btn');
-  if (speechSynthesis.paused || window._ttsPaused) {
-    window._ttsPaused = false;
+  if (window._ttsPaused) {
     speechSynthesis.resume();
-    document.getElementById('tts-status').textContent = 'Speaking...';
-    document.getElementById('tts-status').className = 'tts-status speaking';
+    window._ttsPaused = false;
+    var btn = document.getElementById('tts-pause-btn');
     if (btn) btn.innerHTML = '&#9208; Pause';
+    var s = document.getElementById('tts-status');
+    if (s) { s.textContent = 'Speaking...'; s.className = 'tts-status speaking'; }
   } else {
-    window._ttsPaused = true;
     speechSynthesis.pause();
-    document.getElementById('tts-status').textContent = 'Paused';
-    document.getElementById('tts-status').className = 'tts-status paused';
+    window._ttsPaused = true;
+    var btn = document.getElementById('tts-pause-btn');
     if (btn) btn.innerHTML = '&#9654; Resume';
+    var s = document.getElementById('tts-status');
+    if (s) { s.textContent = 'Paused'; s.className = 'tts-status'; }
   }
 };
 
 window.ttsStop = function() {
-  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
-  window._ttsPlaying = false;
+  speechSynthesis.cancel();
   window._ttsPaused = false;
-  window._ttsChunks = [];
-  window._ttsIdx = 0;
-  document.getElementById('tts-status').textContent = 'Stopped';
-  document.getElementById('tts-status').className = 'tts-status';
-  document.getElementById('tts-box').textContent = '—';
-  var prog = document.getElementById('tts-progress');
-  if (prog) prog.textContent = '';
+  window._ttsPlaying = false;
   var btn = document.getElementById('tts-pause-btn');
   if (btn) btn.innerHTML = '&#9208; Pause';
+  var s = document.getElementById('tts-status');
+  if (s) { s.textContent = 'Stopped'; s.className = 'tts-status'; }
+  var prog = document.getElementById('tts-progress');
+  if (prog) prog.textContent = '';
 };
 
 window.popTTS = function() {
@@ -650,34 +657,17 @@ window.popTTSFromHere = function() {
 };
 
 window.ttsBackward = function() {
-  if (typeof speechSynthesis === 'undefined') return;
-  if (!window._ttsPlaying) return;
-  
   if (window._ttsIdx > 0) {
-    window._ttsIdx = Math.max(0, window._ttsIdx - 1);
-    window._ttsCurrentU = null;
     speechSynthesis.cancel();
-    speechSynthesis.resume();
-    window._ttsPaused = false;
-    if (window._ttsSkipTimer) clearTimeout(window._ttsSkipTimer);
-    window._ttsSkipTimer = setTimeout(function() { speakChunk(window._ttsIdx); }, 50);
+    speakChunk(window._ttsIdx - 1);
   }
 };
 
 window.ttsForward = function() {
-  if (typeof speechSynthesis === 'undefined') return;
-  if (!window._ttsPlaying) return;
-  
-  if (window._ttsIdx < window._ttsChunks.length) {
-    window._ttsIdx = window._ttsIdx + 1;
-    window._ttsCurrentU = null;
+  if (window._ttsIdx < window._ttsChunks.length - 1) {
     speechSynthesis.cancel();
-    speechSynthesis.resume();
-    window._ttsPaused = false;
-    if (window._ttsSkipTimer) clearTimeout(window._ttsSkipTimer);
-    window._ttsSkipTimer = setTimeout(function() { speakChunk(window._ttsIdx); }, 50);
+    speakChunk(window._ttsIdx + 1);
   }
 };
-
 
 window.insertCodeBlock = function() { var sel = window.getSelection(); if (!sel.rangeCount) return; var range = sel.getRangeAt(0); if (sel.isCollapsed) { var code = document.createElement('code'); code.textContent = 'code'; range.insertNode(code); sel.removeAllRanges(); var newRange = document.createRange(); newRange.selectNodeContents(code); sel.addRange(newRange); } else { var code = document.createElement('code'); code.appendChild(range.extractContents()); range.insertNode(code); } };

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Library Feature Test</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; padding: 30px; }
+  h1 { color: #7c3aed; }
+  .result { padding: 8px 12px; margin: 4px 0; border-radius: 6px; font-size: 14px; }
+  .pass { background: #064e3b; border-left: 4px solid #10b981; }
+  .fail { background: #7f1d1d; border-left: 4px solid #ef4444; }
+  .summary { margin-top: 20px; padding: 16px; background: #252538; border-radius: 8px; font-size: 18px; }
+  #status { color: #facc15; font-size: 14px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<h1>📚 Library & Profile Feature Tests</h1>
+<div id="status">⏳ Running tests...</div>
+<div id="results"></div>
+
+<script>
+(async function() {
+  const container = document.getElementById('results');
+  const statusEl = document.getElementById('status');
+  const results = [];
+
+  function log(passed, name, detail) {
+    const div = document.createElement('div');
+    div.className = 'result ' + (passed ? 'pass' : 'fail');
+    div.textContent = (passed ? '✅ ' : '❌ ') + name + (detail ? ' — ' + detail : '');
+    container.appendChild(div);
+    results.push(passed);
+  }
+
+  statusEl.textContent = '⏳ Loading reader page in iframe...';
+
+  const iframe = document.createElement('iframe');
+  iframe.src = '/reader-enhanced';
+  iframe.style = 'width:100%;height:200px;border:1px solid #333;border-radius:8px;margin:10px 0;';
+  document.body.appendChild(iframe);
+
+  await new Promise(resolve => iframe.onload = resolve);
+  await new Promise(r => setTimeout(r, 2000));
+
+  const w = iframe.contentWindow;
+  statusEl.textContent = '⏳ Running tests...';
+
+  // TEST 1: safeStorage
+  log(w.safeStorage && typeof w.safeStorage.getItem === 'function',
+    'safeStorage exists and has getItem');
+
+  // TEST 2: StorageRepository
+  log(w.storageRepository && typeof w.storageRepository.saveDocument === 'function',
+    'StorageRepository exists with saveDocument/loadDocument/getLibraryMeta');
+
+  // TEST 3: DatabaseManager
+  log(w.dbManager && typeof w.dbManager.getTransaction === 'function',
+    'DatabaseManager exists with getTransaction');
+
+  // TEST 4: Set username
+  w.safeStorage.setItem('username', 'AutoTestUser');
+  w.currentUsername = 'AutoTestUser';
+  log(w.safeStorage.getItem('username') === 'AutoTestUser',
+    'Username saved and read back from safeStorage');
+
+  // TEST 5: Enable reading state
+  w.toggleStateKey('aura-pdf-reading-state', true);
+  w.safeStorage.setItem('aura-pdf-reading-state', 'true');
+  log(w.safeStorage.getItem('aura-pdf-reading-state') === 'true',
+    'Reading State toggle: value persisted as "true"');
+
+  // TEST 6: Enable notes state
+  w.toggleStateKey('aura-notes-state', true);
+  w.safeStorage.setItem('aura-notes-state', 'true');
+  log(w.safeStorage.getItem('aura-notes-state') === 'true',
+    'Notes State toggle: value persisted as "true"');
+
+  // TEST 7: Save document to IndexedDB
+  const blob1 = new Blob(['Fake PDF content 1'], { type: 'application/pdf' });
+  try {
+    await w.storageRepository.saveDocument('AutoTestUser_testA.pdf', blob1, 'testA.pdf', 'pdf');
+    log(true, 'Saved document "testA.pdf" to IndexedDB');
+  } catch (e) {
+    log(false, 'Save document "testA.pdf"', e.message);
+  }
+
+  // TEST 8: Save second document
+  const blob2 = new Blob(['Fake PDF content 2'], { type: 'application/pdf' });
+  try {
+    await w.storageRepository.saveDocument('AutoTestUser_testB.pdf', blob2, 'testB.pdf', 'pdf');
+    log(true, 'Saved document "testB.pdf" to IndexedDB');
+  } catch (e) {
+    log(false, 'Save document "testB.pdf"', e.message);
+  }
+
+  // TEST 9: Query library
+  try {
+    const lib = await w.storageRepository.getLibraryMeta('AutoTestUser');
+    log(lib.length >= 2,
+      'Library has ' + lib.length + ' doc(s) for AutoTestUser',
+      lib.length < 2 ? 'Expected >= 2' : '');
+  } catch (e) {
+    log(false, 'Library query for AutoTestUser', e.message);
+  }
+
+  // TEST 10: Library isolation
+  try {
+    const otherLib = await w.storageRepository.getLibraryMeta('NobodyUser');
+    log(otherLib.length === 0,
+      'Library isolation: NobodyUser has ' + otherLib.length + ' docs',
+      otherLib.length > 0 ? 'Expected 0' : '');
+  } catch (e) {
+    log(false, 'Library isolation', e.message);
+  }
+
+  // TEST 11: Load document back
+  try {
+    const doc = await w.storageRepository.loadDocument('AutoTestUser_testA.pdf');
+    const blobOk = doc && doc.fileBlob && typeof doc.fileBlob.size === 'number' && doc.fileBlob.size > 0;
+    log(doc && doc.fileName === 'testA.pdf' && blobOk,
+      'Loaded testA.pdf back: fileName="' + (doc ? doc.fileName : 'null') + '", blobSize=' + (doc && doc.fileBlob ? doc.fileBlob.size : 0));
+  } catch (e) {
+    log(false, 'Load document back', e.message);
+  }
+
+  // TEST 12: Save and load notes
+  try {
+    await w.storageRepository.saveNotes('AutoTestUser_testA.pdf',
+      [{id:1, text:'Test note'}], [{id:1, text:'Highlight'}]);
+    const nd = await w.storageRepository.loadNotes('AutoTestUser_testA.pdf');
+    log(nd && nd.notes && nd.notes.length === 1 && nd.pdfHighlights.length === 1,
+      'Notes saved and loaded: 1 note, 1 highlight');
+  } catch (e) {
+    log(false, 'Save/load notes', e.message);
+  }
+
+  // TEST 13: UI elements
+  log(!!w.document.getElementById('library-modal'), 'Library modal HTML exists in DOM');
+  log(typeof w.openLibraryModal === 'function', 'openLibraryModal() function exists');
+  log(!!w.document.getElementById('username-input'), 'Username input exists in settings');
+
+  const pdfCb = w.document.getElementById('save-pdf-state-cb');
+  const notesCb = w.document.getElementById('save-notes-state-cb');
+  log(!!pdfCb && !!notesCb, 'Both persistence checkboxes exist');
+
+  // CLEANUP
+  try {
+    const s1 = await w.dbManager.getTransaction('documents', 'readwrite');
+    s1.delete('AutoTestUser_testA.pdf'); s1.delete('AutoTestUser_testB.pdf');
+    const s2 = await w.dbManager.getTransaction('documents_meta', 'readwrite');
+    s2.delete('AutoTestUser_testA.pdf'); s2.delete('AutoTestUser_testB.pdf');
+    const s3 = await w.dbManager.getTransaction('annotations', 'readwrite');
+    s3.delete('AutoTestUser_testA.pdf');
+  } catch(e) {}
+  w.safeStorage.setItem('username', '');
+  w.currentUsername = 'guest';
+
+  // Summary
+  const passes = results.filter(Boolean).length;
+  const fails = results.length - passes;
+  const summary = document.createElement('div');
+  summary.className = 'summary';
+  summary.innerHTML = (fails === 0 ? '🎉' : '⚠️') +
+    ' <strong>' + passes + '/' + results.length + ' passed</strong>, ' + fails + ' failed';
+  container.appendChild(summary);
+  statusEl.textContent = fails === 0 ? '✅ All tests passed!' : '⚠️ Some tests failed';
+})();
+</script>
+</body>
+</html>

@@ -48,8 +48,8 @@ class ResourceTracker extends TelemetryPlugin {
   }
 }
 
-class DomTracker extends TelemetryPlugin {
-  constructor() { super(); this.name = 'dom'; this._isGathering = false; }
+class PdfDomTracker extends TelemetryPlugin {
+  constructor() { super(); this.name = 'pdf_dom'; this._isGathering = false; }
   gather(metrics) {
     if (this._isGathering) return;
     this._isGathering = true;
@@ -66,11 +66,49 @@ class DomTracker extends TelemetryPlugin {
               canvasCount++;
               const w = canvases[0].width || 0;
               const h = canvases[0].height || 0;
-              totalBytes += (w * h * 4);
+              totalBytes += (w * h * 4); // 4 bytes per pixel (RGBA)
             }
           }
           metrics.activeCanvases = canvasCount;
           metrics.estimatedRamMB = (totalBytes / 1048576).toFixed(2);
+        }
+      } finally { this._isGathering = false; }
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(updateDom, { timeout: 1000 });
+    else setTimeout(updateDom, 0);
+  }
+}
+
+class MarkdownPerfTracker extends TelemetryPlugin {
+  constructor() { super(); this.name = 'md_perf'; this._isGathering = false; }
+  gather(metrics) {
+    if (this._isGathering) return;
+    this._isGathering = true;
+    const updateDom = () => {
+      try {
+        const contentEl = document.getElementById('content');
+        if (contentEl) {
+          metrics.domNodes = contentEl.getElementsByTagName('*').length;
+        }
+      } finally { this._isGathering = false; }
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(updateDom, { timeout: 1000 });
+    else setTimeout(updateDom, 0);
+  }
+}
+
+class EpubPerfTracker extends TelemetryPlugin {
+  constructor() { super(); this.name = 'epub_perf'; this._isGathering = false; }
+  gather(metrics) {
+    if (this._isGathering) return;
+    this._isGathering = true;
+    const updateDom = () => {
+      try {
+        const contentEl = document.getElementById('content');
+        if (contentEl) {
+          metrics.domNodes = contentEl.getElementsByTagName('*').length;
+          const iframes = contentEl.getElementsByTagName('iframe');
+          metrics.epubIframes = iframes.length;
         }
       } finally { this._isGathering = false; }
     };
@@ -134,6 +172,61 @@ class ApiTracker extends TelemetryPlugin {
 
 // --- CORE ORCHESTRATOR ---
 
+class TelemetryProfile {
+  constructor(name) { this.name = name; this.stats = []; this.plugins = []; }
+  getStats() { return this.stats; }
+  getPlugins() { return this.plugins; }
+}
+
+class PdfTelemetryProfile extends TelemetryProfile {
+  constructor() {
+    super('pdf');
+    this.plugins = [new FPSTracker(), new MemoryTracker(), new ResourceTracker(), new PdfDomTracker(), new ApiTracker()];
+    this.stats = [
+      { id: 'fps', label: 'Speed (FPS)', tooltip: 'How smooth the app is running. 60 FPS is perfect!' },
+      { id: 'domNodes', label: 'DOM Nodes', tooltip: 'Total HTML elements currently on the page.' },
+      { id: 'jsHeapMB', label: 'JS Heap', tooltip: "Actual computer memory used by the app's logic.", formatter: v => v + ' MB' },
+      { id: 'resourceCount', label: 'Resources', tooltip: 'Number of files downloaded.' },
+      { id: 'activeCanvases', label: 'PDF Canvases', tooltip: 'Number of actively rendered PDF canvases.' },
+      { id: 'estimatedRamMB', label: 'PDF RAM (Est.)', tooltip: 'Estimated RAM used by PDF canvases.', formatter: v => v + ' MB' },
+      { id: 'lastRenderTimeMs', label: 'PDF Render Time', tooltip: 'Time taken to render the last PDF page.', formatter: v => v + ' ms' },
+      { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'apiLatencyMs', label: 'API Latency', tooltip: 'Average API latency (ms).', formatter: v => v + ' ms' }
+    ];
+  }
+}
+
+class MarkdownTelemetryProfile extends TelemetryProfile {
+  constructor() {
+    super('md');
+    this.plugins = [new FPSTracker(), new MemoryTracker(), new ResourceTracker(), new MarkdownPerfTracker(), new ApiTracker()];
+    this.stats = [
+      { id: 'fps', label: 'Speed (FPS)', tooltip: 'How smooth the app is running.' },
+      { id: 'domNodes', label: 'DOM Nodes', tooltip: 'Total HTML elements currently on the page.' },
+      { id: 'jsHeapMB', label: 'JS Heap', tooltip: "Actual computer memory used.", formatter: v => v + ' MB' },
+      { id: 'mdParseTimeMs', label: 'MD Parse Time', tooltip: 'Time taken by marked.js to parse text.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'mathRenderTimeMs', label: 'Math Rendering', tooltip: 'Time taken by KaTeX to parse math.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'apiLatencyMs', label: 'API Latency', tooltip: 'Average API latency (ms).', formatter: v => v + ' ms' }
+    ];
+  }
+}
+
+class EpubTelemetryProfile extends TelemetryProfile {
+  constructor() {
+    super('epub');
+    this.plugins = [new FPSTracker(), new MemoryTracker(), new ResourceTracker(), new EpubPerfTracker(), new ApiTracker()];
+    this.stats = [
+      { id: 'fps', label: 'Speed (FPS)', tooltip: 'How smooth the app is running.' },
+      { id: 'domNodes', label: 'DOM Nodes', tooltip: 'Total HTML elements currently on the page.' },
+      { id: 'epubIframes', label: 'Active iFrames', tooltip: 'Number of chapter iframes loaded by epub.js.' },
+      { id: 'jsHeapMB', label: 'JS Heap', tooltip: "Actual computer memory used.", formatter: v => v + ' MB' },
+      { id: 'epubReflowTimeMs', label: 'Reflow Latency', tooltip: 'Time taken to paginate or reflow columns.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' }
+    ];
+  }
+}
+
 class PerformanceCore {
   constructor() {
     this.isActive = false;
@@ -141,17 +234,33 @@ class PerformanceCore {
       fps: 0, activeCanvases: 0, domNodes: 0, estimatedRamMB: 0,
       jsHeapMB: 'N/A', resourceCount: 0, resourcePayloadMB: 0,
       lastRenderTimeMs: 0, apiCount: 0, apiLatencyMs: 0,
-      ragLatencyMs: 0, mathRenderTimeMs: 0
+      ragLatencyMs: 0, mathRenderTimeMs: 0, mdParseTimeMs: 0,
+      epubIframes: 0, epubReflowTimeMs: 0
     };
     this.plugins = [];
-    this.customStats = []; // For UI extension
+    this.customStats = []; // Dynamically populated by profile
     this.uiCallback = null; this._rafId = null; this.telemetryLevel = 2;
+    this.currentProfile = null;
   }
-  registerPlugin(plugin) { this.plugins.push(plugin); }
-  registerCustomStat(statConfig) { this.customStats.push(statConfig); }
+  
+  setActiveProfile(profile) {
+    let wasActive = this.isActive;
+    if (wasActive) this.stop();
+    
+    this.currentProfile = profile;
+    this.plugins = profile.getPlugins();
+    this.customStats = profile.getStats();
+    
+    // Notify UI to rebuild
+    if (window.AuraPerf && window.AuraPerf.ui) {
+        window.AuraPerf.ui.rebuild();
+    }
+    
+    if (wasActive) this.start(this.uiCallback);
+  }
+
   setTelemetryLevel(level) {
     this.telemetryLevel = parseInt(level, 10);
-    // Notify plugins
     this.plugins.forEach(p => {
       if (p.name === 'api') p.enabled = (this.telemetryLevel > 0);
     });
@@ -181,16 +290,11 @@ class PerformanceCore {
     this.plugins.forEach(p => p.stop && p.stop());
   }
   logRender(timeMs) { this.metrics.lastRenderTimeMs = timeMs.toFixed(1); }
+  logMdParse(timeMs) { this.metrics.mdParseTimeMs = timeMs.toFixed(1); }
+  logEpubReflow(timeMs) { this.metrics.epubReflowTimeMs = timeMs.toFixed(1); }
+  recordFormatTime(ms) { this.metrics.mathRenderTimeMs = ms.toFixed(1); }
 }
 
-const core = new PerformanceCore();
-core.registerPlugin(new FPSTracker());
-core.registerPlugin(new MemoryTracker());
-core.registerPlugin(new ResourceTracker());
-core.registerPlugin(new DomTracker());
-core.registerPlugin(new ApiTracker());
-
-window.AuraPerf = core;
 
 // --- UNIVERSAL UI FACTORY ---
 class PerfDashboardUI {
@@ -199,6 +303,19 @@ class PerfDashboardUI {
     this.isMounted = false;
     this.isVisible = false;
     this.container = null;
+  }
+  
+  rebuild() {
+    if (this.isMounted && this.container) {
+        let customHTML = '';
+        if (this.core.customStats && this.core.customStats.length > 0) {
+          for (const stat of this.core.customStats) {
+            customHTML += `<div class="perf-stat" data-tooltip="${stat.tooltip}"><span>${stat.label}:</span> <strong id="${stat.id}">N/A</strong></div>`;
+          }
+        }
+        const bodyEl = this.container.querySelector('.perf-body');
+        if (bodyEl) bodyEl.innerHTML = customHTML;
+    }
   }
 
   injectStyles() {
@@ -279,7 +396,6 @@ class PerfDashboardUI {
     `;
     document.body.appendChild(this.container);
     
-    // Add drag-and-drop functionality
     const header = this.container.querySelector('.perf-header');
     header.style.cursor = 'move';
     let isDragging = false;
@@ -350,37 +466,15 @@ class PerfDashboardUI {
     }
   }
 }
-
+const core = new PerformanceCore();
 const dashUI = new PerfDashboardUI(core);
-window.AuraPerf.core = core;
+window.AuraPerf = core;
+window.AuraPerf.ui = dashUI;
 window.AuraPerf.toggleUI = (forceState) => dashUI.toggle(forceState);
-
-// Register base web metrics (applicable to all pages)
-window.AuraPerf.registerCustomStat({ id: 'fps', label: 'Speed (FPS)', tooltip: 'How smooth the app is running. 60 FPS is perfect!' });
-window.AuraPerf.registerCustomStat({ id: 'domNodes', label: 'DOM Nodes', tooltip: 'Total HTML elements currently on the page.' });
-window.AuraPerf.registerCustomStat({ id: 'jsHeapMB', label: 'JS Heap', tooltip: "Actual computer memory used by the app's logic.", formatter: v => v + ' MB' });
-window.AuraPerf.registerCustomStat({ id: 'resourceCount', label: 'Resources', tooltip: 'Number of files downloaded (fonts, images, scripts).' });
-window.AuraPerf.registerCustomStat({ id: 'resourcePayloadMB', label: 'Payload', tooltip: 'Total amount of data downloaded from the server.', formatter: v => v + ' MB' });
-window.AuraPerf.registerCustomStat({ id: 'apiCount', label: 'API Calls', tooltip: 'API / Network requests tracked.' });
-window.AuraPerf.registerCustomStat({ id: 'apiLatencyMs', label: 'API Latency', tooltip: 'Average API latency (ms).', formatter: v => v + ' ms' });
-
-// Register PDF specific metrics
-window.AuraPerf.registerCustomStat({ id: 'activeCanvases', label: 'PDF Canvases', tooltip: 'Number of actively rendered PDF canvases.' });
-window.AuraPerf.registerCustomStat({ id: 'estimatedRamMB', label: 'PDF RAM (Est.)', tooltip: 'Estimated RAM used by PDF canvases.', formatter: v => v + ' MB' });
-window.AuraPerf.registerCustomStat({ id: 'lastRenderTimeMs', label: 'PDF Render Time', tooltip: 'Time taken to render the last PDF page.', formatter: v => v + ' ms' });
-
-// Register AI specific metrics
-window.AuraPerf.registerCustomStat({ id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' });
-window.AuraPerf.registerCustomStat({ id: 'ragLatencyMs', label: 'RAG Latency', tooltip: 'Time taken for backend vector search / document indexing.', formatter: v => v > 0 ? v + ' ms' : 'N/A' });
-window.AuraPerf.registerCustomStat({ id: 'mathRenderTimeMs', label: 'Math Rendering', tooltip: 'Time taken by KaTeX to parse and format mathematical markup.', formatter: v => v > 0 ? v + ' ms' : 'N/A' });
-
-window.AuraPerf.recordFormatTime = function(ms) {
-    if (window.AuraPerf && window.AuraPerf.core && window.AuraPerf.core.metrics) {
-        window.AuraPerf.core.metrics.mathRenderTimeMs = ms.toFixed(1);
-    }
-};
-
-
+window.AuraPerf.PdfTelemetryProfile = PdfTelemetryProfile;
+window.AuraPerf.MarkdownTelemetryProfile = MarkdownTelemetryProfile;
+window.AuraPerf.EpubTelemetryProfile = EpubTelemetryProfile;
+window.AuraPerf.setActiveProfile(new PdfTelemetryProfile()); // default
 
 window.exportUITrace = function() {
     if (!window.uiTrace || window.uiTrace.length === 0) {

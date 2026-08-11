@@ -196,6 +196,10 @@ class PdfDocumentHandler {
     var buf = (fileOrBlob instanceof File) ? await fileOrBlob.arrayBuffer() : fileOrBlob;
     await window.loadPdf(buf, false);
   }
+  
+  getScrollState() {
+    return window.getPdfScrollState ? window.getPdfScrollState() : null;
+  }
 }
 
 // ─── Scroll-state helpers ───────────────────────────────────────────────────
@@ -1013,6 +1017,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (window.ReadingExperience && window.ReadingExperience.Font) window.ReadingExperience.Font.disableFontForPdf(ext === 'pdf');
 
       var handler = DocumentHandlerFactory.getHandler(ext);
+      window._activeDocHandler = handler; // Store for search dispatcher
       if (handler.setupToolbar) handler.setupToolbar();
       
       if (window.AuraPerf) {
@@ -1023,14 +1028,9 @@ document.addEventListener('DOMContentLoaded', function () {
       
       await handler.load(f);
       
-      // Save file to IndexedDB for persistence
-      if (window.safeStorage.getItem('aura-pdf-reading-state') === 'true') {
-         if (window.storageRepository) {
-            var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
-            // Use pendingScrollState if it exists (auto-restoring), otherwise get current state
-            var scrollState = window.pendingScrollState || (window.getPdfScrollState ? window.getPdfScrollState() : { page: 1, ratio: 0 });
-            window.storageRepository.saveDocument(uname + '_' + f.name, f, f.name, ext, scrollState);
-         }
+      // Save file to IndexedDB for persistence via central trigger
+      if (window.triggerLibrarySave) {
+          window.triggerLibrarySave(f, f.name, ext);
       }
       
       // Load notes if persistence is on
@@ -1068,11 +1068,8 @@ document.addEventListener('DOMContentLoaded', function () {
       clearTimeout(_scrollSaveTimer);
       _scrollSaveTimer = setTimeout(function() {
         var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
-        if (uname !== 'guest') {
-          var state = window.getPdfScrollState ? window.getPdfScrollState() : null;
-          if (state) {
-            window.storageRepository.saveScrollState(uname + '_' + window.currentFileName, state);
-          }
+        if (window.triggerStateSave) {
+          window.triggerStateSave();
         }
       }, 2000); // Save 2s after scrolling stops
     });
@@ -1082,13 +1079,10 @@ document.addEventListener('DOMContentLoaded', function () {
 // --- Save scroll state before page unload ---
 window.addEventListener('beforeunload', function() {
     if (!window.currentFileName || !window.storageRepository) return;
-    if (window.safeStorage.getItem('aura-pdf-reading-state') !== 'true') return;
+    if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
     var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
-    if (uname !== 'guest') {
-      var state = window.getPdfScrollState ? window.getPdfScrollState() : null;
-      if (state) {
-        window.storageRepository.saveScrollState(uname + '_' + window.currentFileName, state);
-      }
+    if (window.triggerStateSave) {
+      window.triggerStateSave();
     }
   });
 
@@ -1194,47 +1188,6 @@ document.addEventListener('keydown', function (e) {
 
 document.getElementById('search-close')?.addEventListener('click', window.closeCustomSearch);
 
-document.getElementById('doc-query-box')?.addEventListener('input', function (e) {
-  var val = e.target.value;
-  var clearBtn = document.getElementById('search-clear');
-  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
-});
-
-document.getElementById('search-clear')?.addEventListener('click', function () {
-  var input = document.getElementById('doc-query-box');
-  if (input) {
-    input.value = '';
-    input.focus();
-    input.dispatchEvent(new Event('input'));
-    window.currentSearchResults = [];
-    window.currentResultIndex = -1;
-    window.currentSearchQuery = '';
-    window._activeSearchHighlight = null;
-    window.updateSearchResultsUI();
-  }
-});
-
-document.getElementById('doc-query-box')?.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') {
-    window.performCustomSearch(this.value);
-  } else if (e.key === 'Escape') {
-    window.closeCustomSearch();
-  }
-});
-
-document.getElementById('search-next')?.addEventListener('click', function () {
-  if (window.currentSearchResults.length > 0) {
-    window.currentResultIndex = (window.currentResultIndex + 1) % window.currentSearchResults.length;
-    window.navigateToResult(window.currentSearchResults[window.currentResultIndex]);
-  }
-});
-
-document.getElementById('search-prev')?.addEventListener('click', function () {
-  if (window.currentSearchResults.length > 0) {
-    window.currentResultIndex = (window.currentResultIndex - 1 + window.currentSearchResults.length) % window.currentSearchResults.length;
-    window.navigateToResult(window.currentSearchResults[window.currentResultIndex]);
-  }
-});
 
 window.performCustomSearch = async function (query) {
   if (!query.trim()) {
@@ -1653,61 +1606,6 @@ window.AuraSearch = {
   }
 };
 
-window.openCustomSearch = function () {
-  var dropdown = document.getElementById('yt-search-dropdown');
-  if (dropdown) dropdown.classList.remove('hidden');
-  document.getElementById('doc-query-box').focus();
-  if (window.AuraSearch.tocMap.length === 0) {
-    window.AuraSearch.init();
-  }
-};
-
-window.closeCustomSearch = function () {
-  var dropdown = document.getElementById('yt-search-dropdown');
-  if (dropdown) dropdown.classList.add('hidden');
-  window._activeSearchHighlight = null;
-  document.querySelectorAll('.textLayer').forEach(tl => {
-    if (window.doCustomHighlight) window.doCustomHighlight(tl, null);
-  });
-};
-
-window.addEventListener('keydown', function (e) {
-  if (e.ctrlKey && e.key === 'f') {
-    e.preventDefault();
-    window.openCustomSearch();
-  }
-  if (e.key === 'Escape') {
-    window.closeCustomSearch();
-  }
-});
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function (e) {
-  const container = document.getElementById('yt-search-container');
-  if (container && !container.contains(e.target)) {
-    window.closeCustomSearch();
-  }
-});
-
-let _searchDebounce = null;
-document.getElementById('doc-query-box').addEventListener('input', function (e) {
-  let val = e.target.value.trim();
-  if (_searchDebounce) clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(() => {
-    if (val) window.performCustomSearch(val);
-    else {
-      document.getElementById('search-results').innerHTML = '';
-      document.getElementById('search-count').textContent = '';
-      window._activeSearchHighlight = null;
-      document.querySelectorAll('.textLayer').forEach(tl => {
-        if (window.doCustomHighlight) window.doCustomHighlight(tl, null);
-      });
-    }
-  }, 300);
-});
-
-document.getElementById('search-prev').addEventListener('click', () => window.navigateSearchResult(-1));
-document.getElementById('search-next').addEventListener('click', () => window.navigateSearchResult(1));
 
 window.performCustomSearch = async function (query) {
   if (!query) return;

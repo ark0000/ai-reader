@@ -819,6 +819,7 @@ A full-featured document reader supporting PDF, EPUB, and Markdown with:
 | Notes and TTS | `notes-tts.js` | ~27K | Highlights, annotations, Web Speech API |
 | Reading XP | `reading-experience.js` | ~1.1K | Scroll progress, reading time estimation |
 | Perf Monitor | `perf-monitor.js` | ~12K | FPS, memory, network telemetry overlay |
+| AI Chat | `ai-chat.js` | ~500 | SOLID architecture: ChatState (DAG), ChatUI, ChatAPI, ConnectionManager |
 
 ---
 
@@ -942,6 +943,12 @@ The frontend shows these side-by-side in the Visual Conversion Preview section.
 
 ### 7.11 Multi-Provider AI Chat
 
+The AI Chat system is implemented via `ai-chat.js` on the frontend, using a SOLID class-based architecture to manage state and rendering:
+- **`ChatState`**: Maintains a Directed Acyclic Graph (DAG) tree of chat nodes, handling complex branching and active thread resolution.
+- **`ChatUI`**: Pure presentation layer handling DOM rendering, scrolling, and user input.
+- **`ChatAPI`**: Handles all asynchronous `fetch` calls to `/api/chat`.
+- **`ConnectionManager`**: Modal interface for CRUD operations on API keys.
+
 Users can configure multiple AI provider connections. The system stores connection metadata and encrypted API keys. At chat time, ProviderFactory instantiates the correct adapter.
 
 **Supported Providers:**
@@ -996,6 +1003,15 @@ Implemented via the Web Speech API (SpeechSynthesisUtterance). The reader suppor
 - Plugin metrics (converter status, progress, queue position)
 
 Plugins implement a `gather(metrics)` interface to contribute telemetry data.
+
+---
+
+## 7.16 Advanced Library Settings
+
+The application features advanced settings stored safely in `window.safeStorage` that dictate storage and reading behaviors. They are enabled by default for an optimal experience:
+- **Manual State Save (`aura-manual-save`)**: Bypasses the heavy 2-second background scroll-save loop. State is only saved when the user explicitly clicks the "Save State" button (or silently on the `beforeunload` event).
+- **Metadata-Only Cache (`aura-meta-only-cache`)**: Instructs `StorageRepository` to skip saving massive document Blob buffers into `IndexedDB`. When a document is re-opened from the Library, the user is prompted to re-upload the original file, which instantly applies their saved metadata (scroll state).
+- **Auto-Explain Markdown (`aura-md-auto-explain`)**: Attaches intelligent click listeners to `<pre><code>`, `<img>`, and `.mermaid` elements in Markdown documents, immediately piping their context to the AI Chat via `window.askAI()` (while safely ignoring text selection).
 
 ---
 
@@ -1170,18 +1186,20 @@ The `terraform/` directory contains IaC for deploying to Google Cloud Run with:
 
 ## 12. Testing Strategy
 
-### E2E Tests (Playwright)
+### E2E Tests (Playwright / Puppeteer)
 
-**Location:** `tests/e2e/`
+**Location:** `tests/e2e/` & `test_e2e.js`
 
-| Test File | Tests |
-|---|---|
-| `main.spec.js` | Main page renders, theme preset toggles custom panel, sliders update, smart invert toggles, auth modal |
-| `chat.spec.js` | Chat UI renders correctly |
+| Test File | Framework | Tests |
+|---|---|---|
+| `main.spec.js` | Playwright | Main page renders, theme preset toggles custom panel, sliders update, smart invert toggles, auth modal |
+| `chat.spec.js` | Playwright | Chat UI renders correctly |
+| `test_e2e.js` | Puppeteer | Fully automated browser test: generates dummy PDF, uploads to app, triggers scroll save, reloads page, verifies IndexedDB scroll restore |
 
 **Run:**
 ```bash
 npx playwright test tests/e2e
+node test_e2e.js
 ```
 
 ### Manual Backend Verification
@@ -1254,3 +1272,7 @@ Any request to `/api/proxy/chat` or `/api/proxy_llm` targeting a host not in thi
 ---
 
 > **End of Document.** This documentation covers every feature, algorithm, pattern, and interface in the AuraPDF codebase. A developer reading this document should be able to reimplement the entire application from scratch.
+
+  ### 7.16 Robust Selection Engine
+  
+  Unlike standard browser highlighting which can glitch inside virtualized DOMs or absolute canvas layouts, AuraPDF uses a computationally enhanced **Spatial Bounding Box Engine**. During the `pdf.js` render loop, it builds an internal coordinate hash-map of all textual nodes. Selection events resolve mathematically against these bounding boxes rather than relying purely on the browser's native text selection ranges, ensuring buttery-smooth highlight drag interactions.

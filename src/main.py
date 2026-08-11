@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from src.database import init_db
 from src.task_queue import task_queue
 from src.config import settings
-from src.routers import auth, chat, connections, files, themes
+from src.routers import auth, chat, connections, files, themes, tts
 from src.rag.manager import RAGManager
 from src.rag.providers.local_chroma import LocalChromaRAGProvider
 
@@ -73,6 +73,10 @@ async def get_root():
         with open(static_index, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     raise HTTPException(status_code=404, detail="Frontend file index_v2.html not found")
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    from fastapi import Response
+    return Response(status_code=204)
 
 @app.get("/legacy", response_class=HTMLResponse)
 async def get_legacy():
@@ -111,6 +115,7 @@ app.include_router(chat.router)
 app.include_router(connections.router)
 app.include_router(files.router)
 app.include_router(themes.router)
+app.include_router(tts.router)
 
 # Static Files (mount last to avoid overriding routes)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

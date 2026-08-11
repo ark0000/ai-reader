@@ -61,6 +61,33 @@ window.showActionPopup = function(e, labelOrActions, actionFn) {
   }, 10);
 };
 
+window.showEnlargedMedia = function(node) {
+  var modal = document.getElementById('enlarge-modal');
+  var content = document.getElementById('enlarge-content');
+  if (!modal || !content) return;
+  
+  content.innerHTML = '';
+  // Ensure the node fits but maintains aspect ratio
+  if (node.tagName.toLowerCase() === 'img' || node.tagName.toLowerCase() === 'svg') {
+      node.style.maxWidth = '100%';
+      node.style.maxHeight = '100%';
+      node.style.objectFit = 'contain';
+      node.style.height = 'auto';
+  } else {
+      node.style.width = '100%';
+  }
+  
+  // Ensure transparent diagrams are legible on dark mode themes
+  node.style.backgroundColor = '#ffffff';
+  node.style.padding = '20px';
+  node.style.borderRadius = '8px';
+  // Use a subtle shadow instead of hard borders
+  node.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+  
+  content.appendChild(node);
+  modal.style.display = 'flex';
+};
+
 window.toggleSettings = function(e) {
   if(e) e.stopPropagation();
   var s = document.getElementById('settings-popup');
@@ -74,6 +101,25 @@ window.toggleSettings = function(e) {
     s.style.display = 'block';
     if(b) b.style.display = 'block';
     
+    // Sync username and logout button
+    var unameInput = document.getElementById('username-input');
+    var logoutBtn = document.getElementById('logout-btn');
+    if (unameInput) {
+        var currentUname = window.safeStorage.getItem('username') || '';
+        unameInput.value = currentUname;
+        if (logoutBtn) logoutBtn.style.display = currentUname.trim() ? 'inline-block' : 'none';
+    }
+    
+    // Filter settings by file extension
+    document.querySelectorAll('.settings-row').forEach(row => {
+        var ext = row.getAttribute('data-ext');
+        if (ext && window.currentExt) {
+            row.style.display = ext.includes(window.currentExt) ? 'flex' : 'none';
+        } else {
+            row.style.display = 'flex';
+        }
+    });
+
     if (window.loadConnections) window.loadConnections();
     
     // Add escape key listener
@@ -138,11 +184,10 @@ window.closeToc = function() {
 };
 
 window.toggleFullScreen = function() {
-  const doc = document.getElementById('content') || document.documentElement;
+  const doc = document.documentElement;
   const fullscreenElement = document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
 
   if (!fullscreenElement) {
-    // Try native fullscreen first
     const fsPromise = doc.requestFullscreen ? doc.requestFullscreen() :
                       doc.webkitRequestFullscreen ? doc.webkitRequestFullscreen() :
                       doc.mozRequestFullScreen ? doc.mozRequestFullScreen() :
@@ -152,8 +197,6 @@ window.toggleFullScreen = function() {
     if (fsPromise && fsPromise.catch) {
       fsPromise.catch(function(err) {
         console.warn('[Fullscreen] Native fullscreen failed:', err.message);
-        // Pseudo-fullscreen fallback: hide toolbars
-        document.body.classList.toggle('pseudo-fullscreen');
       });
     }
   } else {
@@ -167,12 +210,19 @@ window.toggleFullScreen = function() {
       document.msExitFullscreen();
     }
   }
-
-  // Also toggle pseudo-fullscreen class for toolbar hiding
-  if (!doc.requestFullscreen && !doc.webkitRequestFullscreen) {
-    document.body.classList.toggle('pseudo-fullscreen');
-  }
 };
+
+window.toggleZenMode = function() {
+  document.body.classList.toggle('pseudo-fullscreen');
+  var btn = document.getElementById('zen-mode-btn');
+  if (btn) btn.classList.toggle('active', document.body.classList.contains('pseudo-fullscreen'));
+};
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.body.classList.contains('pseudo-fullscreen')) {
+    window.toggleZenMode();
+  }
+});
 
 
 // =========================================================================
@@ -345,4 +395,222 @@ window.triggerManualSave = function(btnElement) {
       }, 1500);
     }
   }
+};
+
+
+// =========================================================================
+// GENERIC SEARCH DISPATCHER
+// =========================================================================
+// Routes search operations to the active document handler's search methods.
+// PDF retains its existing AuraSearch system; Markdown and EPUB get new
+// handler-level search implementations.
+
+window.dispatchSearch = function() {
+  var q = document.getElementById('doc-query-box').value.trim();
+  if (!q) return;
+  var handler = window.getActiveHandler ? window.getActiveHandler() : null;
+  if (handler && handler.performSearch) {
+    var opts = {
+      caseSensitive: document.getElementById('search-filter-case').classList.contains('active'),
+      wholeWord: document.getElementById('search-filter-word').classList.contains('active')
+    };
+    handler.performSearch(q, opts);
+  } else if (window.currentExt === 'pdf' && window.AuraSearch) {
+    // Fallback to existing PDF search
+    window.AuraSearch.isCaseSensitive = document.getElementById('search-filter-case').classList.contains('active');
+    window.AuraSearch.isWholeWord = document.getElementById('search-filter-word').classList.contains('active');
+    window.AuraSearch.triggerSearch();
+  }
+};
+
+window.dispatchClearSearch = function() {
+  var handler = window.getActiveHandler ? window.getActiveHandler() : null;
+  if (handler && handler.clearSearch) {
+    handler.clearSearch();
+  }
+  // Also clear the PDF textLayer highlights if applicable
+  if (window.currentExt === 'pdf') {
+    window._activeSearchHighlight = null;
+    document.querySelectorAll('.textLayer').forEach(function(tl) {
+      if (window.doCustomHighlight) window.doCustomHighlight(tl, null);
+    });
+  }
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('search-count').textContent = '0 matches';
+};
+
+// Override openCustomSearch to be generic
+(function() {
+  var _origOpen = window.openCustomSearch;
+  window.openCustomSearch = function() {
+    var dropdown = document.getElementById('yt-search-dropdown');
+    if (dropdown) dropdown.classList.remove('hidden');
+    document.getElementById('doc-query-box').focus();
+    // PDF-specific init
+    if (window.currentExt === 'pdf' && window.AuraSearch && window.AuraSearch.tocMap.length === 0) {
+      window.AuraSearch.init();
+    }
+  };
+})();
+
+// Override closeCustomSearch to be generic
+(function() {
+  window.closeCustomSearch = function() {
+    var dropdown = document.getElementById('yt-search-dropdown');
+    if (dropdown) dropdown.classList.add('hidden');
+    window.dispatchClearSearch();
+  };
+})();
+
+// Generic debounced input handler
+(function() {
+  var _debounce = null;
+  var box = document.getElementById('doc-query-box');
+  if (box) {
+    // Remove old PDF-specific listener by cloning the element
+    var newBox = box.cloneNode(true);
+    box.parentNode.replaceChild(newBox, box);
+    
+    newBox.addEventListener('input', function(e) {
+      var val = e.target.value.trim();
+      var clearBtn = document.getElementById('search-clear');
+      if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+      if (_debounce) clearTimeout(_debounce);
+      _debounce = setTimeout(function() {
+        if (val) {
+          window.dispatchSearch();
+        } else {
+          window.dispatchClearSearch();
+        }
+      }, 300);
+    });
+    
+    newBox.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        window.dispatchSearch();
+      } else if (e.key === 'Escape') {
+        if (window.closeCustomSearch) window.closeCustomSearch();
+      }
+    });
+  }
+  
+  window.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'f') {
+      e.preventDefault();
+      if (window.openCustomSearch) window.openCustomSearch();
+    }
+    if (e.key === 'Escape') {
+      if (window.closeCustomSearch) window.closeCustomSearch();
+    }
+  });
+  
+  // Generic search clear button
+  var clearBtn = document.getElementById('search-clear');
+  if (clearBtn) {
+    var newClear = clearBtn.cloneNode(true);
+    clearBtn.parentNode.replaceChild(newClear, clearBtn);
+    newClear.addEventListener('click', function() {
+      var box = document.getElementById('doc-query-box');
+      if (box) {
+        box.value = '';
+        box.focus();
+        this.style.display = 'none';
+        window.dispatchClearSearch();
+      }
+    });
+  }
+  
+  // Generic prev/next navigation
+  var prevBtn = document.getElementById('search-prev');
+  var nextBtn = document.getElementById('search-next');
+  if (prevBtn) {
+    var newPrev = prevBtn.cloneNode(true);
+    prevBtn.parentNode.replaceChild(newPrev, prevBtn);
+    newPrev.addEventListener('click', function() {
+      var handler = window.getActiveHandler ? window.getActiveHandler() : null;
+      if (handler && handler.navigateSearch) {
+        handler.navigateSearch(-1);
+      } else if (window.navigateSearchResult) {
+        window.navigateSearchResult(-1);
+      }
+    });
+  }
+  if (nextBtn) {
+    var newNext = nextBtn.cloneNode(true);
+    nextBtn.parentNode.replaceChild(newNext, nextBtn);
+    newNext.addEventListener('click', function() {
+      var handler = window.getActiveHandler ? window.getActiveHandler() : null;
+      if (handler && handler.navigateSearch) {
+        handler.navigateSearch(1);
+      } else if (window.navigateSearchResult) {
+        window.navigateSearchResult(1);
+      }
+    });
+  }
+})();
+
+// =========================================================================
+// CODE BLOCK TOOLBARS (Markdown/EPUB)
+// =========================================================================
+window.injectCodeToolbars = function(containerElement) {
+  if (!containerElement) return;
+  var pres = containerElement.querySelectorAll('pre');
+  pres.forEach(function(pre) {
+    // Avoid double injecting
+    if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
+    
+    var wrapper = document.createElement('div');
+    wrapper.className = 'code-block-wrapper';
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(pre);
+    
+    var toolbar = document.createElement('div');
+    toolbar.className = 'code-toolbar';
+    
+    var copyBtn = document.createElement('button');
+    copyBtn.innerHTML = '&#128203; Copy Code';
+    copyBtn.onclick = function() {
+      navigator.clipboard.writeText(pre.innerText).then(() => {
+        var original = copyBtn.innerHTML;
+        copyBtn.innerHTML = '&#10004; Copied!';
+        setTimeout(() => copyBtn.innerHTML = original, 2000);
+      });
+    };
+    
+    var aiBtn = document.createElement('button');
+    aiBtn.innerHTML = '&#10024; Explain with AI';
+    aiBtn.onclick = function() {
+      var codeText = pre.innerText;
+      if (window.switchTab && window.togglePanel) {
+        if (window.panel.classList.contains('hidden')) window.togglePanel();
+        window.switchTab('chat');
+        var input = document.getElementById('chat-input');
+        if (input) {
+          input.value = "Explain the following code:\n```\n" + codeText + "\n```\n";
+          input.focus();
+        }
+      }
+    };
+    
+    var noteBtn = document.createElement('button');
+    noteBtn.innerHTML = '&#128221; Add to Notes';
+    noteBtn.onclick = function() {
+      var codeText = pre.innerText;
+      if (window.notes) {
+        window.notes.push({ q: '<pre style="font-size:0.85em;padding:4px;">' + pre.innerHTML + '</pre>', txt: '', id: Date.now() });
+        if (window.renderNotes) window.renderNotes();
+        if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
+        if (window.switchTab) window.switchTab('notes');
+        
+        var original = noteBtn.innerHTML;
+        noteBtn.innerHTML = '&#10004; Added!';
+        setTimeout(() => noteBtn.innerHTML = original, 2000);
+      }
+    };
+    
+    toolbar.appendChild(copyBtn);
+    toolbar.appendChild(aiBtn);
+    toolbar.appendChild(noteBtn);
+    wrapper.appendChild(toolbar);
+  });
 };

@@ -29,7 +29,7 @@ window.registerDocumentHandler = function(ext, handler) {
 };
 
 window.getActiveHandler = function() {
-  return window.DocumentHandlers[window.currentExt] || null;
+  return window._activeDocHandler || window.DocumentHandlers[window.currentExt] || null;
 };
 
 // --- GLOBALS ---
@@ -51,7 +51,9 @@ window.StateRegistry = {
   'aura-perf-dashboard':         { label: 'Performance Dashboard', category: 'perf',    saveable: true },
   'aura-capture-screenshots':    { label: 'UI Screenshot Capture', category: 'dev',     saveable: true },
   'aura-pdf-virt-pre-deep-search': { label: 'Virtualization Pre-Search', category: 'perf', saveable: true },
-  'aura-pdf-lazy-pre-deep-search': { label: 'Lazy Pre-Search', category: 'perf', saveable: true }
+  'aura-pdf-lazy-pre-deep-search': { label: 'Lazy Pre-Search', category: 'perf', saveable: true },
+  'aura-reading-state':          { label: 'Remember Reading State',category: 'reading', saveable: true },
+  'aura-notes-state':            { label: 'Remember Notes',        category: 'reading', saveable: true }
 };
 
 window.safeStorage = {
@@ -107,6 +109,17 @@ document.addEventListener("DOMContentLoaded", function() {
   // Initialize save state checkboxes
   const prefsRaw = localStorage.getItem('aura-state-save-prefs');
   const prefs = prefsRaw ? JSON.parse(prefsRaw) : {};
+  // Migrate old 'aura-pdf-reading-state' to 'aura-reading-state'
+  if (prefs['aura-pdf-reading-state'] === true) {
+    prefs['aura-reading-state'] = true;
+    delete prefs['aura-pdf-reading-state'];
+    localStorage.setItem('aura-state-save-prefs', JSON.stringify(prefs));
+    if (localStorage.getItem('aura-pdf-reading-state')) {
+       localStorage.setItem('aura-reading-state', localStorage.getItem('aura-pdf-reading-state'));
+       localStorage.removeItem('aura-pdf-reading-state');
+    }
+  }
+
   const saveReadingCb = document.getElementById('save-reading-theme-cb');
   if (saveReadingCb) saveReadingCb.checked = (prefs['aura-reading-theme'] === true);
   
@@ -115,6 +128,25 @@ document.addEventListener("DOMContentLoaded", function() {
   
   const savePerfCb = document.getElementById('save-perf-cb');
   if (savePerfCb) savePerfCb.checked = (prefs['aura-pdf-virt'] === true);
+
+  const saveStateCb = document.getElementById('save-reading-state-cb');
+  if (saveStateCb) saveStateCb.checked = (prefs['aura-reading-state'] === true);
+
+  const saveNotesCb = document.getElementById('save-notes-state-cb');
+  if (saveNotesCb) saveNotesCb.checked = (prefs['aura-notes-state'] === true);
+
+  // Set username field and currentUsername on init
+  window.currentUsername = localStorage.getItem('username') || 'guest';
+  const usernameInput = document.getElementById('username-input');
+  if (usernameInput) usernameInput.value = window.currentUsername === 'guest' ? '' : window.currentUsername;
+
+
+  const manualSaveCb = document.getElementById('manual-save-cb');
+  if (manualSaveCb) manualSaveCb.checked = (window.safeStorage.getItem('aura-manual-save') === 'true');
+  if (window.toggleManualSaveButton) window.toggleManualSaveButton();
+  
+  const pdfColorsCb = document.getElementById('pdf-colors-cb');
+  if (pdfColorsCb) pdfColorsCb.checked = (window.safeStorage.getItem('aura-pdf-colors') === 'true');
 
   window.root = document.documentElement;
   window.contentEl = document.getElementById('content');
@@ -323,3 +355,311 @@ window.toggleToc = function(e) {
       handler.toc.render();
   }
 };
+
+// =========================================================================
+// DATABASE & REPOSITORY PATTERN (IndexedDB Persistence)
+// =========================================================================
+
+class DatabaseManager {
+  constructor(dbName = 'AuraDB', version = 2) {
+    this.dbName = dbName;
+    this.version = version;
+    this.db = null;
+    this.initPromise = null;
+  }
+
+  async init() {
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.version);
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('documents')) {
+          db.createObjectStore('documents', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('annotations')) {
+          db.createObjectStore('annotations', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('documents_meta')) {
+          db.createObjectStore('documents_meta', { keyPath: 'id' });
+        }
+      };
+
+      request.onsuccess = (event) => {
+        this.db = event.target.result;
+        resolve(this.db);
+      };
+
+      request.onerror = (event) => {
+        console.error("IndexedDB Error:", event.target.error);
+        reject(event.target.error);
+      };
+    });
+    return this.initPromise;
+  }
+
+  async getTransaction(storeName, mode = 'readonly') {
+    const db = await this.init();
+    return db.transaction(storeName, mode).objectStore(storeName);
+  }
+}
+
+class StorageRepository {
+  constructor(dbManager) {
+    this.dbManager = dbManager;
+  }
+
+  async saveDocument(id, fileBlob, fileName, ext, scrollState) {
+    try {
+      const putPromisified = (store, data) => new Promise((resolve, reject) => {
+        const req = store.put(data);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => reject(e.target.error);
+      });
+
+      // 1. ALWAYS save metadata first! This ensures the file appears in the Library
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
+      await putPromisified(metaStore, { id, fileName, ext, timestamp: Date.now(), scrollState: scrollState || null });
+
+      if (window.safeStorage && window.safeStorage.getItem('aura-meta-only-cache') === 'true') {
+        console.log(`[StorageRepository] Metadata-only caching enabled. Skipping blob save for ${fileName}`);
+        return; // Exit early to prevent saving heavy blob
+      }
+
+      // 2. Convert File to ArrayBuffer to bypass DataCloneError bugs in Safari/older Chrome
+      let buffer = fileBlob;
+      if (fileBlob instanceof Blob) {
+        buffer = await fileBlob.arrayBuffer();
+      }
+
+      // 3. Save full blob/buffer
+      const store = await this.dbManager.getTransaction('documents', 'readwrite');
+      await putPromisified(store, { id, fileBlob: buffer, fileName, ext, timestamp: Date.now(), scrollState: scrollState || null });
+      
+      console.log(`[StorageRepository] Successfully saved document ${fileName}`);
+    } catch (e) {
+      console.warn("Failed to save document blob to IndexedDB (file might be too large or quota exceeded)", e);
+    }
+  }
+
+  async saveScrollState(id, scrollState) {
+    try {
+      // Update only the scroll state in both stores without re-saving the blob
+      const putPromisified = (store, data) => new Promise((resolve, reject) => {
+        const req = store.put(data);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => reject(e.target.error);
+      });
+      
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
+      const getMeta = metaStore.get(id);
+      getMeta.onsuccess = async () => {
+        if (getMeta.result) {
+          getMeta.result.scrollState = scrollState;
+          await putPromisified(metaStore, getMeta.result);
+        }
+      };
+
+      const docStore = await this.dbManager.getTransaction('documents', 'readwrite');
+      const getDoc = docStore.get(id);
+      getDoc.onsuccess = async () => {
+        if (getDoc.result) {
+          getDoc.result.scrollState = scrollState;
+          await putPromisified(docStore, getDoc.result);
+        }
+      };
+    } catch (e) {
+      console.warn("Failed to save scroll state", e);
+    }
+  }
+
+  async deleteDocument(id) {
+    try {
+      const deletePromisified = (store, key) => new Promise((resolve, reject) => {
+        const req = store.delete(key);
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e.target.error);
+      });
+
+      const store = await this.dbManager.getTransaction('documents', 'readwrite');
+      await deletePromisified(store, id);
+
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
+      await deletePromisified(metaStore, id);
+
+      console.log(`[StorageRepository] Successfully deleted document ${id}`);
+    } catch (e) {
+      console.warn("Failed to delete document from IndexedDB", e);
+    }
+  }
+
+  async loadDocument(id) {
+    try {
+      const docStore = await this.dbManager.getTransaction('documents', 'readonly');
+      return await new Promise((resolve, reject) => {
+        const req = docStore.get(id);
+        req.onsuccess = () => {
+          if (req.result && req.result.fileBlob) {
+            if (req.result.fileBlob instanceof ArrayBuffer) {
+              const mimeType = req.result.ext === 'pdf' ? 'application/pdf' : 'text/plain';
+              req.result.fileBlob = new Blob([req.result.fileBlob], { type: mimeType });
+            }
+            resolve(req.result);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("Failed to load document from IndexedDB", e);
+      return null;
+    }
+  }
+
+  async saveNotes(id, notes, pdfHighlights) {
+    try {
+      const store = await this.dbManager.getTransaction('annotations', 'readwrite');
+      store.put({ id, notes: JSON.parse(JSON.stringify(notes)), pdfHighlights: JSON.parse(JSON.stringify(pdfHighlights || [])), timestamp: Date.now() });
+    } catch (e) {
+      console.warn("Failed to save notes to IndexedDB", e);
+    }
+  }
+
+  async loadNotes(id) {
+    try {
+      const store = await this.dbManager.getTransaction('annotations', 'readonly');
+      return new Promise((resolve, reject) => {
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("Failed to load notes", e);
+      return null;
+    }
+  }
+
+  async getLibraryMeta(username) {
+    try {
+      const store = await this.dbManager.getTransaction('documents_meta', 'readonly');
+      const metaItems = await new Promise((resolve, reject) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+
+      const prefix = username + '_';
+      const filtered = metaItems
+        .filter(item => item.id.startsWith(prefix))
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      // Enrich with note counts from annotations store
+      const annStore = await this.dbManager.getTransaction('annotations', 'readonly');
+      const allNotes = await new Promise((resolve, reject) => {
+        const req = annStore.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const noteMap = {};
+      allNotes.forEach(n => { noteMap[n.id] = (n.notes ? n.notes.length : 0); });
+
+      return filtered.map(item => ({
+        id: item.id,
+        fileName: item.fileName,
+        ext: item.ext,
+        timestamp: item.timestamp,
+        scrollState: item.scrollState || null,
+        noteCount: noteMap[item.id] || 0
+      }));
+    } catch (e) {
+      console.warn("Failed to get library meta", e);
+      return [];
+    }
+  }
+}
+
+window.dbManager = new DatabaseManager();
+window.storageRepository = new StorageRepository(window.dbManager);
+
+window.triggerLibrarySave = function(file, fileName, ext, force = false) {
+  if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
+  // If manual save is enabled, we only save when force is true
+  if (!force && window.safeStorage.getItem('aura-manual-save') === 'true') return;
+
+  window.currentFileObj = file; // Save for manual save later
+  const uname = window.safeStorage.getItem('username') || 'guest';
+  const scrollState = window.pendingScrollState || (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState ? window.getActiveHandler().getScrollState() : null);
+  window.storageRepository.saveDocument(uname + '_' + fileName, file, fileName, ext, scrollState);
+};
+
+window.triggerStateSave = function() {
+  if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
+  const uname = window.safeStorage.getItem('username') || 'guest';
+  if (uname !== 'guest' && window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
+    const state = window.getActiveHandler().getScrollState();
+    if (state) {
+      window.storageRepository.saveScrollState(uname + '_' + window.currentFileName, state);
+    }
+  }
+};
+
+window.manualSaveDocument = function() {
+  if (!window.currentFileObj) {
+      alert("No document currently loaded to save.");
+      return;
+  }
+  const btn = document.getElementById('manual-save-btn');
+  const ogText = btn.innerHTML;
+  btn.innerHTML = '&#10004; Saved';
+  setTimeout(() => btn.innerHTML = ogText, 2000);
+  
+  if (window.triggerLibrarySave) {
+      window.triggerLibrarySave(window.currentFileObj, window.currentFileName, window.currentExt, true);
+  }
+};
+
+window.toggleManualSaveButton = function() {
+  const btn = document.getElementById('manual-save-btn');
+  if (btn) {
+    btn.style.display = (window.safeStorage.getItem('aura-manual-save') === 'true') ? 'inline-block' : 'none';
+  }
+};
+
+// Auto-restore logic on load
+// IMPORTANT: We use 'load' (not DOMContentLoaded) to ensure all <script> tags
+// have finished executing and the file-upload event listener from pdf-handler.js is registered.
+window.addEventListener('load', async () => {
+  window.currentUsername = window.safeStorage.getItem('username') || 'guest';
+  const isDocSaveEnabled = window.safeStorage.getItem('aura-reading-state') === 'true';
+
+  if (!isDocSaveEnabled) return;
+
+  const library = await window.storageRepository.getLibraryMeta(window.currentUsername);
+  console.log('[AutoRestore] library length:', library.length);
+  if (library.length === 0) return;
+
+  const docData = await window.storageRepository.loadDocument(library[0].id);
+  console.log('[AutoRestore] docData exists:', !!docData, 'fileBlob exists:', docData ? !!docData.fileBlob : false);
+  if (!docData || !docData.fileBlob) {
+      console.warn('[AutoRestore] Document missing or too large, cannot auto-restore blob.');
+      if (library[0].scrollState) window.pendingScrollState = library[0].scrollState;
+      return;
+  }
+
+  console.log('[StorageRepository] Restoring saved document:', docData.fileName);
+
+  // Small delay to ensure all DOMContentLoaded handlers from other scripts have run
+  setTimeout(() => {
+    if (library[0].scrollState) window.pendingScrollState = library[0].scrollState;
+    const mockFile = new File([docData.fileBlob], docData.fileName, { type: docData.fileBlob.type });
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(mockFile);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, 300);
+});

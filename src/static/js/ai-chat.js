@@ -147,6 +147,21 @@ class ChatUI {
          actions.appendChild(swapSpan);
       }
       
+      const noteBtn = document.createElement('button');
+      noteBtn.innerHTML = '&#128247; Note';
+      noteBtn.className = 'chat-action-btn';
+      noteBtn.onclick = () => {
+         if (!window.notes) window.notes = [];
+         const label = node.role === 'user' ? 'AI Chat Prompt' : 'AI Chat Response';
+         window.notes.push({q: '<i>' + label + '</i>', txt: window.fmt ? window.fmt(node.content) : node.content, id: Date.now()});
+         if (window.renderNotes) window.renderNotes();
+         if (window.panel && window.panel.classList.contains('hidden')) {
+             if(window.togglePanel) window.togglePanel();
+         }
+         if (window.switchTab) window.switchTab('notes');
+      };
+      actions.appendChild(noteBtn);
+      
       el.appendChild(actions);
       this.chatWin.appendChild(el);
     });
@@ -491,6 +506,7 @@ window.chatAPI = new ChatAPI(window.chatState, window.chatUI);
 window.connMgr = new ConnectionManager();
 
 // Exposed global functions to avoid changing HTML onClick handlers
+window.loadConnections = () => window.connMgr.loadConnections();
 window.askAI = (prompt) => window.chatAPI.sendMessage(prompt);
 window.clearChat = () => { 
   if (!window.chatState.currentLeafId) return; // nothing to clear

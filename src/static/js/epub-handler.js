@@ -11,6 +11,139 @@ class EpubDocumentHandler {
     if (fontControls) fontControls.style.display = 'inline-flex';
   }
   
+  constructor() {
+    this.currentCfi = null;
+    this._searchResults = [];
+    this._searchCurrentIdx = -1;
+  }
+  
+  getScrollState() {
+    return this.currentCfi ? { type: 'epub', cfi: this.currentCfi } : null;
+  }
+
+  clearSearch() {
+    this._searchResults = [];
+    this._searchCurrentIdx = -1;
+    // Remove highlights from epub iframe
+    if (window.currentEpubRendition && window.currentEpubRendition.getContents) {
+      window.currentEpubRendition.getContents().forEach(function(content) {
+        if (content.document) {
+          content.document.querySelectorAll('mark.search-hl').forEach(function(m) {
+            var parent = m.parentNode;
+            if (parent) {
+              parent.replaceChild(content.document.createTextNode(m.textContent), m);
+              parent.normalize();
+            }
+          });
+        }
+      });
+    }
+  }
+
+  async performSearch(query, opts) {
+    this.clearSearch();
+    if (!query || !window.currentEpubBook) return;
+
+    var container = document.getElementById('search-results');
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2);">Searching EPUB...</div>';
+
+    var book = window.currentEpubBook;
+    var results = [];
+    var _this = this;
+
+    // Search through each spine section
+    try {
+      var spineItems = book.spine.spineItems;
+      for (var i = 0; i < spineItems.length; i++) {
+        var section = spineItems[i];
+        var sectionResults = await section.find(query);
+        if (sectionResults && sectionResults.length > 0) {
+          sectionResults.forEach(function(r) {
+            results.push({
+              cfi: r.cfi,
+              excerpt: r.excerpt || query,
+              sectionIndex: i,
+              sectionLabel: section.idref || ('Section ' + (i + 1))
+            });
+          });
+        }
+      }
+    } catch(err) {
+      console.warn('[EpubSearch] Error during search:', err);
+    }
+
+    this._searchResults = results;
+    this._searchCurrentIdx = -1;
+
+    document.getElementById('search-count').textContent = results.length + ' matches';
+    container.innerHTML = '';
+
+    if (results.length === 0) {
+      container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2);">No results found.</div>';
+      return;
+    }
+
+    var escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var flags = opts.caseSensitive ? 'g' : 'gi';
+    var limit = Math.min(results.length, 100);
+
+    for (var j = 0; j < limit; j++) {
+      (function(idx) {
+        var r = results[idx];
+        var snippet = r.excerpt.substring(0, 120);
+        if (r.excerpt.length > 120) snippet += '...';
+        var highlighted = snippet.replace(new RegExp(escaped, flags),
+          '<mark style="background:var(--gold);color:#000;border-radius:2px;">$&</mark>');
+
+        var el = document.createElement('div');
+        el.className = 'search-result-item';
+        el.dataset.idx = idx;
+        el.innerHTML = '<div class="search-result-snippet">' + highlighted + '</div>';
+        el.onclick = function() { _this.navigateSearch(0, idx); };
+        container.appendChild(el);
+      })(j);
+    }
+
+    if (results.length > limit) {
+      var moreEl = document.createElement('div');
+      moreEl.style.cssText = 'padding:10px;text-align:center;color:var(--text-2);font-size:0.85rem;';
+      moreEl.textContent = '... and ' + (results.length - limit) + ' more matches';
+      container.appendChild(moreEl);
+    }
+
+    // Navigate to first result
+    this.navigateSearch(0, 0);
+  }
+
+  navigateSearch(dir, absoluteIdx) {
+    if (this._searchResults.length === 0) return;
+    var idx;
+    if (typeof absoluteIdx === 'number') {
+      idx = absoluteIdx;
+    } else {
+      idx = this._searchCurrentIdx + dir;
+      if (idx < 0) idx = this._searchResults.length - 1;
+      if (idx >= this._searchResults.length) idx = 0;
+    }
+
+    this._searchCurrentIdx = idx;
+    var result = this._searchResults[idx];
+
+    // Navigate to the CFI in the EPUB rendition
+    if (window.currentEpubRendition && result.cfi) {
+      window.currentEpubRendition.display(result.cfi);
+    }
+
+    document.getElementById('search-count').textContent = (idx + 1) + ' of ' + this._searchResults.length;
+
+    document.querySelectorAll('.search-result-item').forEach(function(el) { el.classList.remove('selected'); });
+    var activeEl = document.querySelector('.search-result-item[data-idx="' + idx + '"]');
+    if (activeEl) {
+      activeEl.classList.add('selected');
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
   async load(file) {
     if (typeof ePub === 'undefined') {
        window.contentEl.innerHTML = '<div style="padding:2rem"><h2 style="color:#fc8181">Error</h2><p style="color:#8899aa">EPUB engine is not loaded.</p></div>';
@@ -52,13 +185,55 @@ class EpubDocumentHandler {
     window.currentEpubBook = book;
     window.currentEpubRendition = rendition;
     
-    rendition.display();
+    var reflowStart = performance.now();
+    if (window.pendingScrollState && window.pendingScrollState.type === 'epub' && window.pendingScrollState.cfi) {
+      rendition.display(window.pendingScrollState.cfi).then(function() {
+          if(window.AuraPerf && window.AuraPerf.logEpubReflow) {
+              window.AuraPerf.logEpubReflow(performance.now() - reflowStart);
+          }
+      });
+    } else {
+      rendition.display().then(function() {
+          if(window.AuraPerf && window.AuraPerf.logEpubReflow) {
+              window.AuraPerf.logEpubReflow(performance.now() - reflowStart);
+          }
+      });
+    }
+
+    if (window.triggerLibrarySave) {
+        window.triggerLibrarySave(file, file.name, 'epub');
+    }
+    
+    var _this = this;
+    var _scrollSaveTimer;
+    
+    rendition.on("rendered", function(section, view) {
+        if (view && view.document && window.injectCodeToolbars) {
+            window.injectCodeToolbars(view.document.body);
+        }
+    });
+
+    rendition.on("relocated", function(location) {
+        if (location && location.start) {
+            _this.currentCfi = location.start.cfi;
+            clearTimeout(_scrollSaveTimer);
+            _scrollSaveTimer = setTimeout(() => {
+                if (window.triggerStateSave) window.triggerStateSave();
+            }, 1000);
+        }
+        if (reflowStart > 0) {
+           if(window.AuraPerf && window.AuraPerf.logEpubReflow) window.AuraPerf.logEpubReflow(performance.now() - reflowStart);
+           reflowStart = 0;
+        }
+    });
     
     prevBtn.onclick = function() {
+       reflowStart = performance.now();
        rendition.prev();
     };
     
     nextBtn.onclick = function() {
+       reflowStart = performance.now();
        rendition.next();
     };
     

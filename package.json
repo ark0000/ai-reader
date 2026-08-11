@@ -1,7 +1,8 @@
 {
   "dependencies": {
     "jsdom": "^30.0.1",
-    "playwright": "^1.62.1"
+    "playwright": "^1.62.1",
+    "puppeteer": "^25.5.0"
   },
   "scripts": {
     "build:css": "unocss \"src/static/**/*.html\" \"src/static/**/*.js\" -o src/static/css/uno.css",

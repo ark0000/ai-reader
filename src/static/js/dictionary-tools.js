@@ -94,33 +94,22 @@ window.fetchDict = async function(word){
   word = word.trim();
   if (!word) return;
   
-  if(window.panel.classList.contains('hidden')) togglePanel(); switchTab('chat');
-  addMsg('Define: ' + word, 'u');
-  var mode = document.getElementById('dict-sel').value;
-  if (mode === 'offline') {
-    var def = OFFLINE[word.toLowerCase()];
-    addMsg(def ? '**' + word + '**: ' + def : "'" + word + "' not in offline glossary. Switch to Online Dictionary.", 'd');
-    return;
+  if(window.panel && window.panel.classList.contains('hidden')) {
+    if(window.togglePanel) window.togglePanel(); 
   }
-  var load = addMsg('Looking up...', 'd');
-  try {
-    var r = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word.toLowerCase()));
-    if (!r.ok) throw new Error('Not found');
-    var d = await r.json();
-    load.innerHTML = formatFullDefinition(d);
-  } catch(e) {
-    load.innerHTML = 'No definition found in dictionary API. Falling back to AI...';
-    var ctx = window.extractSurroundingContext(word, window.selRange);
-    
-    var promptParts = [];
-    if (ctx.before) promptParts.push(ctx.before);
-    promptParts.push('Define: ' + word);
-    promptParts.push('No definition found in dictionary API. Falling back to AI...');
-    promptParts.push('Define and explain the word "' + word + '"');
-    if (ctx.after) promptParts.push(ctx.after);
-    
-    var finalPrompt = promptParts.join('\n');
-    setTimeout(function(){ askAI(finalPrompt); }, 800);
+  if(window.switchTab) window.switchTab('chat');
+  
+  var ctx = window.extractSurroundingContext ? window.extractSurroundingContext(word, window.selRange) : {before: '', after: ''};
+  var promptParts = [];
+  if (ctx.before) promptParts.push(ctx.before);
+  promptParts.push('Define and explain the word "' + word + '" in this context.');
+  if (ctx.after) promptParts.push(ctx.after);
+  
+  var finalPrompt = promptParts.join('\n');
+  if (window.askAI) {
+    window.askAI(finalPrompt);
+  } else {
+    alert("AI Chat is not available.");
   }
 };
 
