@@ -128,7 +128,7 @@ window.closeToc = function() {
 };
 
 window.toggleFullScreen = function() {
-  const doc = document.documentElement;
+  const doc = document.getElementById('content') || document.documentElement;
   const fullscreenElement = document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
 
   if (!fullscreenElement) {
