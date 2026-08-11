@@ -1161,7 +1161,15 @@
   </div>
 
   <script src="/static/js/reading-experience.js?v=1005"></script>
-  <script src="/static/js/font-engine.js?v=1005"></script>
+  <script src="/static/js/font-engine.js?v=1006"></script>
+  <script>
+    // Initialize the Font Engine after DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.ReadingExperience && window.ReadingExperience.Font && window.ReadingExperience.Font.init) {
+        window.ReadingExperience.Font.init();
+      }
+    });
+  </script>
   <script src="/static/js/brightness-engine.js?v=1"></script>
   <script src="/static/js/theme-engine.js?v=1005"></script>
   <script src="/static/js/reader-core.js?v=1012"></script>

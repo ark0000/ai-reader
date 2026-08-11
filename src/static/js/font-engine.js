@@ -23,6 +23,7 @@ window.ReadingExperience.Font = (function(Events) {
         Events.emit('font:changed', state);
       });
       state.family = fontSel.value;
+      root.style.setProperty('--reader-font', state.family);
     }
 
     // Font Size
@@ -31,9 +32,16 @@ window.ReadingExperience.Font = (function(Events) {
       szRange.addEventListener('input', function(e) {
         state.sizePx = parseInt(e.target.value, 10);
         root.style.setProperty('--reader-size', state.sizePx + 'px');
+        document.querySelectorAll('.md-content').forEach(function(el){
+          el.style.fontSize = state.sizePx + 'px';
+        });
         Events.emit('font:changed', state);
       });
       state.sizePx = parseInt(szRange.value, 10);
+      root.style.setProperty('--reader-size', state.sizePx + 'px');
+      document.querySelectorAll('.md-content').forEach(function(el){
+        el.style.fontSize = state.sizePx + 'px';
+      });
     }
 
     // Layout Width
