@@ -16,15 +16,20 @@ class MarkdownDocumentHandler {
     
     // Fallback if marked is missing for some reason
     if (typeof marked === 'undefined') {
-       window.contentEl.innerHTML = '<div class="md-content"><pre style="white-space:pre-wrap"></pre></div>';
+       window.contentEl.innerHTML = '<div class="md-content" style="font-size: var(--reader-size, 16px);"><pre style="white-space:pre-wrap"></pre></div>';
        window.contentEl.querySelector('pre').textContent = txt;
        return;
     }
     
+    var pStart = performance.now();
     var rawHtml = marked.parse(txt);
+    var pEnd = performance.now();
+    if (window.AuraPerf && window.AuraPerf.logMdParse) {
+       window.AuraPerf.logMdParse(pEnd - pStart);
+    }
     var cleanHtml = typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(rawHtml) : rawHtml;
     
-    window.contentEl.innerHTML = '<div class="md-content prose prose-slate dark:prose-invert" style="max-width: var(--reader-width); margin: 0 auto;">' + cleanHtml + '</div>';
+    window.contentEl.innerHTML = '<div class="md-content prose prose-slate dark:prose-invert" style="max-width: var(--reader-width); margin: 0 auto; font-size: var(--reader-size, 16px);">' + cleanHtml + '</div>';
     
     // Extract text for TTS
     var parser = new DOMParser();
@@ -44,29 +49,56 @@ class MarkdownDocumentHandler {
       try { mermaid.init(undefined, document.querySelectorAll('.mermaid')); } catch(e){ console.error('Mermaid error', e); }
     }
     
-    window.contentEl.querySelectorAll('.md-content img, .md-content .mermaid').forEach(function(el){
-      el.style.cursor = 'pointer'; el.title = 'Click to add to notes';
+    window.contentEl.querySelectorAll('.md-content img, .md-content .mermaid, pre code').forEach(function(el){
+      el.style.cursor = 'pointer'; 
+      el.title = el.tagName.toLowerCase() === 'code' ? 'Click to explain code' : 'Click to add to notes or explain';
       el.onclick = function(ev){
-        window.showActionPopup(ev, '&#128247; Add diagram to notes', function(){
-          var clone = el.cloneNode(true);
-          clone.removeAttribute('onclick'); clone.style.cursor='default';
-          window.notes.push({q: clone.outerHTML, txt: 'Diagram', id: Date.now()});
-          if (window.renderNotes) window.renderNotes();
-          if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
-          if (window.switchTab) window.switchTab('notes');
+        if (window.getSelection().toString().trim().length > 0) return; // Don't trigger if user is selecting text
+        ev.stopPropagation(); // prevent bubbling up
+        var actions = [];
+        let prompt = '';
+        let typeName = 'diagram';
+        
+        if (el.tagName.toLowerCase() === 'code') {
+          prompt = 'Please explain this code:\n\n```\n' + el.textContent + '\n```';
+          typeName = 'code';
+        } else if (el.tagName.toLowerCase() === 'img') {
+          prompt = 'Please explain this image (from URL: ' + el.src + ' / alt: ' + (el.alt||'') + ').';
+          typeName = 'image';
+        } else {
+          prompt = 'Please explain this diagram:\n\n```mermaid\n' + el.textContent + '\n```';
+        }
+        
+        actions.push({
+          label: '&#10024; Explain with AI',
+          actionFn: function() {
+            if(window.askAI) {
+              window.askAI(prompt);
+              const oldBg = el.style.backgroundColor;
+              el.style.transition = 'background-color 0.3s';
+              el.style.backgroundColor = 'rgba(99,179,237,0.3)';
+              setTimeout(() => { el.style.backgroundColor = oldBg; }, 300);
+            }
+          }
         });
+        
+        actions.push({
+          label: '&#128247; Add ' + typeName + ' to notes',
+          actionFn: function() {
+            var clone = el.cloneNode(true);
+            clone.removeAttribute('onclick'); clone.style.cursor='default';
+            window.notes.push({q: clone.outerHTML, txt: typeName.charAt(0).toUpperCase() + typeName.slice(1), id: Date.now()});
+            if (window.renderNotes) window.renderNotes();
+            if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
+            if (window.switchTab) window.switchTab('notes');
+          }
+        });
+        
+        window.showActionPopup(ev, actions);
       };
     });
     
-    window.contentEl.querySelectorAll('pre').forEach(function(p){
-      if(p.className==='mermaid')return;
-      p.onclick = function(){
-        var cb = document.getElementById('auto-explain-cb');
-        if(cb && cb.checked) {
-          window.askAI('Explain this code:\n\n```\n'+p.textContent+'\n```');
-        }
-      }
-    });
+    // The global click handler for md-content handles code block explanations
   }
 }
 
@@ -79,7 +111,7 @@ class TextDocumentHandler {
     window.docText = txt;
     window.pdfParts = txt.split('\n\n').filter(function(t) { return t.trim().length > 0; });
     var escapedTxt = window.escapeHTML ? window.escapeHTML(txt) : txt;
-    window.contentEl.innerHTML = '<div class="md-content prose prose-slate dark:prose-invert" style="max-width: var(--reader-width); margin: 0 auto;"><pre style="white-space:pre-wrap">' + escapedTxt + '</pre></div>';
+    window.contentEl.innerHTML = '<div class="md-content prose prose-slate dark:prose-invert" style="max-width: var(--reader-width); margin: 0 auto; font-size: var(--reader-size, 16px);"><pre style="white-space:pre-wrap">' + escapedTxt + '</pre></div>';
   }
 }
 

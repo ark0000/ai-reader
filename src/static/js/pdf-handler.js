@@ -131,12 +131,25 @@ window.runRecognizers = async function(page, viewport, textContent, textLayerDiv
 
       let aiBtn = document.createElement('button');
       aiBtn.className = 'overlay-btn' + (bbox.type === 'image' ? ' img-btn' : '');
-      aiBtn.innerText = 'Explain with AI';
+      aiBtn.innerHTML = '&#10024; Explain with AI';
       aiBtn.onclick = (e) => { 
         e.stopPropagation(); 
         window.dispatchEvent(new CustomEvent('AI_EXPLAIN', { detail: { type: bbox.type, content: bbox.content || 'Image on page' } }));
       };
       actions.appendChild(aiBtn);
+
+      let noteBtn = document.createElement('button');
+      noteBtn.className = 'overlay-btn';
+      noteBtn.innerHTML = '&#128247; Add to Notes';
+      noteBtn.onclick = (e) => {
+        e.stopPropagation();
+        let noteContent = bbox.type === 'code' ? '<pre><code>' + bbox.content + '</code></pre>' : '<i>(PDF Image at X:' + Math.round(bbox.x) + ' Y:' + Math.round(bbox.y) + ')</i>';
+        window.notes.push({q: noteContent, txt: bbox.type === 'code' ? 'Code snippet' : 'Diagram', id: Date.now()});
+        if (window.renderNotes) window.renderNotes();
+        if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
+        if (window.switchTab) window.switchTab('notes');
+      };
+      actions.appendChild(noteBtn);
 
       div.appendChild(actions);
       textLayerDiv.appendChild(div);

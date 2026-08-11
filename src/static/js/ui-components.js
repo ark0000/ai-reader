@@ -24,22 +24,32 @@ window.popDict = function(){hidePopup();fetchDict(selText.trim().split(/\s+/)[0]
 
 window.popSearch = function(){hidePopup();window.open('https://www.google.com/search?q='+encodeURIComponent(selText),'_blank');};
 
-window.showActionPopup = function(e, label, actionFn) {
+window.showActionPopup = function(e, labelOrActions, actionFn) {
   var p = document.getElementById('action-popup');
   if(!p) {
     p = document.createElement('div');
     p.id = 'action-popup';
     p.style.cssText = 'position:fixed;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;box-shadow:var(--shadow);z-index:9999;display:none;padding:4px;';
-    p.innerHTML = '<button class="pb" style="width:100%"></button>';
     document.body.appendChild(p);
   }
-  var btn = p.firstChild;
-  btn.innerHTML = label;
-  btn.onclick = function(ev) {
-    ev.stopPropagation();
-    p.style.display = 'none';
-    actionFn();
-  };
+  
+  var actions = Array.isArray(labelOrActions) ? labelOrActions : [{label: labelOrActions, actionFn: actionFn}];
+  
+  p.innerHTML = '';
+  actions.forEach(function(act) {
+    var btn = document.createElement('button');
+    btn.className = 'pb';
+    btn.style.width = '100%';
+    btn.style.marginBottom = '2px';
+    btn.innerHTML = act.label;
+    btn.onclick = function(ev) {
+      ev.stopPropagation();
+      p.style.display = 'none';
+      if (act.actionFn) act.actionFn();
+    };
+    p.appendChild(btn);
+  });
+  
   p.style.display = 'block';
   var pw = p.offsetWidth || 150;
   var ph = p.offsetHeight || 40;

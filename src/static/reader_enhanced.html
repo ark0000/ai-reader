@@ -638,78 +638,46 @@
             </div>
           </div>
 
-                    <label class="settings-header">&#128100; User Profile & Storage</label>
-            <div class="settings-group">
-              <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
-                <div class="settings-label-container" style="margin-bottom: 4px;">
-                  <span class="settings-label">Profile Name</span>
-                  <span class="settings-help">Used to separate your library documents from other users.</span>
-                </div>
-                <div style="display:flex; width:100%; gap:8px;">
-                  <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" onchange="window.safeStorage.setItem('username', this.value); window.currentUsername = this.value;">
-                  <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444;" onclick="window.safeStorage.setItem('username', ''); document.getElementById('username-input').value=''; this.style.display='none';">Log out</button>
-                </div>
-              </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Save Documents Manually</span>
-                  <span class="settings-help">Adds a save button instead of auto-saving everything.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="manual-save-cb" role="switch" onchange="window.safeStorage.setItem('aura-manual-save', this.checked ? 'true' : 'false');">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Metadata-Only Cache</span>
-                  <span class="settings-help">Saves space by not caching full PDFs in the browser.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="meta-only-cache-cb" role="switch" onchange="window.safeStorage.setItem('aura-meta-only-cache', this.checked ? 'true' : 'false');">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-            </div>
-
           <label class="settings-header">&#128100; User Profile & Storage</label>
-            <div class="settings-group">
-              <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
-                <div class="settings-label-container" style="margin-bottom: 4px;">
-                  <span class="settings-label">Profile Name</span>
-                  <span class="settings-help">Used to separate your library documents from other users.</span>
-                </div>
-                <div style="display:flex; width:100%; gap:8px;">
-                  <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" onchange="window.safeStorage.setItem('username', this.value); window.currentUsername = this.value;">
-                  <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444;" onclick="window.safeStorage.setItem('username', ''); document.getElementById('username-input').value=''; this.style.display='none';">Log out</button>
-                </div>
+          <div class="settings-group">
+            <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+              <div class="settings-label-container" style="margin-bottom: 4px;">
+                <span class="settings-label">Profile Name</span>
+                <span class="settings-help">Used to separate your library documents from other users.</span>
               </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Save Documents Manually</span>
-                  <span class="settings-help">Adds a save button instead of auto-saving everything.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="manual-save-cb" role="switch" onchange="window.safeStorage.setItem('aura-manual-save', this.checked ? 'true' : 'false');">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div class="settings-row">
-                <div class="settings-label-container">
-                  <span class="settings-label">Metadata-Only Cache</span>
-                  <span class="settings-help">Saves space by not caching full PDFs in the browser.</span>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="meta-only-cache-cb" role="switch" onchange="window.safeStorage.setItem('aura-meta-only-cache', this.checked ? 'true' : 'false');">
-                  <span class="toggle-slider"></span>
-                </label>
+              <div style="display:flex; width:100%; gap:8px;">
+                <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" onchange="window.safeStorage.setItem('username', this.value); window.currentUsername = this.value;">
+                <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444;" onclick="window.safeStorage.setItem('username', ''); document.getElementById('username-input').value=''; this.style.display='none';">Log out</button>
               </div>
             </div>
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Save Documents Manually</span>
+                <span class="settings-help">Adds a save button instead of auto-saving everything.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="manual-save-cb" role="switch" onchange="window.safeStorage.setItem('aura-manual-save', this.checked ? 'true' : 'false');">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Metadata-Only Cache</span>
+                <span class="settings-help">Saves space by not caching full PDFs in the browser.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="meta-only-cache-cb" role="switch" onchange="window.safeStorage.setItem('aura-meta-only-cache', this.checked ? 'true' : 'false');">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
 
           <label class="settings-header">&#128190; Saved State</label>
-                Choose which preferences are remembered after you close the tab. Everything else is session-only.
-              </div>
-              <div class="settings-row">
+          <div class="settings-group">
+            <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:4px; font-size:12px; color:var(--text-2); border-bottom:1px solid var(--border); padding-bottom:12px;">
+              Choose which preferences are remembered after you close the tab. Everything else is session-only.
+            </div>
+            <div class="settings-row">
                 <div class="settings-label-container">
                   <span class="settings-label">Reading Position</span>
                   <span class="settings-help">Remember where you left off.</span>
@@ -1173,13 +1141,13 @@
   <script src="/static/js/brightness-engine.js?v=1"></script>
   <script src="/static/js/theme-engine.js?v=1005"></script>
   <script src="/static/js/reader-core.js?v=1012"></script>
-  <script src="/static/js/ui-components.js?v=1012"></script>
+  <script src="/static/js/ui-components.js?v=1014"></script>
   <script src="/static/js/ai-chat.js?v=1007"></script>
   <script src="/static/js/dictionary-tools.js?v=1005"></script>
   <script src="/static/js/notes-tts.js?v=1005"></script>
-  <script src="/static/js/markdown-handler.js?v=1005"></script>
+  <script src="/static/js/markdown-handler.js?v=1006"></script>
   <script src="/static/js/epub-handler.js?v=1005"></script>
-  <script src="/static/js/pdf-handler.js?v=1005"></script>
+  <script src="/static/js/pdf-handler.js?v=1011"></script>
 
   <script>
     function filterSettings(query) {
