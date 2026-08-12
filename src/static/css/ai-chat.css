@@ -217,6 +217,27 @@
    AI PANEL (Side Panel Layout)
    ========================================================================= */
 
+#ai-panel {
+  width: 400px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  box-shadow: -10px 0 40px rgba(0,0,0,0.6);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  position: fixed;
+  right: 0; 
+  top: 0;
+  z-index: 500;
+  filter: brightness(var(--ai-brightness, 1));
+}
+#ai-panel.hidden { 
+  transform: translateX(100%); 
+}
+
 #ai-hdr { background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border); padding: 13px 16px; font-size: .92rem; font-weight: 600;
   display: flex; justify-content: space-between; align-items: center; position: relative; flex-shrink: 0; }

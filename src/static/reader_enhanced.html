@@ -22,7 +22,7 @@
     rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="/static/css/theme-engine.css?v=1005">
   <link rel="stylesheet" href="/static/css/reader-engine.css?v=1011">
-  <link rel="stylesheet" href="/static/css/ai-chat.css?v=1010">
+  <link rel="stylesheet" href="/static/css/ai-chat.css?v=1011">
   <link rel="stylesheet" href="/static/css/reader-layout.css?v=1008">
   <link rel="stylesheet" href="/static/css/uno.css?v=1005">
   <style>
@@ -946,9 +946,11 @@
       <div id="tab-chat" class="tab-pane on">
         <!-- Chat Toolbar: Clear, Undo, Export -->
         <div class="chat-toolbar">
-          <div style="display:flex; gap:4px;">
+          <div style="display:flex; gap:4px; align-items:center;">
             <button class="chat-toolbar__btn" onclick="clearChat()" title="Clear all messages">🗑 Clear</button>
             <button class="chat-toolbar__btn" onclick="undoLast()" title="Undo last exchange">↩ Undo</button>
+            <span title="Chat Brightness" style="font-size:14px; margin-left: 6px; cursor: help;">☀</span>
+            <input type="range" id="ai-brightness-slider" min="0.3" max="1.5" step="0.1" value="1" title="Adjust AI Chat Brightness" style="width: 60px;">
           </div>
           <div style="display:flex; gap:4px; align-items:center;">
             <button class="chat-toolbar__btn" onclick="exportChat()" title="Export chat history">📋 Export</button>
@@ -1270,12 +1272,12 @@
   <script src="/static/js/theme-engine.js?v=2"></script>
   <script src="/static/js/reader-core.js?v=3"></script>
   <script src="/static/js/ui-components.js?v=2"></script>
-  <script src="/static/js/ai-chat.js?v=3"></script>
+  <script src="/static/js/ai-chat.js?v=8"></script>
   <script src="/static/js/dictionary-tools.js?v=2"></script>
   <script src="/static/js/notes-tts.js?v=2"></script>
-  <script src="/static/js/markdown-handler.js?v=4"></script>
+  <script src="/static/js/markdown-handler.js?v=6"></script>
   <script src="/static/js/epub-handler.js?v=3"></script>
-  <script src="/static/js/pdf-handler.js?v=3"></script>
+  <script src="/static/js/pdf-handler.js?v=4"></script>
 
   <script>
     function filterSettings(query) {

@@ -118,41 +118,8 @@ window.runRecognizers = async function(page, viewport, textContent, textLayerDiv
       div.style.width = bbox.w + 'px';
       div.style.height = bbox.h + 'px';
 
-      let actions = document.createElement('div');
-      actions.className = 'overlay-actions';
-
-      if (bbox.type === 'code') {
-        let copyBtn = document.createElement('button');
-        copyBtn.className = 'overlay-btn';
-        copyBtn.innerText = 'Copy Code';
-        copyBtn.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(bbox.content); };
-        actions.appendChild(copyBtn);
-      }
-
-      let aiBtn = document.createElement('button');
-      aiBtn.className = 'overlay-btn' + (bbox.type === 'image' ? ' img-btn' : '');
-      aiBtn.innerHTML = '&#10024; Explain with AI';
-      aiBtn.onclick = (e) => { 
-        e.stopPropagation(); 
-        window.dispatchEvent(new CustomEvent('AI_EXPLAIN', { detail: { type: bbox.type, content: bbox.content || 'Image on page' } }));
-      };
-      actions.appendChild(aiBtn);
-
-      let noteBtn = document.createElement('button');
-      noteBtn.className = 'overlay-btn';
-      noteBtn.innerHTML = '&#128247; Add to Notes';
-      noteBtn.onclick = (e) => {
-        e.stopPropagation();
-        let noteContent = bbox.type === 'code' ? '<pre><code>' + bbox.content + '</code></pre>' : '<i>(PDF Image at X:' + Math.round(bbox.x) + ' Y:' + Math.round(bbox.y) + ')</i>';
-        window.notes.push({q: noteContent, txt: bbox.type === 'code' ? 'Code snippet' : 'Diagram', id: Date.now()});
-        if (window.renderNotes) window.renderNotes();
-        if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
-        if (window.switchTab) window.switchTab('notes');
-      };
-      actions.appendChild(noteBtn);
-
-      div.appendChild(actions);
-      textLayerDiv.appendChild(div);
+      // Options removed per user request
+      // textLayerDiv.appendChild(div);
     });
   } catch(e) {
     console.warn("Recognizer failed:", e);
