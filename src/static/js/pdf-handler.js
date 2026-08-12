@@ -950,6 +950,12 @@ window.renderPdfToc = function () {
 
 class DocumentHandlerFactory {
   static getHandler(ext) {
+    // Open-Closed Principle: Resolve via dynamic handler registry first
+    if (window.DocumentHandlers && window.DocumentHandlers[ext]) {
+      return window.DocumentHandlers[ext];
+    }
+    
+    // Fallback instantiations (for backward compatibility)
     if (ext === 'pdf') return new PdfDocumentHandler();
     if (ext === 'md' || ext === 'txt') return new window.MarkdownDocumentHandler();
     if (ext === 'epub') return new window.EpubDocumentHandler();
@@ -1095,26 +1101,47 @@ window.addEventListener('beforeunload', function() {
       '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:18px">' +
       '<div style="width:52px;height:52px;border:5px solid rgba(99,179,237,.2);border-top-color:#63b3ed;' +
       'border-radius:50%;animation:spin .8s linear infinite"></div>' +
-      '<p style="color:#63b3ed;font-weight:600">Loading converted PDF...</p></div>' +
+      '<p style="color:#63b3ed;font-weight:600">Loading document...</p></div>' +
       '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
     try {
+      var statusRes = await fetch('/api/status/' + taskId);
+      var statusData = await statusRes.json();
+      var ext = statusData.ext || 'pdf';
+
       var res = await fetch('/api/download/' + taskId);
-      if (!res.ok) throw new Error('PDF ready but download failed: ' + res.status);
-      var blob = await res.arrayBuffer();
-      var txt = document.createElement("textarea");
-      txt.innerHTML = 'Dark_Mode_Converted.pdf';
-      var decodedName = txt.value;
-      window.docTitleEl.textContent = '🌀 ' + decodedName;
-      document.title = 'Emanation Reader: Converted PDF';
-      window.currentExt = 'pdf';
-      window.pdfScale = 1.2;
-      window.pdfRotation = 0;
-      if (window.ReadingExperience && window.ReadingExperience.Font) window.ReadingExperience.Font.disableFontForPdf(true);
-      document.getElementById('secondary-toolbar').style.display = 'flex';
-      document.querySelectorAll('.pdf-only').forEach(function (el) { el.style.display = ''; });
-      const fontControls = document.getElementById('font-size-controls');
-      if (fontControls) fontControls.style.display = 'none';
-      await window.loadPdf(blob, true);
+      if (!res.ok) throw new Error('Document ready but download failed: ' + res.status);
+      var blob = await res.blob();
+
+      var handler = window.DocumentHandlers ? window.DocumentHandlers[ext] : null;
+      if (ext === 'epub' && handler && handler.load) {
+         window.currentExt = 'epub';
+         window._activeDocHandler = handler;
+         var fileObj = new File([blob], "document.epub", { type: "application/epub+zip" });
+         document.title = 'Emanation Reader: EPUB';
+         await handler.load(fileObj);
+      } else if (ext === 'md' && handler && handler.load) {
+         window.currentExt = 'md';
+         window._activeDocHandler = handler;
+         var fileObj = new File([blob], "document.md", { type: "text/markdown" });
+         document.title = 'Emanation Reader: Markdown';
+         await handler.load(fileObj);
+      } else {
+        var buf = await blob.arrayBuffer();
+        var txt = document.createElement("textarea");
+        txt.innerHTML = 'Dark_Mode_Converted.pdf';
+        var decodedName = txt.value;
+        window.docTitleEl.textContent = '🌀 ' + decodedName;
+        document.title = 'Emanation Reader: Converted PDF';
+        window.currentExt = 'pdf';
+        window.pdfScale = 1.2;
+        window.pdfRotation = 0;
+        if (window.ReadingExperience && window.ReadingExperience.Font) window.ReadingExperience.Font.disableFontForPdf(true);
+        document.getElementById('secondary-toolbar').style.display = 'flex';
+        document.querySelectorAll('.pdf-only').forEach(function (el) { el.style.display = ''; });
+        const fontControls = document.getElementById('font-size-controls');
+        if (fontControls) fontControls.style.display = 'none';
+        await window.loadPdf(buf, true);
+      }
     } catch (err) {
       window.contentEl.innerHTML =
         '<div style="padding:2rem"><h2 style="color:#fc8181">Download Failed</h2>' +

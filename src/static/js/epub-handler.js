@@ -16,7 +16,7 @@ class EpubDocumentHandler {
     this._searchResults = [];
     this._searchCurrentIdx = -1;
   }
-  
+
   getScrollState() {
     return this.currentCfi ? { type: 'epub', cfi: this.currentCfi } : null;
   }
@@ -331,39 +331,45 @@ window.renderEpubToc = function() {
   if (badge) badge.textContent = count;
 };
 
-const epubHandler = {
-  toc: {
-    render: function() { if (window.renderEpubToc) window.renderEpubToc(); }
-  },
-  layout: {
-    fitWidth: function(val) {
-      if (window.currentEpubRendition) {
-        setTimeout(function() { window.currentEpubRendition.resize(); }, 100);
-      }
-    }
-  },
-  theme: {
-    apply: function(cssVars, isDark) {
-      const rendition = window.currentEpubRendition;
-      if (!rendition) return;
-      var cs = getComputedStyle(document.documentElement);
-      var textColor = cs.getPropertyValue('--text-1').trim() || '#2d3748';
-      var bgColor   = cs.getPropertyValue('--bg-pane').trim() || '#ffffff';
-      var linkColor = cs.getPropertyValue('--accent').trim()  || '#3182ce';
+}
 
-      var cssText = 'body { color: ' + textColor + ' !important; background: ' + bgColor + ' !important; font-family: inherit !important; } a { color: ' + linkColor + ' !important; }';
-      if (rendition.getContents) {
-        rendition.getContents().forEach(function(content) {
-          if (content.document) {
-            var style = content.document.getElementById('aurareader-theme');
-            if (style) style.innerHTML = cssText;
-          }
-        });
-      }
+EpubDocumentHandler.prototype.toc = {
+  render: function() {
+    if (window.renderEpubToc) window.renderEpubToc();
+  }
+};
+
+EpubDocumentHandler.prototype.layout = {
+  fitWidth: function(val) {
+    if (window.currentEpubRendition) {
+      setTimeout(function() { window.currentEpubRendition.resize(); }, 100);
     }
   }
 };
 
+EpubDocumentHandler.prototype.theme = {
+  apply: function(cssVars, isDark) {
+    const rendition = window.currentEpubRendition;
+    if (!rendition) return;
+    var cs = getComputedStyle(document.documentElement);
+    var textColor = cs.getPropertyValue('--text-1').trim() || '#2d3748';
+    var bgColor   = cs.getPropertyValue('--bg-pane').trim() || '#ffffff';
+    var linkColor = cs.getPropertyValue('--accent').trim()  || '#3182ce';
+
+    var cssText = 'body { color: ' + textColor + ' !important; background: ' + bgColor + ' !important; font-family: inherit !important; } a { color: ' + linkColor + ' !important; }';
+    if (rendition.getContents) {
+      rendition.getContents().forEach(function(content) {
+        if (content.document) {
+          var style = content.document.getElementById('aurareader-theme');
+          if (style) style.innerHTML = cssText;
+        }
+      });
+    }
+  }
+};
+
+const epubInstance = new EpubDocumentHandler();
+
 if (window.registerDocumentHandler) {
-  window.registerDocumentHandler('epub', epubHandler);
+  window.registerDocumentHandler('epub', epubInstance);
 }

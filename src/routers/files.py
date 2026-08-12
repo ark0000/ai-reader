@@ -133,7 +133,8 @@ async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
         "created_at": time.time(),
         "started_at": None if is_pdf else time.time(),
         "completed_at": None if is_pdf else time.time(),
-        "file_url": None if is_pdf else storage_client.get_file_url_or_path(input_filename)
+        "file_url": None if is_pdf else storage_client.get_file_url_or_path(input_filename),
+        "ext": ext
     }
     
     return {"task_id": task_id, "total_pages": total_pages, "ext": ext}

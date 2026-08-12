@@ -543,7 +543,49 @@ window.exportChat = () => {
     const w = window.open('', '_blank');
     if (w) { w.document.write('<pre>' + text.replace(/</g,'&lt;') + '</pre>'); }
   });
-};
+}
+
+// =========================================================================
+// AI Panel Resize Logic
+// =========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.getElementById('ai-panel');
+  if (panel) {
+    const resizer = document.createElement('div');
+    resizer.className = 'panel-resizer';
+    panel.appendChild(resizer);
+    
+    let isResizing = false;
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      document.body.style.cursor = 'ew-resize';
+      panel.style.transition = 'none'; // disable animation during drag
+      e.preventDefault();
+    });
+    
+    window.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      let newWidth = window.innerWidth - e.clientX;
+      if (newWidth < 300) newWidth = 300;
+      if (newWidth > 900) newWidth = 900;
+      panel.style.width = newWidth + 'px';
+    });
+    
+    window.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = '';
+        panel.style.transition = '';
+        localStorage.setItem('aura-ai-panel-width', parseInt(panel.style.width, 10));
+      }
+    });
+    
+    const savedWidth = localStorage.getItem('aura-ai-panel-width');
+    if (savedWidth) {
+      panel.style.width = savedWidth + 'px';
+    }
+  }
+});
 
 // Connection Manager Facades
 window.openConnectionManager = () => window.connMgr.open();

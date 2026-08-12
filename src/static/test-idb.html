@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>Test IDB</h1>
+  <div id="out"></div>
+  <script>
+    const out = document.getElementById('out');
+    function log(msg) {
+      out.innerHTML += msg + '<br>';
+    }
+    
+    const request = indexedDB.open('AuraDB', 2);
+    request.onsuccess = (e) => {
+      const db = e.target.result;
+      log("Opened DB");
+      
+      const tx = db.transaction('documents_meta', 'readonly');
+      const store = tx.objectStore('documents_meta');
+      const allReq = store.getAll();
+      allReq.onsuccess = () => {
+        log("Documents meta:");
+        const docs = allReq.result;
+        docs.forEach(d => log(JSON.stringify(d)));
+        
+        if (docs.length > 0) {
+           const id = docs[0].id;
+           log("Deleting " + id);
+           
+           const txDel = db.transaction(['documents', 'documents_meta'], 'readwrite');
+           txDel.oncomplete = () => log("Delete complete");
+           txDel.onerror = (err) => log("Delete error: " + err.target.error);
+           
+           try {
+             txDel.objectStore('documents').delete(id);
+             txDel.objectStore('documents_meta').delete(id);
+           } catch(err) {
+             log("Delete threw: " + err);
+           }
+        }
+      };
+    };
+  </script>
+</body>
+</html>

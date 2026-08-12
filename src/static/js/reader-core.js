@@ -475,23 +475,40 @@ class StorageRepository {
   }
 
   async deleteDocument(id) {
-    try {
-      const deletePromisified = (store, key) => new Promise((resolve, reject) => {
-        const req = store.delete(key);
-        req.onsuccess = () => resolve();
-        req.onerror = (e) => reject(e.target.error);
-      });
+    console.log(`[StorageRepository] Attempting to delete document ${id}`);
+    const db = await this.dbManager.init();
+    
+    return new Promise((resolve, reject) => {
+      // Use a single transaction for all relevant stores
+      const stores = ['documents', 'documents_meta'];
+      if (db.objectStoreNames.contains('annotations')) {
+        stores.push('annotations');
+      }
+      
+      const tx = db.transaction(stores, 'readwrite');
+      
+      tx.oncomplete = () => {
+        console.log(`[StorageRepository] Successfully deleted document ${id}`);
+        resolve();
+      };
+      
+      tx.onerror = (e) => {
+        console.error("[StorageRepository] Transaction error during delete:", e.target.error);
+        reject(e.target.error);
+      };
 
-      const store = await this.dbManager.getTransaction('documents', 'readwrite');
-      await deletePromisified(store, id);
-
-      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
-      await deletePromisified(metaStore, id);
-
-      console.log(`[StorageRepository] Successfully deleted document ${id}`);
-    } catch (e) {
-      console.warn("Failed to delete document from IndexedDB", e);
-    }
+      try {
+        tx.objectStore('documents').delete(id);
+        tx.objectStore('documents_meta').delete(id);
+        if (stores.includes('annotations')) {
+          tx.objectStore('annotations').delete(id);
+        }
+      } catch (err) {
+        console.error("[StorageRepository] Error executing delete on stores:", err);
+        // Sometimes delete() can throw if id is invalid type
+        reject(err);
+      }
+    });
   }
 
   async loadDocument(id) {
@@ -597,7 +614,7 @@ window.triggerLibrarySave = function(file, fileName, ext, force = false) {
 window.triggerStateSave = function() {
   if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
   const uname = window.safeStorage.getItem('username') || 'guest';
-  if (uname !== 'guest' && window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
+  if (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
     const state = window.getActiveHandler().getScrollState();
     if (state) {
       window.storageRepository.saveScrollState(uname + '_' + window.currentFileName, state);

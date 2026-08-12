@@ -13,6 +13,11 @@ window.ReadingExperience.Font = (function(Events) {
     widthMax: 'max-content'
   };
 
+  function syncSizeLabel(val) {
+    const label = document.getElementById('sz-value');
+    if (label) label.textContent = val;
+  }
+
   function init() {
     // Font Family
     const fontSel = document.getElementById('font-sel');
@@ -32,6 +37,7 @@ window.ReadingExperience.Font = (function(Events) {
       szRange.addEventListener('input', function(e) {
         state.sizePx = parseInt(e.target.value, 10);
         root.style.setProperty('--reader-size', state.sizePx + 'px');
+        syncSizeLabel(state.sizePx);
         document.querySelectorAll('.md-content').forEach(function(el){
           el.style.fontSize = state.sizePx + 'px';
         });
@@ -39,6 +45,7 @@ window.ReadingExperience.Font = (function(Events) {
       });
       state.sizePx = parseInt(szRange.value, 10);
       root.style.setProperty('--reader-size', state.sizePx + 'px');
+      syncSizeLabel(state.sizePx);
       document.querySelectorAll('.md-content').forEach(function(el){
         el.style.fontSize = state.sizePx + 'px';
       });
@@ -78,3 +85,70 @@ window.ReadingExperience.Font = (function(Events) {
     getState: () => ({ ...state })
   };
 })(window.ReadingExperience.Events);
+// ─── Font Popover Toggle (fully isolated) ───
+(function() {
+  // Private state — no leaking into global scope
+  var _popoverClickFn = null;
+  var _popoverEscFn = null;
+
+  function closePopover() {
+    var popover = document.getElementById('font-popover');
+    if (popover) popover.style.display = 'none';
+    // Always clean up listeners
+    if (_popoverClickFn) {
+      document.removeEventListener('click', _popoverClickFn);
+      _popoverClickFn = null;
+    }
+    if (_popoverEscFn) {
+      document.removeEventListener('keydown', _popoverEscFn);
+      _popoverEscFn = null;
+    }
+  }
+
+  window.closeFontPopover = closePopover;
+
+  window.toggleFontPopover = function(e) {
+    if (e) e.stopPropagation();
+    var popover = document.getElementById('font-popover');
+    var btn = document.getElementById('font-popover-btn');
+    if (!popover || !btn) return;
+
+    var isHidden = popover.style.display === 'none' || !popover.style.display;
+    if (isHidden) {
+      popover.style.display = 'block';
+      // Position below the button using fixed coords
+      var rect = btn.getBoundingClientRect();
+      var popW = popover.offsetWidth || 210;
+      var left = rect.left + (rect.width / 2) - (popW / 2);
+      // Clamp to viewport
+      if (left < 8) left = 8;
+      if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+      popover.style.top = (rect.bottom + 6) + 'px';
+      popover.style.left = left + 'px';
+
+      // Set up close-on-outside-click (delayed to avoid catching the trigger click)
+      setTimeout(function() {
+        // Clean up any previous leaked listeners first
+        if (_popoverClickFn) document.removeEventListener('click', _popoverClickFn);
+        if (_popoverEscFn) document.removeEventListener('keydown', _popoverEscFn);
+
+        _popoverClickFn = function(ev) {
+          if (!popover.contains(ev.target) && ev.target.id !== 'font-popover-btn') {
+            closePopover();
+          }
+        };
+        _popoverEscFn = function(ev) {
+          if (ev.key === 'Escape') {
+            closePopover();
+            // Don't stop propagation — let zen mode handler also fire
+          }
+        };
+        document.addEventListener('click', _popoverClickFn);
+        document.addEventListener('keydown', _popoverEscFn);
+      }, 10);
+    } else {
+      closePopover();
+    }
+  };
+})();
+

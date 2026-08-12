@@ -402,51 +402,75 @@ TextDocumentHandler.prototype.clearSearch = MarkdownDocumentHandler.prototype.cl
 TextDocumentHandler.prototype.performSearch = MarkdownDocumentHandler.prototype.performSearch;
 TextDocumentHandler.prototype.navigateSearch = MarkdownDocumentHandler.prototype.navigateSearch;
 
-const markdownHandler = {
-  toc: {
-    render: function() {
-  var list = document.getElementById('toc-list');
-  if (!list || !window.contentEl) return;
-  if (!window.docText) {
-    list.innerHTML = '<div class="toc-empty"><span class="toc-empty-icon">&#128214;</span>Open a document to see its table of contents.</div>';
-    return;
+const mdInstance = new MarkdownDocumentHandler();
+MarkdownDocumentHandler.prototype.toc = {
+  render: function() {
+    var list = document.getElementById('toc-list');
+    if (!list || !window.contentEl) return;
+    list.innerHTML = '';
+    
+    if (!window.docText) {
+      list.innerHTML = '<div class="toc-empty"><span class="toc-empty-icon">&#128214;</span>Open a document to see its table of contents.</div>';
+      return;
+    }
+
+    var headings = window.contentEl.querySelectorAll('h1, h2, h3, h4');
+
+    if (headings.length === 0) {
+      list.innerHTML = '<div class="toc-empty"><span class="toc-empty-icon">&#128203;</span>No headings found in this document.</div>';
+      return;
+    }
+
+    headings.forEach(function(h, idx) {
+      if (!h.id) h.id = 'heading-md-' + idx;
+      var level = parseInt(h.tagName.substring(1));
+
+      var div = document.createElement('div');
+      div.className = 'toc-item toc-level-' + Math.min(level, 4);
+
+      var titleSpan = document.createElement('span');
+      titleSpan.className = 'toc-item-title';
+      titleSpan.textContent = h.textContent || '(Untitled)';
+      div.appendChild(titleSpan);
+
+      // Calculate approximate progress percentage instead of page numbers
+      var pageSpan = document.createElement('span');
+      pageSpan.className = 'toc-item-page';
+      
+      // Calculate percentage based on offsetTop vs scrollHeight
+      // Fallback to 0 if contentEl is missing or height is 0
+      var percent = 0;
+      if (window.contentEl && window.contentEl.scrollHeight > 0) {
+          percent = Math.max(0, Math.min(100, Math.round((h.offsetTop / window.contentEl.scrollHeight) * 100)));
+      }
+      pageSpan.textContent = percent + '%';
+      pageSpan.title = 'Approximate position in document';
+      div.appendChild(pageSpan);
+
+      div.onclick = function() {
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.closeToc();
+      };
+
+      list.appendChild(div);
+    });
+
+    var badge = document.getElementById('toc-count');
+    if (badge) badge.textContent = headings.length;
   }
+};
 
-  var headings = window.contentEl.querySelectorAll('h1, h2, h3, h4');
-
-  if (headings.length === 0) {
-    list.innerHTML = '<div class="toc-empty"><span class="toc-empty-icon">&#128203;</span>No headings found in this document.</div>';
-    return;
+const txtInstance = new TextDocumentHandler();
+TextDocumentHandler.prototype.toc = {
+  render: function() {
+    var list = document.getElementById('toc-list');
+    if (!list) return;
+    list.innerHTML = '<div class="toc-empty"><span class="toc-empty-icon">&#128203;</span>Plain text documents do not have a table of contents.</div>';
   }
-
-  headings.forEach(function(h, idx) {
-    if (!h.id) h.id = 'heading-md-' + idx;
-    var level = parseInt(h.tagName.substring(1));
-
-    var div = document.createElement('div');
-    div.className = 'toc-item toc-level-' + Math.min(level, 4);
-
-    var titleSpan = document.createElement('span');
-    titleSpan.className = 'toc-item-title';
-    titleSpan.textContent = h.textContent;
-    div.appendChild(titleSpan);
-
-    div.onclick = function() {
-      h.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      window.closeToc();
-    };
-
-    list.appendChild(div);
-  });
-
-  var badge = document.getElementById('toc-count');
-  if (badge) badge.textContent = headings.length;
-    } // end render
-  } // end toc
-}; // end handler
+};
 
 // Register Handler
 if (window.registerDocumentHandler) {
-  window.registerDocumentHandler('md', markdownHandler);
-  window.registerDocumentHandler('txt', markdownHandler);
+  window.registerDocumentHandler('md', mdInstance);
+  window.registerDocumentHandler('txt', txtInstance);
 }

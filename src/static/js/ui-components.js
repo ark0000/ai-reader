@@ -460,6 +460,17 @@ window.dispatchClearSearch = function() {
     if (dropdown) dropdown.classList.add('hidden');
     window.dispatchClearSearch();
   };
+  
+  // Close search when clicking outside
+  document.addEventListener('click', function(e) {
+    var searchContainer = document.getElementById('yt-search-container');
+    if (searchContainer && !searchContainer.contains(e.target)) {
+      var dropdown = document.getElementById('yt-search-dropdown');
+      if (dropdown && !dropdown.classList.contains('hidden')) {
+        if (window.closeCustomSearch) window.closeCustomSearch();
+      }
+    }
+  });
 })();
 
 // Generic debounced input handler

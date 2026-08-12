@@ -26,6 +26,9 @@ body.pseudo-fullscreen #top-bar,
 body.pseudo-fullscreen #secondary-toolbar {
   display: none !important;
 }
+body.pseudo-fullscreen .font-popover {
+  display: none !important;
+}
 body.pseudo-fullscreen #content {
   height: 100vh !important;
 }
@@ -78,7 +81,7 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 250px;
+  max-width: 140px;
 }
 
 .toolbar-group {
@@ -113,6 +116,76 @@ button {
   text-transform: uppercase;
   letter-spacing: .05em;
   white-space: nowrap;
+}
+
+/* Font & Size Popover (compact Aa button) */
+.font-popover-trigger {
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  letter-spacing: -0.02em;
+  min-width: 36px;
+  justify-content: center;
+}
+
+.font-popover {
+  position: fixed;
+  background: var(--bg-panel, var(--bg-pane));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 12px 14px;
+  z-index: 5000;
+  min-width: 210px;
+  animation: popIn 0.15s ease both;
+}
+
+.font-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.font-popover-row:first-child {
+  padding-top: 0;
+}
+
+.font-popover-row:last-child {
+  padding-bottom: 0;
+}
+
+.font-popover-row + .font-popover-row {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+.font-popover-label {
+  font-size: 0.72rem;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 32px;
+}
+
+.font-popover-value {
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-popover .tb-sel {
+  flex: 1;
+  min-width: 0;
+}
+
+.font-popover .tb-range {
+  flex: 1;
 }
 
 .chat-input-wrapper {

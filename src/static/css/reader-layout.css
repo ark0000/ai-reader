@@ -115,11 +115,23 @@ body.th-dark .md-content .mermaid, body.th-night .md-content .mermaid { filter: 
 .upload-big-btn:hover { background: #2b6cb0; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,.12); }
 
 /* AI PANEL */
+.panel-resizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+  z-index: 10;
+}
+.panel-resizer:hover {
+  background: var(--accent);
+}
 #ai-panel { width: 380px; background: var(--bg-panel);
   border-left: 1px solid var(--border); display: flex; flex-direction: column;
   height: 100%; box-shadow: var(--shadow);
   transition: transform .32s cubic-bezier(.4,0,.2,1); flex-shrink: 0; position: relative; }
-#ai-panel.hidden { transform: translateX(100%); width: 0; overflow: hidden; border: none; }
+#ai-panel.hidden { transform: translateX(100%); width: 0 !important; overflow: hidden; border: none; }
 #ai-hdr { background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border); padding: 13px 16px; font-size: .92rem; font-weight: 600;
   display: flex; justify-content: space-between; align-items: center; position: relative; flex-shrink: 0; }
