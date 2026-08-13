@@ -15,7 +15,7 @@ def build_executable():
     # We use --onedir so that the 'src/static' folder is exposed
     # This allows instantly updating HTML/JS/CSS without recompiling the executable!
     command = [
-        "pyinstaller",
+        sys.executable, "-m", "PyInstaller",
         "--name", "AuraReader",
         "--onedir",          # Creates a directory instead of a single file for easy updates
         "--clean",
