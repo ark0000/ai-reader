@@ -7,14 +7,47 @@ import sys
 import subprocess
 
 def auto_update():
-    """Attempt to pull the latest changes from GitHub before starting."""
-    print("Checking for updates...")
+    """Attempt to pull the latest frontend changes from GitHub without needing git installed."""
+    print("Checking for frontend updates from GitHub...")
     try:
-        # Check if we have git installed and are inside a repo
-        result = subprocess.run(["git", "pull"], capture_output=True, text=True, check=True)
-        print("Update status:\n", result.stdout)
+        import urllib.request
+        import zipfile
+        import io
+        import shutil
+        
+        url = "https://github.com/ark0000/ai-reader/archive/refs/heads/main.zip"
+        
+        # Download the zip file in memory
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(req, timeout=5)
+        
+        with zipfile.ZipFile(io.BytesIO(response.read())) as z:
+            # The root folder inside the zip is usually something like "ai-reader-main"
+            root_dir = z.namelist()[0].split('/')[0]
+            
+            # Figure out where our local 'src/static' folder is
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            static_target = os.path.join(base_dir, "static")
+            
+            # Extract just the static files
+            for file_info in z.infolist():
+                if file_info.filename.startswith(f"{root_dir}/src/static/"):
+                    relative_path = file_info.filename[len(f"{root_dir}/src/static/"):]
+                    if not relative_path:
+                        continue
+                    
+                    target_path = os.path.join(static_target, relative_path)
+                    
+                    if file_info.is_dir():
+                        os.makedirs(target_path, exist_ok=True)
+                    else:
+                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                        with open(target_path, "wb") as f:
+                            f.write(z.read(file_info.filename))
+                            
+        print("Frontend update complete! You have the latest UI features.")
     except Exception as e:
-        print("Update skipped (not a git repo or git not found).")
+        print(f"Update skipped (could not fetch from GitHub): {e}")
 
 def open_browser():
     # Wait a moment for the server to start
