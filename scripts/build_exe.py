@@ -20,6 +20,7 @@ def build_executable():
         "--onedir",          # Creates a directory instead of a single file for easy updates
         "--clean",
         "--noconfirm",
+        "--hidden-import=webview",
         "--add-data", f"src/static{os.pathsep}src/static", # Include static files
         "src/run_desktop.py"
     ]

@@ -1,81 +1,77 @@
 import uvicorn
-import webbrowser
+import webview
 import threading
 import time
 import os
 import sys
-import subprocess
+import socket
+import urllib.request
+import json
 
-def auto_update():
-    """Attempt to pull the latest frontend changes from GitHub without needing git installed."""
-    print("Checking for frontend updates from GitHub...")
+CURRENT_VERSION = "v1.0.0"
+
+def get_free_port():
+    """Find a dynamically available ephemeral port using the OS."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+def check_for_updates():
+    """Safely check the GitHub API for a new release without downloading or extracting payloads."""
+    print("Checking for updates safely...")
     try:
-        import urllib.request
-        import zipfile
-        import io
-        import shutil
+        url = "https://api.github.com/repos/ark0000/ai-reader/releases/latest"
+        req = urllib.request.Request(url, headers={'User-Agent': 'AuraReader'})
+        response = urllib.request.urlopen(req, timeout=3)
+        data = json.loads(response.read().decode('utf-8'))
         
-        url = "https://github.com/ark0000/ai-reader/archive/refs/heads/main.zip"
-        
-        # Download the zip file in memory
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        response = urllib.request.urlopen(req, timeout=5)
-        
-        with zipfile.ZipFile(io.BytesIO(response.read())) as z:
-            # The root folder inside the zip is usually something like "ai-reader-main"
-            root_dir = z.namelist()[0].split('/')[0]
-            
-            # Figure out where our local 'src/static' folder is
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            static_target = os.path.join(base_dir, "static")
-            
-            # Extract just the static files
-            for file_info in z.infolist():
-                if file_info.filename.startswith(f"{root_dir}/src/static/"):
-                    relative_path = file_info.filename[len(f"{root_dir}/src/static/"):]
-                    if not relative_path:
-                        continue
-                    
-                    target_path = os.path.join(static_target, relative_path)
-                    
-                    if file_info.is_dir():
-                        os.makedirs(target_path, exist_ok=True)
-                    else:
-                        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                        with open(target_path, "wb") as f:
-                            f.write(z.read(file_info.filename))
-                            
-        print("Frontend update complete! You have the latest UI features.")
+        latest_version = data.get('tag_name')
+        if latest_version and latest_version != CURRENT_VERSION:
+            print(f"Update available! You are on {CURRENT_VERSION}, but {latest_version} is out.")
+            print(f"Download the latest release here: {data.get('html_url')}")
+            return latest_version, data.get('html_url')
     except Exception as e:
-        print(f"Update skipped (could not fetch from GitHub): {e}")
+        print(f"Update check skipped (offline or rate limited): {e}")
+    return None, None
 
-def open_browser():
-    # Wait a moment for the server to start
-    time.sleep(2.5)
-    print("Opening browser to http://127.0.0.1:8000/")
-    webbrowser.open("http://127.0.0.1:8000/")
+def run_server(port):
+    """Run the Uvicorn server inside a daemon thread."""
+    # We pass the app object directly so Uvicorn runs in this thread
+    from src.main import app
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 if __name__ == "__main__":
     # Ensure the parent directory is in the Python path
-    # so that "from src.main import app" works correctly
-    # when the script is run directly as "python src/run_desktop.py"
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
         
-    # 1. Try to auto-update via git pull
-    auto_update()
+    # Check for safe updates
+    latest_version, update_url = check_for_updates()
     
-    # 2. Start the browser thread
-    threading.Thread(target=open_browser, daemon=True).start()
+    # Get a dynamic port that won't conflict with other apps
+    port = get_free_port()
+    print(f"Starting native app server on dynamically allocated port: {port}")
     
-    # Check if we are running in a PyInstaller bundle
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        print("Running from PyInstaller executable.")
+    # Start the server thread (daemon=True ensures it dies when the UI closes)
+    server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
+    server_thread.start()
     
-    # Run the FastAPI server
-    # We pass the module string so uvicorn can handle reloads if needed (though not needed for exe)
-    # Using the app object directly also works well for PyInstaller
-    from src.main import app
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    # Wait for the server to spin up
+    time.sleep(1.0)
+    
+    # Create the native desktop window using pywebview
+    url = f"http://127.0.0.1:{port}/"
+    window = webview.create_window(
+        title="AuraReader", 
+        url=url, 
+        width=1200, 
+        height=800,
+        min_size=(800, 600)
+    )
+    
+    # Start the native GUI loop on the main thread
+    webview.start()

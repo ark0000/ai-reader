@@ -13,3 +13,4 @@ sentence-transformers==5.6.1
 httpx
 grpcio==1.82.1
 protobuf==5.29.6
+pywebview
