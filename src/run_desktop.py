@@ -23,6 +23,14 @@ def open_browser():
     webbrowser.open("http://127.0.0.1:8000/")
 
 if __name__ == "__main__":
+    # Ensure the parent directory is in the Python path
+    # so that "from src.main import app" works correctly
+    # when the script is run directly as "python src/run_desktop.py"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+        
     # 1. Try to auto-update via git pull
     auto_update()
     
