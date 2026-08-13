@@ -280,7 +280,8 @@ window.exportNotes = function(format) {
     var styleOverride = preserveColors ? '' : '<style>* { color: #000 !important; } pre, code { background-color: #f5f5f5 !important; }</style>';
     doc.write('<html><head><title>Emanation Reader Notes</title>' + styleOverride + '</head><body style="padding:20px;font-family:sans-serif;color:#000;background:#fff;">');
     doc.write('<h2>Emanation Reader Notes</h2><hr>' + window.notes.map(function(n) {
-      var noteTxt = n.isHl ? '<span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:'+n.color+';color:#000;text-align:center;line-height:20px;font-weight:bold;font-size:12px;">' + (hIdxPdf++) + '</span>' : n.txt;
+      var noteBadge = n.isHl ? '<span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:'+n.color+';color:#000;text-align:center;line-height:20px;font-weight:bold;font-size:12px;margin-right:8px;">' + (hIdxPdf++) + '</span>' : '';
+      var noteTxt = noteBadge + n.txt;
       var qColor = n.isHl ? n.color : '#ccc';
       return '<div style="margin-bottom:15px">' + (n.q ? '<blockquote style="border-left:3px solid '+qColor+';padding-left:10px;color:#555;font-style:italic">"' + n.q + '"</blockquote>' : '') + '<div style="color:#000;margin-top:8px">' + noteTxt + '</div></div>';
     }).join(''));
@@ -292,6 +293,35 @@ window.exportNotes = function(format) {
       iframe.contentWindow.print();
       setTimeout(function() { document.body.removeChild(iframe); }, 1000);
     }, 250);
+  }
+};
+
+window.openAllNotesInEditor = function() {
+  if(!window.notes || !window.notes.length) { alert('No session notes to export.'); return; }
+  
+  var hIdxHtml = 1;
+  var allHtml = window.notes.map(function(n) {
+    var noteBadge = n.isHl ? '<strong>[Note ' + (hIdxHtml++) + ']</strong> ' : '';
+    var noteTxt = noteBadge + n.txt;
+    var qColor = n.isHl ? n.color : '#ccc';
+    return '<p>' + (n.q ? '<blockquote>"' + n.q + '"</blockquote><br>' : '') + noteTxt + '</p>';
+  }).join('<br><hr><br>');
+  
+  // Open Full Editor
+  if (typeof openExternalNotes === 'function') {
+    openExternalNotes();
+    setTimeout(function() {
+      // Create new note
+      if (typeof createNewExternalNote === 'function') {
+        createNewExternalNote();
+        
+        var docTitle = window.currentFileName ? window.currentFileName.replace(/\.[^/.]+$/, "") : "Untitled Document";
+        document.getElementById('external-note-title').value = 'Notes from ' + docTitle;
+        if (window.quillEditor) {
+          window.quillEditor.root.innerHTML = '<h2>Notes from ' + docTitle + '</h2><hr><br>' + allHtml;
+        }
+      }
+    }, 200);
   }
 };
 

@@ -331,8 +331,6 @@ window.renderEpubToc = function() {
   if (badge) badge.textContent = count;
 };
 
-}
-
 EpubDocumentHandler.prototype.toc = {
   render: function() {
     if (window.renderEpubToc) window.renderEpubToc();

@@ -635,9 +635,24 @@ window.addEventListener('AI_EXPLAIN', (e) => {
     var input = document.getElementById('chat-input');
     if (input) {
       if (data.type === 'code') {
+        input.value = "Explain this code:\n\n```\n" + data.text + "\n```";
+      } else {
+        input.value = "Explain this concept: \"" + data.text + "\"";
+      }
+      setTimeout(() => {
+        input.focus();
+      }, 100);
+    }
+  }
+});
+
+window.connMgrTest = async function(pId, endpoint, key) {
+    var payload = { provider_id: pId };
+    if(endpoint) payload.endpoint = endpoint;
     if(key) payload.api_key = key;
     
-    var btn = document.querySelector('button[onclick="window.connMgrSave()"]').nextElementSibling; // Just a visual hack for the old button if needed, otherwise we can pass it
+    var btn = document.querySelector('button[onclick="window.connMgrSave()"]');
+    if (btn) btn = btn.nextElementSibling;
     if (btn && btn.textContent.includes('Test')) {
        var oldText = btn.textContent;
        btn.textContent = "Testing...";
