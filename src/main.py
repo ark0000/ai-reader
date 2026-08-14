@@ -1,7 +1,9 @@
+import time
 import os
 import logging
 import httpx
 import asyncio
+import signal
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +19,19 @@ from src.rag.providers.local_chroma import LocalChromaRAGProvider
 log_level = logging.INFO if settings.debug_console == "1" else logging.WARNING
 logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
+
+last_heartbeat = time.time()
+
+async def desktop_watchdog():
+    global last_heartbeat
+    # Give a generous 60-second grace period on startup before checking
+    last_heartbeat = time.time() + 45
+    while True:
+        await asyncio.sleep(5)
+        if os.environ.get("AURA_DESKTOP_MODE") == "1":
+            if time.time() - last_heartbeat > 15:
+                logger.warning("No heartbeat received from browser. Shutting down desktop server.")
+                os.kill(os.getpid(), signal.SIGTERM)
 
 async def periodic_temp_cleanup():
     from src.storage import LOCAL_TEMP_DIR
@@ -47,6 +62,7 @@ async def lifespan(app: FastAPI):
         
     await task_queue.start()
     cleanup_task = asyncio.create_task(periodic_temp_cleanup())
+    watchdog_task = asyncio.create_task(desktop_watchdog())
     
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -56,6 +72,7 @@ async def lifespan(app: FastAPI):
         pass
     finally:
         cleanup_task.cancel()
+        watchdog_task.cancel()
         await task_queue.stop()
 
 app = FastAPI(
@@ -64,6 +81,12 @@ app = FastAPI(
     version="2.0",
     lifespan=lifespan
 )
+
+@app.post("/api/heartbeat")
+async def receive_heartbeat():
+    global last_heartbeat
+    last_heartbeat = time.time()
+    return {"status": "ok"}
 
 # UI Routes
 @app.get("/", response_class=HTMLResponse)

@@ -1,0 +1,3 @@
+INFO:src.database:SQLite database initialized successfully.
+INFO:src.rag.manager:Registered RAG provider: default
+INFO:src.task_queue:TaskQueue: Started 2 background workers.

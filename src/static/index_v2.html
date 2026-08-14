@@ -296,6 +296,12 @@
             });
         }
     </script>
+    <script>
+        // Heartbeat to keep desktop backend alive. If closed, backend shuts down automatically.
+        setInterval(() => {
+            fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+        }, 5000);
+    </script>
 </body>
 
 </html>

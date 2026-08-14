@@ -21,26 +21,26 @@ class CodeRecognizerStrategy extends IStructuralRecognizer {
         let h = Math.max((item.height || 10) * viewport.scale, 10);
 
         if (!currentBlock) {
-          currentBlock = { x: pt1[0], y: pt1[1]-h, w: w, h: h*2, lines: [item.str] }; // Rough bounding
+          currentBlock = { x: pt1[0], y: pt1[1] - h, w: w, h: h * 2, lines: [item.str] }; // Rough bounding
         } else {
           // Vertical DBSCAN approximation
           let yDiff = Math.abs((currentBlock.y + currentBlock.h) - pt1[1]);
-          if (yDiff < 40) { 
+          if (yDiff < 40) {
             currentBlock.x = Math.min(currentBlock.x, pt1[0]);
             currentBlock.w = Math.max(currentBlock.w, (pt1[0] - currentBlock.x) + w);
             currentBlock.h = (pt1[1] - currentBlock.y) + h;
             currentBlock.lines.push(item.str);
           } else {
             if (currentBlock.lines.length >= 2 || currentBlock.lines[0].length > 40) {
-              boxes.push({...currentBlock, content: currentBlock.lines.join('\n'), type: 'code'});
+              boxes.push({ ...currentBlock, content: currentBlock.lines.join('\n'), type: 'code' });
             }
-            currentBlock = { x: pt1[0], y: pt1[1]-h, w: w, h: h*2, lines: [item.str] };
+            currentBlock = { x: pt1[0], y: pt1[1] - h, w: w, h: h * 2, lines: [item.str] };
           }
         }
       }
     }
     if (currentBlock && (currentBlock.lines.length >= 2 || currentBlock.lines[0].length > 40)) {
-      boxes.push({...currentBlock, content: currentBlock.lines.join('\n'), type: 'code'});
+      boxes.push({ ...currentBlock, content: currentBlock.lines.join('\n'), type: 'code' });
     }
     return boxes;
   }
@@ -50,32 +50,32 @@ class ImageRecognizerStrategy extends IStructuralRecognizer {
   recognize(page, viewport, textContent, operatorList) {
     if (!operatorList || !operatorList.fnArray) return [];
     let boxes = [];
-    let transformStack = [[1,0,0,1,0,0]]; 
-    
+    let transformStack = [[1, 0, 0, 1, 0, 0]];
+
     for (let i = 0; i < operatorList.fnArray.length; i++) {
       let fn = operatorList.fnArray[i];
       let args = operatorList.argsArray[i];
 
       if (fn === pdfjsLib.OPS.save) {
-        transformStack.push([...transformStack[transformStack.length-1]]);
+        transformStack.push([...transformStack[transformStack.length - 1]]);
       } else if (fn === pdfjsLib.OPS.restore) {
         transformStack.pop();
       } else if (fn === pdfjsLib.OPS.transform) {
-        let t1 = transformStack[transformStack.length-1];
+        let t1 = transformStack[transformStack.length - 1];
         let t2 = args;
-        transformStack[transformStack.length-1] = [
-          t1[0]*t2[0] + t1[2]*t2[1],
-          t1[1]*t2[0] + t1[3]*t2[1],
-          t1[0]*t2[2] + t1[2]*t2[3],
-          t1[1]*t2[2] + t1[3]*t2[3],
-          t1[0]*t2[4] + t1[2]*t2[5] + t1[4],
-          t1[1]*t2[4] + t1[3]*t2[5] + t1[5]
+        transformStack[transformStack.length - 1] = [
+          t1[0] * t2[0] + t1[2] * t2[1],
+          t1[1] * t2[0] + t1[3] * t2[1],
+          t1[0] * t2[2] + t1[2] * t2[3],
+          t1[1] * t2[2] + t1[3] * t2[3],
+          t1[0] * t2[4] + t1[2] * t2[5] + t1[4],
+          t1[1] * t2[4] + t1[3] * t2[5] + t1[5]
         ];
       } else if (fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintJpegXObject) {
-        let matrix = transformStack[transformStack.length-1];
+        let matrix = transformStack[transformStack.length - 1];
         let pt1 = viewport.convertToViewportPoint(matrix[4], matrix[5]);
         let pt2 = viewport.convertToViewportPoint(matrix[4] + matrix[0], matrix[5] + matrix[3]);
-        
+
         let x = Math.min(pt1[0], pt2[0]);
         let y = Math.min(pt1[1], pt2[1]);
         let w = Math.abs(pt1[0] - pt2[0]);
@@ -83,10 +83,10 @@ class ImageRecognizerStrategy extends IStructuralRecognizer {
 
         // Filter out full-page backgrounds (e.g., width > 90% of viewport width and height > 90%)
         if (w < viewport.width * 0.95 || h < viewport.height * 0.95) {
-            // only push if it's reasonably sized, not a tiny 1x1 pixel mask
-            if (w > 20 && h > 20) {
-              boxes.push({x, y, w, h, type: 'image'});
-            }
+          // only push if it's reasonably sized, not a tiny 1x1 pixel mask
+          if (w > 20 && h > 20) {
+            boxes.push({ x, y, w, h, type: 'image' });
+          }
         }
       }
     }
@@ -94,7 +94,7 @@ class ImageRecognizerStrategy extends IStructuralRecognizer {
   }
 }
 
-window.runRecognizers = async function(page, viewport, textContent, textLayerDiv) {
+window.runRecognizers = async function (page, viewport, textContent, textLayerDiv) {
   try {
     let results = [];
     let operatorList = null;
@@ -121,7 +121,7 @@ window.runRecognizers = async function(page, viewport, textContent, textLayerDiv
       // Options removed per user request
       // textLayerDiv.appendChild(div);
     });
-  } catch(e) {
+  } catch (e) {
     console.warn("Recognizer failed:", e);
   }
 };
@@ -136,21 +136,21 @@ window.runRecognizers = async function(page, viewport, textContent, textLayerDiv
 class PdfDocumentHandler {
   constructor() {
     this.toc = {
-      render: function() { if (window.renderPdfToc) window.renderPdfToc(); }
+      render: function () { if (window.renderPdfToc) window.renderPdfToc(); }
     };
     this.search = {
-      toggleDeepSearch: function(enabled) { if (window.pdfToggleDeepSearch) window.pdfToggleDeepSearch(enabled); }
+      toggleDeepSearch: function (enabled) { if (window.pdfToggleDeepSearch) window.pdfToggleDeepSearch(enabled); }
     };
     this.virtualization = {
-      toggle: function(enabled) { if (window.pdfToggleVirtualization) window.pdfToggleVirtualization(enabled); }
+      toggle: function (enabled) { if (window.pdfToggleVirtualization) window.pdfToggleVirtualization(enabled); }
     };
     this.lazyLoading = {
-      toggle: function(enabled) { if (window.pdfToggleLazyLoading) window.pdfToggleLazyLoading(enabled); }
+      toggle: function (enabled) { if (window.pdfToggleLazyLoading) window.pdfToggleLazyLoading(enabled); }
     };
     this.renderQuality = {
-      toggleHighDPI: function(enabled) { if (window.pdfToggleHighDPI) window.pdfToggleHighDPI(enabled); },
-      setFontAlgo: function(val) { if (window.pdfSetFontAlgo) window.pdfSetFontAlgo(val); },
-      toggleThemeAware: function(enabled) { if (window.pdfToggleThemeAware) window.pdfToggleThemeAware(enabled); }
+      toggleHighDPI: function (enabled) { if (window.pdfToggleHighDPI) window.pdfToggleHighDPI(enabled); },
+      setFontAlgo: function (val) { if (window.pdfSetFontAlgo) window.pdfSetFontAlgo(val); },
+      toggleThemeAware: function (enabled) { if (window.pdfToggleThemeAware) window.pdfToggleThemeAware(enabled); }
     };
   }
   setupToolbar() {
@@ -163,7 +163,7 @@ class PdfDocumentHandler {
     var buf = (fileOrBlob instanceof File) ? await fileOrBlob.arrayBuffer() : fileOrBlob;
     await window.loadPdf(buf, false);
   }
-  
+
   getScrollState() {
     return window.getPdfScrollState ? window.getPdfScrollState() : null;
   }
@@ -303,7 +303,7 @@ window.pdfToggleThemeAware = function (enabled) {
 var _pdfObserver = null;
 var _unmountObserver = null;
 
-window.teardownPdfObserver = function() {
+window.teardownPdfObserver = function () {
   if (_pdfObserver) { _pdfObserver.disconnect(); _pdfObserver = null; }
   if (_unmountObserver) { _unmountObserver.disconnect(); _unmountObserver = null; }
 };
@@ -321,7 +321,7 @@ function unmountPage(wrap) {
 
 function makePdfObserver() {
   window.teardownPdfObserver();
-  
+
   _pdfObserver = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
       if (!entry.isIntersecting) return;
@@ -344,7 +344,7 @@ function makePdfObserver() {
   }
 
   return {
-    observe: function(wrap) {
+    observe: function (wrap) {
       if (_pdfObserver) _pdfObserver.observe(wrap);
       if (_unmountObserver) _unmountObserver.observe(wrap);
     },
@@ -470,7 +470,7 @@ function renderPage(wrap) {
         var tlTask = pdfjsLib.renderTextLayer({ textContentSource: tc, container: tl, viewport: vp, textDivs: [] });
 
         tlTask.promise.then(function () {
-            if (window.runRecognizers) window.runRecognizers(page, vp, tc, tl);
+          if (window.runRecognizers) window.runRecognizers(page, vp, tc, tl);
           if (window.redrawPdfHighlights) window.redrawPdfHighlights();
           if (window._activeSearchHighlight && window._activeSearchHighlight.page === pageNum) {
             if (window.doCustomHighlight) window.doCustomHighlight(tl, window._activeSearchHighlight.query);
@@ -553,7 +553,7 @@ window.loadPdf = async function (buf, isConverted, skipReloadBuf) {
         window.contentEl.appendChild(wrap);
         observer.observe(wrap);
       }
-      
+
       // ── RESTORE SCROLL ON INITIAL LOAD ────────────────────────────────────
       if (window.pendingScrollState) {
         // Need a tiny timeout to ensure DOM layout is complete before scrolling
@@ -633,7 +633,7 @@ window.loadPdf = async function (buf, isConverted, skipReloadBuf) {
             window.pdfParts[j - 1] = tc.items.map(function (it) { return it.str; }).join(' ');
           } catch (e) { }
         }
-        
+
         if (window.pdfParts.length > 0) {
           var fullText = window.pdfParts.join('\n\n');
           if (!window.currentFileId) {
@@ -708,11 +708,11 @@ window.pdfFitWidth = function (w) {
     // Account for padding by taking 95% of the container height
     var scaleHeight = (containerHeight * 0.95) / window.pdfDefaultPageHeight;
     newScale = Math.min(scaleWidth, scaleHeight);
-    
+
     // If Two-Page mode is active, width might be the constraint
     if (window.isTwoPageMode) {
-        var twoPageScaleWidth = ((containerWidth - 20) / 2) / window.pdfDefaultPageWidth;
-        newScale = Math.min(twoPageScaleWidth, scaleHeight);
+      var twoPageScaleWidth = ((containerWidth - 20) / 2) / window.pdfDefaultPageWidth;
+      newScale = Math.min(twoPageScaleWidth, scaleHeight);
     }
   } else {
     var targetWidth;
@@ -767,7 +767,7 @@ window.setPdfTool = function (tool) {
   });
   var btn = document.getElementById('pdf-btn-' + tool);
   if (btn) btn.classList.add('active');
-  
+
   if (tool === 'crop') {
     window.contentEl.classList.add('pdf-tool-active');
     window.contentEl.style.cursor = 'crosshair';
@@ -921,7 +921,7 @@ class DocumentHandlerFactory {
     if (window.DocumentHandlers && window.DocumentHandlers[ext]) {
       return window.DocumentHandlers[ext];
     }
-    
+
     // Fallback instantiations (for backward compatibility)
     if (ext === 'pdf') return new PdfDocumentHandler();
     if (ext === 'md' || ext === 'txt') return new window.MarkdownDocumentHandler();
@@ -938,25 +938,25 @@ if (window.registerDocumentHandler) {
 document.addEventListener('DOMContentLoaded', function () {
   var fileUpload = document.getElementById('file-upload');
   if (fileUpload) {
-    window.openFile = async function(f) {
-        if (!f) return;
+    window.openFile = async function (f) {
+      if (!f) return;
 
       // CLEANUP Memory (Prevent PDF/EPUB leaks)
       if (window.currentPdfDoc && window.currentPdfDoc.destroy) {
-        try { window.currentPdfDoc.destroy(); } catch(err) {}
+        try { window.currentPdfDoc.destroy(); } catch (err) { }
       }
       if (window.currentEpubRendition && window.currentEpubRendition.destroy) {
-        try { window.currentEpubRendition.destroy(); } catch(err) {}
+        try { window.currentEpubRendition.destroy(); } catch (err) { }
       }
       if (window.currentEpubBook && window.currentEpubBook.destroy) {
-        try { window.currentEpubBook.destroy(); } catch(err) {}
+        try { window.currentEpubBook.destroy(); } catch (err) { }
       }
       window.currentPdfDoc = null;
       window.currentEpubRendition = null;
       window.currentEpubBook = null;
       if (window.finishTTS) window.finishTTS();
       if (window.clearHighlighter) window.clearHighlighter();
-      
+
       // CLEANUP Document State
       window.notes = [];
       window.pdfHighlights = [];
@@ -992,40 +992,40 @@ document.addEventListener('DOMContentLoaded', function () {
       var handler = DocumentHandlerFactory.getHandler(ext);
       window._activeDocHandler = handler; // Store for search dispatcher
       if (handler.setupToolbar) handler.setupToolbar();
-      
+
       if (window.AuraPerf) {
-         if (ext === 'pdf' && window.AuraPerf.PdfTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.PdfTelemetryProfile());
-         else if (ext === 'md' && window.AuraPerf.MarkdownTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.MarkdownTelemetryProfile());
-         else if (ext === 'epub' && window.AuraPerf.EpubTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.EpubTelemetryProfile());
+        if (ext === 'pdf' && window.AuraPerf.PdfTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.PdfTelemetryProfile());
+        else if (ext === 'md' && window.AuraPerf.MarkdownTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.MarkdownTelemetryProfile());
+        else if (ext === 'epub' && window.AuraPerf.EpubTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.EpubTelemetryProfile());
       }
-      
+
       await handler.load(f);
-      
+
       // Save file to IndexedDB for persistence via central trigger
       if (window.triggerLibrarySave) {
-          window.triggerLibrarySave(f, f.name, ext);
+        window.triggerLibrarySave(f, f.name, ext);
       }
-      
+
       // Load notes if persistence is on
       if (window.safeStorage.getItem('aura-notes-state') === 'true') {
-         if (window.storageRepository) {
-            var uname2 = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
-            window.storageRepository.loadNotes(uname2 + '_' + f.name).then(noteData => {
-               if (noteData) {
-                  window.notes = noteData.notes || [];
-                  window.pdfHighlights = noteData.pdfHighlights || [];
-                  if (window.renderNotes) window.renderNotes();
-                  if (window.redrawPdfHighlights) window.redrawPdfHighlights();
-               }
-            });
-         }
+        if (window.storageRepository) {
+          var uname2 = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
+          window.storageRepository.loadNotes(uname2 + '_' + f.name).then(noteData => {
+            if (noteData) {
+              window.notes = noteData.notes || [];
+              window.pdfHighlights = noteData.pdfHighlights || [];
+              if (window.renderNotes) window.renderNotes();
+              if (window.redrawPdfHighlights) window.redrawPdfHighlights();
+            }
+          });
+        }
       }
     };
 
     if (fileUpload) {
-      fileUpload.addEventListener('change', async function(e) {
+      fileUpload.addEventListener('change', async function (e) {
         if (e.target.files[0]) {
-            await window.openFile(e.target.files[0]);
+          await window.openFile(e.target.files[0]);
         }
       });
     }
@@ -1034,12 +1034,12 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- Debounced scroll-position saver ---
   var _scrollSaveTimer = null;
   if (window.contentEl) {
-    window.contentEl.addEventListener('scroll', function() {
+    window.contentEl.addEventListener('scroll', function () {
       if (!window.currentFileName || !window.storageRepository) return;
       if (window.safeStorage.getItem('aura-pdf-reading-state') !== 'true') return;
       if (window.safeStorage.getItem('aura-manual-save') !== 'false') return; // Skip if manual save is ON (default true)
       clearTimeout(_scrollSaveTimer);
-      _scrollSaveTimer = setTimeout(function() {
+      _scrollSaveTimer = setTimeout(function () {
         var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
         if (window.triggerStateSave) {
           window.triggerStateSave();
@@ -1050,71 +1050,71 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // --- Save scroll state before page unload ---
-window.addEventListener('beforeunload', function() {
-    if (!window.currentFileName || !window.storageRepository) return;
-    if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
-    var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
-    if (window.triggerStateSave) {
-      window.triggerStateSave();
-    }
-  });
+window.addEventListener('beforeunload', function () {
+  if (!window.currentFileName || !window.storageRepository) return;
+  if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
+  var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
+  if (window.triggerStateSave) {
+    window.triggerStateSave();
+  }
+});
 
-  /* AUTO-LOAD FROM task_id */
-  window.addEventListener('load', async function () {
-    try { mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' }); } catch (e) { }
-    var taskId = new URLSearchParams(window.location.search).get('task_id');
-    if (!taskId) return;
+/* AUTO-LOAD FROM task_id */
+window.addEventListener('load', async function () {
+  try { mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' }); } catch (e) { }
+  var taskId = new URLSearchParams(window.location.search).get('task_id');
+  if (!taskId) return;
+  window.contentEl.innerHTML =
+    '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:18px">' +
+    '<div style="width:52px;height:52px;border:5px solid rgba(99,179,237,.2);border-top-color:#63b3ed;' +
+    'border-radius:50%;animation:spin .8s linear infinite"></div>' +
+    '<p style="color:#63b3ed;font-weight:600">Loading document...</p></div>' +
+    '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+  try {
+    var statusRes = await fetch('/api/status/' + taskId);
+    var statusData = await statusRes.json();
+    var ext = statusData.ext || 'pdf';
+
+    var res = await fetch('/api/download/' + taskId);
+    if (!res.ok) throw new Error('Document ready but download failed: ' + res.status);
+    var blob = await res.blob();
+
+    var handler = window.DocumentHandlers ? window.DocumentHandlers[ext] : null;
+    if (ext === 'epub' && handler && handler.load) {
+      window.currentExt = 'epub';
+      window._activeDocHandler = handler;
+      var fileObj = new File([blob], "document.epub", { type: "application/epub+zip" });
+      document.title = 'Emanation Reader: EPUB';
+      await handler.load(fileObj);
+    } else if (ext === 'md' && handler && handler.load) {
+      window.currentExt = 'md';
+      window._activeDocHandler = handler;
+      var fileObj = new File([blob], "document.md", { type: "text/markdown" });
+      document.title = 'Emanation Reader: Markdown';
+      await handler.load(fileObj);
+    } else {
+      var buf = await blob.arrayBuffer();
+      var txt = document.createElement("textarea");
+      txt.innerHTML = 'Dark_Mode_Converted.pdf';
+      var decodedName = txt.value;
+      window.docTitleEl.textContent = '🌀 ' + decodedName;
+      document.title = 'Emanation Reader: Converted PDF';
+      window.currentExt = 'pdf';
+      window.pdfScale = 1.2;
+      window.pdfRotation = 0;
+      if (window.ReadingExperience && window.ReadingExperience.Font) window.ReadingExperience.Font.disableFontForPdf(true);
+      document.getElementById('secondary-toolbar').style.display = 'flex';
+      document.querySelectorAll('.pdf-only').forEach(function (el) { el.style.display = ''; });
+      const fontControls = document.getElementById('font-size-controls');
+      if (fontControls) fontControls.style.display = 'none';
+      await window.loadPdf(buf, true);
+    }
+  } catch (err) {
     window.contentEl.innerHTML =
-      '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:18px">' +
-      '<div style="width:52px;height:52px;border:5px solid rgba(99,179,237,.2);border-top-color:#63b3ed;' +
-      'border-radius:50%;animation:spin .8s linear infinite"></div>' +
-      '<p style="color:#63b3ed;font-weight:600">Loading document...</p></div>' +
-      '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
-    try {
-      var statusRes = await fetch('/api/status/' + taskId);
-      var statusData = await statusRes.json();
-      var ext = statusData.ext || 'pdf';
-
-      var res = await fetch('/api/download/' + taskId);
-      if (!res.ok) throw new Error('Document ready but download failed: ' + res.status);
-      var blob = await res.blob();
-
-      var handler = window.DocumentHandlers ? window.DocumentHandlers[ext] : null;
-      if (ext === 'epub' && handler && handler.load) {
-         window.currentExt = 'epub';
-         window._activeDocHandler = handler;
-         var fileObj = new File([blob], "document.epub", { type: "application/epub+zip" });
-         document.title = 'Emanation Reader: EPUB';
-         await handler.load(fileObj);
-      } else if (ext === 'md' && handler && handler.load) {
-         window.currentExt = 'md';
-         window._activeDocHandler = handler;
-         var fileObj = new File([blob], "document.md", { type: "text/markdown" });
-         document.title = 'Emanation Reader: Markdown';
-         await handler.load(fileObj);
-      } else {
-        var buf = await blob.arrayBuffer();
-        var txt = document.createElement("textarea");
-        txt.innerHTML = 'Dark_Mode_Converted.pdf';
-        var decodedName = txt.value;
-        window.docTitleEl.textContent = '🌀 ' + decodedName;
-        document.title = 'Emanation Reader: Converted PDF';
-        window.currentExt = 'pdf';
-        window.pdfScale = 1.2;
-        window.pdfRotation = 0;
-        if (window.ReadingExperience && window.ReadingExperience.Font) window.ReadingExperience.Font.disableFontForPdf(true);
-        document.getElementById('secondary-toolbar').style.display = 'flex';
-        document.querySelectorAll('.pdf-only').forEach(function (el) { el.style.display = ''; });
-        const fontControls = document.getElementById('font-size-controls');
-        if (fontControls) fontControls.style.display = 'none';
-        await window.loadPdf(buf, true);
-      }
-    } catch (err) {
-      window.contentEl.innerHTML =
-        '<div style="padding:2rem"><h2 style="color:#fc8181">Download Failed</h2>' +
-        '<p style="color:#8899aa">' + err.message + '</p></div>';
-    }
-  });
+      '<div style="padding:2rem"><h2 style="color:#fc8181">Download Failed</h2>' +
+      '<p style="color:#8899aa">' + err.message + '</p></div>';
+  }
+});
 
 window.addEventListener('DOMContentLoaded', function () {
   if (window.contentEl) {
@@ -1866,32 +1866,32 @@ window.pdfVirtualizationEnabled = true;
 window.pdfToggleVirtualization = function (enabled) {
   window.pdfVirtualizationEnabled = enabled;
   var observer = makePdfObserver();
-  
+
   const wraps = document.querySelectorAll('.pdf-page-wrapper');
   wraps.forEach(w => {
     observer.observe(w);
   });
 };
 
-window.forceRenderAllPages = function() {
+window.forceRenderAllPages = function () {
   if (!window.currentPdfDoc) return;
   const totalPages = window.currentPdfDoc.numPages;
   let current = 1;
   function renderNextBatch() {
-     let end = Math.min(current + 5, totalPages + 1);
-     let renderedAny = false;
-     for (let i = current; i < end; i++) {
-         let wrap = document.getElementById('page-wrap-' + i);
-         if (wrap && wrap.dataset.loaded !== 'true') {
-             wrap.dataset.loaded = 'true';
-             if (window.renderPage) window.renderPage(wrap);
-             renderedAny = true;
-         }
-     }
-     current = end;
-     if (current <= totalPages) {
-         setTimeout(renderNextBatch, renderedAny ? 50 : 0);
-     }
+    let end = Math.min(current + 5, totalPages + 1);
+    let renderedAny = false;
+    for (let i = current; i < end; i++) {
+      let wrap = document.getElementById('page-wrap-' + i);
+      if (wrap && wrap.dataset.loaded !== 'true') {
+        wrap.dataset.loaded = 'true';
+        if (window.renderPage) window.renderPage(wrap);
+        renderedAny = true;
+      }
+    }
+    current = end;
+    if (current <= totalPages) {
+      setTimeout(renderNextBatch, renderedAny ? 50 : 0);
+    }
   }
   renderNextBatch();
 };
@@ -1929,142 +1929,142 @@ window.addEventListener('DOMContentLoaded', () => {
 window.pdfSpatialIndexes = window.pdfSpatialIndexes || {};
 window._selectionState = { active: false, startPage: -1, startIndex: -1, currentIdx: -1, startX: 0, startY: 0 };
 
-window.initRobustSelection = function() {
-    let enabled = window.safeStorage && window.safeStorage.getItem('aura-robust-selection') !== 'false';
-    if (enabled) {
-        document.body.classList.add('robust-selection-enabled');
-    } else {
-        document.body.classList.remove('robust-selection-enabled');
-        clearSelectionUI();
-    }
+window.initRobustSelection = function () {
+  let enabled = window.safeStorage && window.safeStorage.getItem('aura-robust-selection') !== 'false';
+  if (enabled) {
+    document.body.classList.add('robust-selection-enabled');
+  } else {
+    document.body.classList.remove('robust-selection-enabled');
+    clearSelectionUI();
+  }
 };
 
 function clearSelectionUI() {
-    document.querySelectorAll('.draw-layer').forEach(cv => {
-        let ctx = cv.getContext('2d');
-        ctx.clearRect(0, 0, cv.width, cv.height);
-    });
+  document.querySelectorAll('.draw-layer').forEach(cv => {
+    let ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+  });
 }
 
 function getNearestItemIndex(items, x, y) {
-    if (!items || items.length === 0) return -1;
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < items.length; i++) {
-        let it = items[i];
-        let cx = it.x + (it.w / 2);
-        let cy = it.y + (it.h / 2);
-        let dist = Math.pow(cx - x, 2) + Math.pow(cy - y, 2);
-        if (dist < bestDist) {
-            bestDist = dist;
-            bestIdx = i;
-        }
+  if (!items || items.length === 0) return -1;
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < items.length; i++) {
+    let it = items[i];
+    let cx = it.x + (it.w / 2);
+    let cy = it.y + (it.h / 2);
+    let dist = Math.pow(cx - x, 2) + Math.pow(cy - y, 2);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
     }
-    return bestIdx;
+  }
+  return bestIdx;
 }
 
-window.addEventListener('mousedown', function(e) {
-    if (!document.body.classList.contains('robust-selection-enabled')) return;
-    let tl = e.target.closest('.textLayer');
-    if (!tl) return;
-    
-    let wrap = tl.closest('.pdf-page-wrapper');
-    if (!wrap) return;
-    
-    let pageNum = parseInt(wrap.dataset.page, 10);
-    let items = window.pdfSpatialIndexes[pageNum];
-    if (!items) return;
+window.addEventListener('mousedown', function (e) {
+  if (!document.body.classList.contains('robust-selection-enabled')) return;
+  let tl = e.target.closest('.textLayer');
+  if (!tl) return;
 
-    let rect = tl.getBoundingClientRect();
-    let x = e.clientX - rect.left;
-    let y = e.clientY - rect.top;
+  let wrap = tl.closest('.pdf-page-wrapper');
+  if (!wrap) return;
 
-    let idx = getNearestItemIndex(items, x, y);
-    if (idx !== -1) {
-        window._selectionState = { active: true, startPage: pageNum, startIndex: idx, currentIdx: idx, startX: x, startY: y };
-        clearSelectionUI();
-    }
+  let pageNum = parseInt(wrap.dataset.page, 10);
+  let items = window.pdfSpatialIndexes[pageNum];
+  if (!items) return;
+
+  let rect = tl.getBoundingClientRect();
+  let x = e.clientX - rect.left;
+  let y = e.clientY - rect.top;
+
+  let idx = getNearestItemIndex(items, x, y);
+  if (idx !== -1) {
+    window._selectionState = { active: true, startPage: pageNum, startIndex: idx, currentIdx: idx, startX: x, startY: y };
+    clearSelectionUI();
+  }
 });
 
-window.addEventListener('mousemove', function(e) {
-    if (!window._selectionState.active) return;
-    if (!document.body.classList.contains('robust-selection-enabled')) return;
+window.addEventListener('mousemove', function (e) {
+  if (!window._selectionState.active) return;
+  if (!document.body.classList.contains('robust-selection-enabled')) return;
 
-    let tl = e.target.closest('.textLayer');
-    if (!tl) return;
-    
-    let wrap = tl.closest('.pdf-page-wrapper');
-    if (!wrap) return;
-    
-    let pageNum = parseInt(wrap.dataset.page, 10);
-    // For simplicity, we only allow selection within a single page
-    if (pageNum !== window._selectionState.startPage) return;
+  let tl = e.target.closest('.textLayer');
+  if (!tl) return;
 
-    let items = window.pdfSpatialIndexes[pageNum];
-    if (!items) return;
+  let wrap = tl.closest('.pdf-page-wrapper');
+  if (!wrap) return;
 
-    let rect = tl.getBoundingClientRect();
-    let x = e.clientX - rect.left;
-    let y = e.clientY - rect.top;
+  let pageNum = parseInt(wrap.dataset.page, 10);
+  // For simplicity, we only allow selection within a single page
+  if (pageNum !== window._selectionState.startPage) return;
 
-    let idx = getNearestItemIndex(items, x, y);
-    if (idx !== -1 && idx !== window._selectionState.currentIdx) {
-        window._selectionState.currentIdx = idx;
-        
-        let cv = wrap.querySelector('.draw-layer');
-        if (!cv) return;
-        let ctx = cv.getContext('2d');
-        ctx.clearRect(0, 0, cv.width, cv.height);
-        
-        let dpr = cv.width / parseFloat(wrap.style.width);
-        ctx.fillStyle = 'rgba(49, 130, 206, 0.45)';
-        
-        let minIdx = Math.min(window._selectionState.startIndex, window._selectionState.currentIdx);
-        let maxIdx = Math.max(window._selectionState.startIndex, window._selectionState.currentIdx);
-        
+  let items = window.pdfSpatialIndexes[pageNum];
+  if (!items) return;
+
+  let rect = tl.getBoundingClientRect();
+  let x = e.clientX - rect.left;
+  let y = e.clientY - rect.top;
+
+  let idx = getNearestItemIndex(items, x, y);
+  if (idx !== -1 && idx !== window._selectionState.currentIdx) {
+    window._selectionState.currentIdx = idx;
+
+    let cv = wrap.querySelector('.draw-layer');
+    if (!cv) return;
+    let ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    let dpr = cv.width / parseFloat(wrap.style.width);
+    ctx.fillStyle = 'rgba(49, 130, 206, 0.45)';
+
+    let minIdx = Math.min(window._selectionState.startIndex, window._selectionState.currentIdx);
+    let maxIdx = Math.max(window._selectionState.startIndex, window._selectionState.currentIdx);
+
+    for (let i = minIdx; i <= maxIdx; i++) {
+      let it = items[i];
+      ctx.fillRect(it.x * dpr, (it.y - it.h) * dpr, it.w * dpr, (it.h + 2) * dpr);
+    }
+  }
+});
+
+window.addEventListener('mouseup', function (e) {
+  if (window._selectionState.active) {
+    window._selectionState.active = false;
+    // Selection is kept drawn on canvas. 
+    // We set the actual text into a hidden textarea to allow native Ctrl+C
+    let s = window._selectionState;
+    if (s.startIndex !== s.currentIdx) {
+      let items = window.pdfSpatialIndexes[s.startPage];
+      if (items) {
+        let minIdx = Math.min(s.startIndex, s.currentIdx);
+        let maxIdx = Math.max(s.startIndex, s.currentIdx);
+        let text = [];
+        let lastY = items[minIdx].y;
         for (let i = minIdx; i <= maxIdx; i++) {
-            let it = items[i];
-            ctx.fillRect(it.x * dpr, (it.y - it.h) * dpr, it.w * dpr, (it.h + 2) * dpr);
+          if (Math.abs(items[i].y - lastY) > 5) {
+            text.push('\n');
+            lastY = items[i].y;
+          }
+          text.push(items[i].str);
         }
+        window._activeRobustSelectionText = text.join('').replace(/\n/g, '\n').replace(/  +/g, ' ');
+      }
     }
+  }
 });
 
-window.addEventListener('mouseup', function(e) {
-    if (window._selectionState.active) {
-        window._selectionState.active = false;
-        // Selection is kept drawn on canvas. 
-        // We set the actual text into a hidden textarea to allow native Ctrl+C
-        let s = window._selectionState;
-        if (s.startIndex !== s.currentIdx) {
-            let items = window.pdfSpatialIndexes[s.startPage];
-            if (items) {
-                let minIdx = Math.min(s.startIndex, s.currentIdx);
-                let maxIdx = Math.max(s.startIndex, s.currentIdx);
-                let text = [];
-                let lastY = items[minIdx].y;
-                for (let i = minIdx; i <= maxIdx; i++) {
-                    if (Math.abs(items[i].y - lastY) > 5) {
-                        text.push('\n');
-                        lastY = items[i].y;
-                    }
-                    text.push(items[i].str);
-                }
-                window._activeRobustSelectionText = text.join('').replace(/\n/g, '\n').replace(/  +/g, ' ');
-            }
-        }
-    }
-});
-
-document.addEventListener('copy', function(e) {
-    if (document.body.classList.contains('robust-selection-enabled') && window._activeRobustSelectionText) {
-        e.clipboardData.setData('text/plain', window._activeRobustSelectionText);
-        e.preventDefault();
-        // Clear selection after copy? Optional.
-        clearSelectionUI();
-        window._activeRobustSelectionText = null;
-    }
+document.addEventListener('copy', function (e) {
+  if (document.body.classList.contains('robust-selection-enabled') && window._activeRobustSelectionText) {
+    e.clipboardData.setData('text/plain', window._activeRobustSelectionText);
+    e.preventDefault();
+    // Clear selection after copy? Optional.
+    clearSelectionUI();
+    window._activeRobustSelectionText = null;
+  }
 });
 
 window.addEventListener('DOMContentLoaded', () => {
-    window.initRobustSelection();
+  window.initRobustSelection();
 });
