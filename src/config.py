@@ -24,6 +24,18 @@ class Settings(BaseSettings):
 settings = Settings()
 
 if not settings.jwt_secret_key:
-    if settings.debug_console != "1":
-        raise ValueError("FATAL: JWT_SECRET_KEY environment variable MUST be set in production to prevent database corruption.")
-    settings.jwt_secret_key = secrets.token_urlsafe(32)
+    # In desktop or standalone environments, persist a local secret key so database encryption is stable
+    key_file = os.path.join(os.path.dirname(__file__), ".secret_key")
+    if os.path.exists(key_file):
+        try:
+            with open(key_file, "r", encoding="utf-8") as f:
+                settings.jwt_secret_key = f.read().strip()
+        except Exception:
+            pass
+    if not settings.jwt_secret_key:
+        settings.jwt_secret_key = secrets.token_urlsafe(32)
+        try:
+            with open(key_file, "w", encoding="utf-8") as f:
+                f.write(settings.jwt_secret_key)
+        except Exception:
+            pass
