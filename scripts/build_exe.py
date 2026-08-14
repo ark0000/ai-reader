@@ -20,7 +20,16 @@ def build_executable():
         "--onedir",          # Creates a directory instead of a single file for easy updates
         "--clean",
         "--noconfirm",
-        "--hidden-import=webview",
+        "--hidden-import=uvicorn.logging",
+        "--hidden-import=uvicorn.loops",
+        "--hidden-import=uvicorn.loops.auto",
+        "--hidden-import=uvicorn.protocols",
+        "--hidden-import=uvicorn.protocols.http",
+        "--hidden-import=uvicorn.protocols.http.auto",
+        "--hidden-import=uvicorn.protocols.websockets",
+        "--hidden-import=uvicorn.protocols.websockets.auto",
+        "--hidden-import=uvicorn.lifespan",
+        "--hidden-import=uvicorn.lifespan.on",
         "--add-data", f"src/static{os.pathsep}src/static", # Include static files
         "src/run_desktop.py"
     ]

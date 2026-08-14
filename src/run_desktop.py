@@ -1,5 +1,9 @@
+import multiprocessing
+
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
+
 import uvicorn
-import webview
 import threading
 import time
 import os
@@ -20,7 +24,6 @@ def get_free_port():
 
 def check_for_updates():
     """Safely check the GitHub API for a new release without downloading or extracting payloads."""
-    print("Checking for updates safely...")
     try:
         url = "https://api.github.com/repos/ark0000/ai-reader/releases/latest"
         req = urllib.request.Request(url, headers={'User-Agent': 'AuraReader'})
@@ -29,49 +32,66 @@ def check_for_updates():
         
         latest_version = data.get('tag_name')
         if latest_version and latest_version != CURRENT_VERSION:
-            print(f"Update available! You are on {CURRENT_VERSION}, but {latest_version} is out.")
-            print(f"Download the latest release here: {data.get('html_url')}")
             return latest_version, data.get('html_url')
     except Exception as e:
-        print(f"Update check skipped (offline or rate limited): {e}")
+        pass
     return None, None
 
 def run_server(port):
     """Run the Uvicorn server inside a daemon thread."""
-    # We pass the app object directly so Uvicorn runs in this thread
     from src.main import app
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
+def open_browser(url):
+    """Reliably open a URL in the default browser on Windows."""
+    try:
+        with open("debug_log.txt", "a") as f:
+            f.write(f"Attempting to open browser to {url} using os.startfile...\n")
+            f.flush()
+        # os.startfile uses the Windows ShellExecute API, which is much more reliable in PyInstaller than webbrowser.open
+        os.startfile(url)
+        with open("debug_log.txt", "a") as f:
+            f.write(f"os.startfile succeeded.\n")
+            f.flush()
+    except Exception as e:
+        with open("debug_log.txt", "a") as f:
+            f.write(f"Browser launch failed: {e}\n")
+            f.flush()
+
 if __name__ == "__main__":
-    # Ensure the parent directory is in the Python path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(current_dir)
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
+    
+    with open("debug_log.txt", "w") as f:
+        f.write("App started\n")
+        f.flush()
         
-    # Check for safe updates
-    latest_version, update_url = check_for_updates()
-    
-    # Get a dynamic port that won't conflict with other apps
-    port = get_free_port()
-    print(f"Starting native app server on dynamically allocated port: {port}")
-    
-    # Start the server thread (daemon=True ensures it dies when the UI closes)
-    server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
-    server_thread.start()
-    
-    # Wait for the server to spin up
-    time.sleep(1.0)
-    
-    # Create the native desktop window using pywebview
-    url = f"http://127.0.0.1:{port}/"
-    window = webview.create_window(
-        title="AuraReader", 
-        url=url, 
-        width=1200, 
-        height=800,
-        min_size=(800, 600)
-    )
-    
-    # Start the native GUI loop on the main thread
-    webview.start()
+    try:
+        # Ensure the parent directory is in the Python path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+            
+        with open("debug_log.txt", "a") as f:
+            f.write("Checking for updates...\n")
+            f.flush()
+            
+        latest_version, update_url = check_for_updates()
+        
+        port = get_free_port()
+        
+        with open("debug_log.txt", "a") as f:
+            f.write(f"Port allocated: {port}. Starting server...\n")
+            f.flush()
+        
+        url = f"http://127.0.0.1:{port}/"
+        
+        # Schedule the browser to open after 1.5 seconds so the server has time to start
+        threading.Timer(1.5, open_browser, args=(url,)).start()
+        
+        # Start the server on the main thread so it stays alive
+        run_server(port)
+        
+    except Exception as e:
+        with open("debug_log.txt", "a") as f:
+            f.write(f"FATAL ERROR: {e}\n")
+            f.flush()
