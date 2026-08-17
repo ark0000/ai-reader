@@ -96,8 +96,8 @@ class NotesRepository {
       const store = transaction.objectStore(this.storeName);
       
       // Attempt to delete both Number and String formats to handle legacy data
-      store.delete(numId);
-      store.delete(strId);
+      try { store.delete(numId); } catch(e) { console.warn('numId delete failed', e); }
+      try { store.delete(strId); } catch(e) { console.warn('strId delete failed', e); }
       
       transaction.oncomplete = () => resolve();
       transaction.onerror = (event) => reject(event.target.error);

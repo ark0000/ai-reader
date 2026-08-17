@@ -1,14 +1,17 @@
 /**
  * markdown-handler.js
- * Handles Markdown and plain text file processing.
+ * Handles Markdown and plain text file processing with robust Table of Contents & Anchor Navigation.
  */
 
 class MarkdownDocumentHandler {
   constructor() {
     this._onScroll = this._onScroll.bind(this);
+    this._onContentClick = this._onContentClick.bind(this);
     this._scrollSaveTimer = null;
     this._searchMarks = [];
     this._searchCurrentIdx = -1;
+    this._slugMap = new Map();
+    this._headings = [];
   }
   
   getScrollState() {
@@ -100,8 +103,10 @@ class MarkdownDocumentHandler {
     this._searchCurrentIdx = -1;
 
     // Update UI
-    document.getElementById('search-count').textContent = marks.length + ' matches';
+    var countEl = document.getElementById('search-count');
+    if (countEl) countEl.textContent = marks.length + ' matches';
     var container = document.getElementById('search-results');
+    if (!container) return;
     container.innerHTML = '';
 
     if (marks.length === 0) {
@@ -115,12 +120,10 @@ class MarkdownDocumentHandler {
     for (var i = 0; i < limit; i++) {
       (function(idx) {
         var mark = marks[idx];
-        // Get snippet from surrounding text
         var parentEl = mark.parentNode;
         var snippet = parentEl ? parentEl.textContent.substring(0, 120) : mark.textContent;
         if (parentEl && parentEl.textContent.length > 120) snippet += '...';
 
-        // Highlight the query in the snippet
         var highlightedSnippet = snippet.replace(new RegExp(escaped, flags),
           '<mark style="background:var(--gold);color:#000;border-radius:2px;">$&</mark>');
 
@@ -165,7 +168,8 @@ class MarkdownDocumentHandler {
     mark.style.background = '#f97316'; // Active highlight (orange)
     mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
     
-    document.getElementById('search-count').textContent = (idx + 1) + ' of ' + this._searchMarks.length;
+    var countEl = document.getElementById('search-count');
+    if (countEl) countEl.textContent = (idx + 1) + ' of ' + this._searchMarks.length;
     
     // Update selected state in results list
     document.querySelectorAll('.search-result-item').forEach(function(el) { el.classList.remove('selected'); });
@@ -177,16 +181,317 @@ class MarkdownDocumentHandler {
   }
 
   setupToolbar() {
-    document.getElementById('secondary-toolbar').style.display='flex';
+    var secToolbar = document.getElementById('secondary-toolbar');
+    if (secToolbar) secToolbar.style.display = 'flex';
     document.querySelectorAll('.pdf-only').forEach(function(el){ el.style.display = 'none'; });
     const fontControls = document.getElementById('font-size-controls');
     if (fontControls) fontControls.style.display = 'inline-flex';
   }
+
+  // --- SLUG & ANCHOR NAVIGATION STRATEGIES ---
+
+  _generateGfmSlug(text) {
+    if (!text) return '';
+    return text
+      .toLowerCase()
+      .replace(/<[^>]*>/g, '') // remove HTML tags
+      .replace(/[§#?.,/\\()\[\]{}!@$%^&*+=~`'":;<>|]/g, '') // remove symbols & punctuation
+      .trim()
+      .replace(/[\s—–_]+/g, '-') // replace spaces, em-dashes, en-dashes with hyphen
+      .replace(/^-+|-+$/g, ''); // trim leading/trailing hyphens
+  }
+
+  _generateStrictSlug(text) {
+    if (!text) return '';
+    return text
+      .toLowerCase()
+      .replace(/<[^>]*>/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/[\s-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  _normalizeHeadingText(text) {
+    if (!text) return '';
+    return text
+      .toLowerCase()
+      .replace(/<[^>]*>/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  _indexHeadingsAndAnchors() {
+    if (!window.contentEl) return;
+    const mdContent = window.contentEl.querySelector('.md-content');
+    if (!mdContent) return;
+
+    this._slugMap = new Map();
+    this._headings = [];
+    const slugCounts = {};
+
+    const headingNodes = mdContent.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    headingNodes.forEach((h, idx) => {
+      const rawText = (h.textContent || '').trim();
+      let baseSlug = this._generateGfmSlug(rawText) || ('heading-' + idx);
+      
+      // Handle slug collisions
+      let uniqueSlug = baseSlug;
+      if (slugCounts[baseSlug] !== undefined) {
+        slugCounts[baseSlug]++;
+        uniqueSlug = baseSlug + '-' + slugCounts[baseSlug];
+      } else {
+        slugCounts[baseSlug] = 0;
+      }
+
+      // Assign ID to heading
+      if (!h.id || h.id.startsWith('heading-md-')) {
+        h.id = uniqueSlug;
+      }
+
+      const level = parseInt(h.tagName.substring(1), 10) || 1;
+      h.setAttribute('data-slug', uniqueSlug);
+      h.setAttribute('data-heading-idx', String(idx));
+      h.setAttribute('data-heading-level', String(level));
+
+      // Register primary and alias slugs in slugMap
+      this._slugMap.set(uniqueSlug, h);
+      this._slugMap.set(baseSlug, h);
+      this._slugMap.set(h.id, h);
+
+      const strictSlug = this._generateStrictSlug(rawText);
+      if (strictSlug) this._slugMap.set(strictSlug, h);
+
+      // Register double-hyphen variant for em-dashes (e.g. how-to-read--persona-guide)
+      const emDashSlug = rawText
+        .toLowerCase()
+        .replace(/<[^>]*>/g, '')
+        .replace(/[§#?.,/\\()\[\]{}!@$%^&*+=~`'":;<>|]/g, '')
+        .trim()
+        .replace(/[\s_]+/g, '-')
+        .replace(/—|–/g, '--')
+        .replace(/^-+|-+$/g, '');
+      if (emDashSlug) this._slugMap.set(emDashSlug, h);
+
+      // Register section-number-stripped alias (e.g. "§0.6 Future ML Roadmap" -> "future-ml-roadmap")
+      const noNumberSlug = this._generateGfmSlug(rawText.replace(/^[§\d.\s-]+/, ''));
+      if (noNumberSlug) this._slugMap.set(noNumberSlug, h);
+
+      // Register normalized text for text-based match
+      const normText = this._normalizeHeadingText(rawText);
+      if (normText) this._slugMap.set('norm:' + normText, h);
+
+      this._headings.push({
+        el: h,
+        id: h.id,
+        slug: uniqueSlug,
+        title: rawText,
+        level: level
+      });
+    });
+
+    // Also index explicit anchor tags <a name="...">, <a id="...">, and elements with id
+    const namedAnchors = mdContent.querySelectorAll('a[name], a[id], [id]');
+    namedAnchors.forEach((a) => {
+      const name = a.getAttribute('name');
+      const id = a.getAttribute('id');
+      if (name) this._slugMap.set(name, a);
+      if (id) this._slugMap.set(id, a);
+    });
+  }
+
+  resolveTarget(rawHash, linkText) {
+    if (!rawHash && !linkText) return null;
+
+    let target = (rawHash || '').replace(/^#/, '');
+    try { target = decodeURIComponent(target); } catch(e) {}
+    target = target.trim();
+
+    if (this._slugMap) {
+      // 1. Direct slug map lookup
+      if (target && this._slugMap.has(target)) return this._slugMap.get(target);
+
+      // 2. Lowercase lookup
+      const lower = target.toLowerCase();
+      if (this._slugMap.has(lower)) return this._slugMap.get(lower);
+
+      // 3. GFM and Strict slug conversion lookup
+      const gfmTarget = this._generateGfmSlug(target);
+      if (gfmTarget && this._slugMap.has(gfmTarget)) return this._slugMap.get(gfmTarget);
+
+      const strictTarget = this._generateStrictSlug(target);
+      if (strictTarget && this._slugMap.has(strictTarget)) return this._slugMap.get(strictTarget);
+
+      // 4. Normalized text lookup
+      const normTarget = this._normalizeHeadingText(target);
+      if (normTarget && this._slugMap.has('norm:' + normTarget)) return this._slugMap.get('norm:' + normTarget);
+
+      // 5. Match by link text if available
+      if (linkText) {
+        const gfmLink = this._generateGfmSlug(linkText);
+        if (gfmLink && this._slugMap.has(gfmLink)) return this._slugMap.get(gfmLink);
+
+        const normLink = this._normalizeHeadingText(linkText);
+        if (normLink && this._slugMap.has('norm:' + normLink)) return this._slugMap.get('norm:' + normLink);
+      }
+    }
+
+    // 6. Direct querySelector lookup inside window.contentEl
+    if (window.contentEl && target) {
+      try {
+        const byId = window.contentEl.querySelector('#' + CSS.escape(target));
+        if (byId) return byId;
+
+        const byName = window.contentEl.querySelector('a[name="' + CSS.escape(target) + '"], [name="' + CSS.escape(target) + '"]');
+        if (byName) return byName;
+
+        const bySlug = window.contentEl.querySelector('[data-slug="' + CSS.escape(target) + '"]');
+        if (bySlug) return bySlug;
+      } catch(e) {}
+    }
+
+    // 7. Fuzzy heading text fallback (prefix/contains match)
+    if (this._headings && this._headings.length > 0) {
+      const cleanQuery = (target || linkText || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanQuery.length >= 3) {
+        for (let i = 0; i < this._headings.length; i++) {
+          const h = this._headings[i];
+          const normH = this._normalizeHeadingText(h.title);
+          if (normH.includes(cleanQuery) || cleanQuery.includes(normH) || normH.startsWith(cleanQuery) || cleanQuery.startsWith(normH)) {
+            return h.el;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  scrollToTarget(targetEl) {
+    if (!targetEl || !window.contentEl) return;
+
+    const targetRect = targetEl.getBoundingClientRect();
+    const containerRect = window.contentEl.getBoundingClientRect();
+    const offset = 24; // 24px comfortable top padding
+    const targetScrollTop = window.contentEl.scrollTop + (targetRect.top - containerRect.top) - offset;
+
+    window.contentEl.scrollTo({
+      top: Math.max(0, targetScrollTop),
+      behavior: 'smooth'
+    });
+
+    // Pulse highlight animation on target element
+    targetEl.classList.remove('md-target-highlight');
+    void targetEl.offsetWidth; // Force reflow
+    targetEl.classList.add('md-target-highlight');
+    setTimeout(() => {
+      targetEl.classList.remove('md-target-highlight');
+    }, 2000);
+  }
+
+  _onContentClick(ev) {
+    if (window.getSelection && window.getSelection().toString().trim().length > 0) {
+      return; // Do not intercept if user is selecting text
+    }
+
+    // 1. Intercept Markdown Links & TOC Anchors
+    const link = ev.target.closest('a');
+    if (link && window.contentEl && window.contentEl.contains(link)) {
+      const href = link.getAttribute('href');
+      if (href) {
+        // Internal anchor navigation (#anchor or same-page hash)
+        if (href.startsWith('#') || href.startsWith(window.location.pathname + '#') || href.includes('#')) {
+          const hashIdx = href.indexOf('#');
+          if (hashIdx !== -1) {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const hash = href.substring(hashIdx);
+            const targetEl = this.resolveTarget(hash, link.textContent);
+            if (targetEl) {
+              this.scrollToTarget(targetEl);
+            } else {
+              console.warn('[Markdown] Target heading not found for anchor:', href);
+            }
+            return;
+          }
+        }
+
+        // External links open in new tab
+        if (/^(https?:\/\/|mailto:|tel:)/i.test(href)) {
+          link.setAttribute('target', '_blank');
+          link.setAttribute('rel', 'noopener noreferrer');
+        }
+        return;
+      }
+    }
+
+    // 2. Media / Code / Diagram Action Popup
+    var mediaEl = ev.target.closest('.md-content img, .md-content .mermaid, .md-content pre code');
+    if (mediaEl && window.contentEl && window.contentEl.contains(mediaEl)) {
+      ev.stopPropagation();
+      var actions = [];
+      let prompt = '';
+      let typeName = 'diagram';
+
+      if (mediaEl.tagName.toLowerCase() === 'code') {
+        prompt = 'Please explain this code:\n\n```\n' + mediaEl.textContent + '\n```';
+        typeName = 'code';
+      } else if (mediaEl.tagName.toLowerCase() === 'img') {
+        prompt = 'Please explain this image (from URL: ' + mediaEl.src + ' / alt: ' + (mediaEl.alt || '') + ').';
+        typeName = 'image';
+      } else {
+        prompt = 'Please explain this diagram:\n\n```mermaid\n' + mediaEl.textContent + '\n```';
+      }
+
+      actions.push({
+        label: '&#10024; Explain with AI',
+        actionFn: function() {
+          if (window.askAI) {
+            window.askAI(prompt);
+            const oldBg = mediaEl.style.backgroundColor;
+            mediaEl.style.transition = 'background-color 0.3s';
+            mediaEl.style.backgroundColor = 'rgba(99,179,237,0.3)';
+            setTimeout(() => { mediaEl.style.backgroundColor = oldBg; }, 300);
+          }
+        }
+      });
+
+      actions.push({
+        label: '&#128247; Add ' + typeName + ' to notes',
+        actionFn: function() {
+          var clone = mediaEl.cloneNode(true);
+          clone.style.cursor = 'default';
+          window.notes.push({ q: clone.outerHTML, txt: typeName.charAt(0).toUpperCase() + typeName.slice(1), id: Date.now() });
+          if (window.renderNotes) window.renderNotes();
+          if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
+          if (window.switchTab) window.switchTab('notes');
+        }
+      });
+
+      if (mediaEl.tagName.toLowerCase() !== 'code') {
+        actions.push({
+          label: '&#128269; Enlarge',
+          actionFn: function() {
+            if (window.showEnlargedMedia) {
+              var clone = mediaEl.cloneNode(true);
+              clone.style.cursor = 'default';
+              window.showEnlargedMedia(clone);
+            }
+          }
+        });
+      }
+
+      if (window.showActionPopup) {
+        window.showActionPopup(ev, actions);
+      }
+    }
+  }
+
   async load(file) {
     var txt = await file.text();
     window.docText = txt;
     
-    // Fallback if marked is missing for some reason
+    // Fallback if marked is missing
     if (typeof marked === 'undefined') {
        window.contentEl.innerHTML = '<div class="md-content" style="font-size: var(--reader-size, 16px);"><pre style="white-space:pre-wrap"></pre></div>';
        window.contentEl.querySelector('pre').textContent = txt;
@@ -208,10 +513,73 @@ class MarkdownDocumentHandler {
     if (window.AuraPerf && window.AuraPerf.logMdParse) {
        window.AuraPerf.logMdParse(pEnd - pStart);
     }
-    var cleanHtml = typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(rawHtml) : rawHtml;
+    
+    // Sanitize with preserved IDs and anchor attributes
+    var cleanHtml = rawHtml;
+    if (typeof DOMPurify !== 'undefined') {
+      cleanHtml = DOMPurify.sanitize(rawHtml, {
+        ALLOWED_TAGS: ['strong', 'em', 'code', 'pre', 'br', 'a', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mspace', 'mtext', 'annotation', 'mark', 'hr', 'img', 'details', 'summary'],
+        ALLOWED_ATTR: ['href', 'id', 'name', 'style', 'class', 'target', 'rel', 'title', 'alt', 'src', 'width', 'height', 'xmlns', 'display', 'encoding', 'data-slug', 'data-heading-idx', 'data-heading-level']
+      });
+    }
     
     window.contentEl.innerHTML = '<div class="md-content prose prose-slate dark:prose-invert" style="max-width: var(--reader-width); margin: 0 auto; font-size: var(--reader-size, 16px);">' + cleanHtml + '</div>';
     
+    // Inject interactive styles
+    let style = document.getElementById('md-interactive-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'md-interactive-style';
+      style.innerHTML = `
+        @keyframes mdHighlightPulse {
+          0% {
+            background-color: rgba(99, 179, 237, 0.35);
+            box-shadow: 0 0 0 4px rgba(99, 179, 237, 0.3);
+            border-radius: 6px;
+          }
+          60% {
+            background-color: rgba(99, 179, 237, 0.15);
+            box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.15);
+          }
+          100% {
+            background-color: transparent;
+            box-shadow: none;
+          }
+        }
+        .md-target-highlight {
+          animation: mdHighlightPulse 2s ease-out forwards !important;
+          border-radius: 6px;
+          transition: background-color 0.3s ease;
+        }
+        .md-content a {
+          cursor: pointer;
+          color: var(--accent, #60a5fa);
+          text-decoration: underline;
+          text-underline-offset: 3px;
+          transition: opacity 0.15s ease, color 0.15s ease;
+        }
+        .md-content a:hover {
+          opacity: 0.85;
+        }
+        .md-content img, .md-content .mermaid { 
+          cursor: zoom-in; 
+          transition: all 0.2s ease-in-out;
+          border-radius: 4px;
+        }
+        .md-content img:hover, .md-content .mermaid:hover { 
+          box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.4); 
+          transform: scale(1.01);
+        }
+        .md-content pre code { 
+          cursor: pointer; 
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Index all headings and anchors immediately for reliable TOC navigation
+    this._indexHeadingsAndAnchors();
+
     if (window.injectCodeToolbars) {
       window.injectCodeToolbars(window.contentEl);
     }
@@ -234,107 +602,20 @@ class MarkdownDocumentHandler {
       }, 50);
     }
     
-    let style = document.getElementById('md-interactive-style');
-    if (!style) {
-      style = document.createElement('style');
-      style.id = 'md-interactive-style';
-      style.innerHTML = `
-        .md-content img, .md-content .mermaid { 
-          cursor: zoom-in; 
-          transition: all 0.2s ease-in-out;
-          border-radius: 4px;
-        }
-        .md-content img:hover, .md-content .mermaid:hover { 
-          box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.4); 
-          transform: scale(1.01);
-        }
-        .md-content pre code { 
-          cursor: pointer; 
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    // Event delegation for img, mermaid, pre code
-    this._mdClickHandler = function(ev) {
-        if (window.getSelection().toString().trim().length > 0) return; // Don't trigger if user is selecting text
-        var el = ev.target.closest('.md-content img, .md-content .mermaid, .md-content pre code');
-        if (!el || !window.contentEl.contains(el)) return;
-        
-        ev.stopPropagation(); // prevent bubbling up
-        var actions = [];
-        let prompt = '';
-        let typeName = 'diagram';
-        
-        if (el.tagName.toLowerCase() === 'code') {
-          prompt = 'Please explain this code:\n\n```\n' + el.textContent + '\n```';
-          typeName = 'code';
-        } else if (el.tagName.toLowerCase() === 'img') {
-          prompt = 'Please explain this image (from URL: ' + el.src + ' / alt: ' + (el.alt||'') + ').';
-          typeName = 'image';
-        } else {
-          prompt = 'Please explain this diagram:\n\n```mermaid\n' + el.textContent + '\n```';
-        }
-        
-        actions.push({
-          label: '&#10024; Explain with AI',
-          actionFn: function() {
-            if(window.askAI) {
-              window.askAI(prompt);
-              const oldBg = el.style.backgroundColor;
-              el.style.transition = 'background-color 0.3s';
-              el.style.backgroundColor = 'rgba(99,179,237,0.3)';
-              setTimeout(() => { el.style.backgroundColor = oldBg; }, 300);
-            }
-          }
-        });
-        
-        actions.push({
-          label: '&#128247; Add ' + typeName + ' to notes',
-          actionFn: function() {
-            var clone = el.cloneNode(true);
-            clone.style.cursor='default';
-            window.notes.push({q: clone.outerHTML, txt: typeName.charAt(0).toUpperCase() + typeName.slice(1), id: Date.now()});
-            if (window.renderNotes) window.renderNotes();
-            if (window.panel && window.panel.classList.contains('hidden')) window.togglePanel();
-            if (window.switchTab) window.switchTab('notes');
-          }
-        });
-        
-        if (el.tagName.toLowerCase() !== 'code') {
-          actions.push({
-            label: '&#128269; Enlarge',
-            actionFn: function() {
-              if (window.showEnlargedMedia) {
-                var clone = el.cloneNode(true);
-                clone.style.cursor='default';
-                window.showEnlargedMedia(clone);
-              }
-            }
-          });
-        }
-        
-        window.showActionPopup(ev, actions);
-    };
-    
-    window.contentEl.removeEventListener('click', this._mdClickHandler);
-    window.contentEl.addEventListener('click', this._mdClickHandler);
-    
-    // The global click handler for md-content handles code block explanations
+    // Event delegation for anchor links, TOC clicks, and media popups
+    window.contentEl.removeEventListener('click', this._onContentClick);
+    window.contentEl.addEventListener('click', this._onContentClick);
     
     window.contentEl.removeEventListener('scroll', this._onScroll);
     window.contentEl.addEventListener('scroll', this._onScroll);
     
     if (window.pendingScrollState && window.pendingScrollState.type === 'md') {
        const targetScrollTop = window.pendingScrollState.scrollTop;
-       // Attempt to restore scroll multiple times to account for layout shifts
-       // caused by asynchronous image loading and mermaid diagram rendering.
        [50, 300, 800, 1500, 3000].forEach(delay => {
            setTimeout(() => {
              if (window.contentEl) window.contentEl.scrollTop = targetScrollTop;
            }, delay);
        });
-       // Clear it so it doesn't apply to subsequent manual file opens
        setTimeout(() => { window.pendingScrollState = null; }, 3100);
     }
     
@@ -365,8 +646,10 @@ class TextDocumentHandler {
   }
 
   setupToolbar() {
-    document.getElementById('secondary-toolbar').style.display='none';
+    var secToolbar = document.getElementById('secondary-toolbar');
+    if (secToolbar) secToolbar.style.display = 'none';
   }
+
   async load(file) {
     var txt = await file.text();
     window.docText = txt;
@@ -414,31 +697,30 @@ MarkdownDocumentHandler.prototype.toc = {
       return;
     }
 
-    var headings = window.contentEl.querySelectorAll('h1, h2, h3, h4');
+    var headings = window.contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
 
     if (headings.length === 0) {
       list.innerHTML = '<div class="toc-empty"><span class="toc-empty-icon">&#128203;</span>No headings found in this document.</div>';
       return;
     }
 
+    var handler = window.getActiveHandler();
+
     headings.forEach(function(h, idx) {
-      if (!h.id) h.id = 'heading-md-' + idx;
-      var level = parseInt(h.tagName.substring(1));
+      var level = parseInt(h.tagName.substring(1), 10) || 1;
 
       var div = document.createElement('div');
       div.className = 'toc-item toc-level-' + Math.min(level, 4);
 
       var titleSpan = document.createElement('span');
       titleSpan.className = 'toc-item-title';
-      titleSpan.textContent = h.textContent || '(Untitled)';
+      titleSpan.textContent = (h.textContent || '(Untitled)').trim();
       div.appendChild(titleSpan);
 
-      // Calculate approximate progress percentage instead of page numbers
+      // Calculate approximate progress percentage based on offsetTop
       var pageSpan = document.createElement('span');
       pageSpan.className = 'toc-item-page';
       
-      // Calculate percentage based on offsetTop vs scrollHeight
-      // Fallback to 0 if contentEl is missing or height is 0
       var percent = 0;
       if (window.contentEl && window.contentEl.scrollHeight > 0) {
           percent = Math.max(0, Math.min(100, Math.round((h.offsetTop / window.contentEl.scrollHeight) * 100)));
@@ -448,8 +730,12 @@ MarkdownDocumentHandler.prototype.toc = {
       div.appendChild(pageSpan);
 
       div.onclick = function() {
-        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        window.closeToc();
+        if (handler && handler.scrollToTarget) {
+          handler.scrollToTarget(h);
+        } else {
+          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        if (window.closeToc) window.closeToc();
       };
 
       list.appendChild(div);
@@ -469,7 +755,7 @@ TextDocumentHandler.prototype.toc = {
   }
 };
 
-// Register Handler
+// Register Handlers
 if (window.registerDocumentHandler) {
   window.registerDocumentHandler('md', mdInstance);
   window.registerDocumentHandler('txt', txtInstance);

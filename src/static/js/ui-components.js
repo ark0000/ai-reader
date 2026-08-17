@@ -197,6 +197,7 @@ window.toggleFullScreen = function() {
     if (fsPromise && fsPromise.catch) {
       fsPromise.catch(function(err) {
         console.warn('[Fullscreen] Native fullscreen failed:', err.message);
+        alert("Failed to enter fullscreen: " + err.message + "\nYour browser might be blocking it.");
       });
     }
   } else {
@@ -211,6 +212,47 @@ window.toggleFullScreen = function() {
     }
   }
 };
+
+window.toggleOSFullScreen = async function() {
+  try {
+    const response = await fetch('/api/system/fullscreen', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      console.warn('[Fullscreen] OS-level fullscreen failed or unsupported');
+    }
+  } catch (err) {
+    console.error('[Fullscreen] Error communicating with backend:', err);
+  }
+};
+
+document.addEventListener('fullscreenchange', function() {
+  var isFs = !!document.fullscreenElement;
+  var btn = document.getElementById('fullscreen-btn');
+  if (btn) btn.classList.toggle('active', isFs);
+  document.body.classList.toggle('is-fullscreen', isFs);
+});
+document.addEventListener('webkitfullscreenchange', function() {
+  var isFs = !!document.webkitFullscreenElement;
+  var btn = document.getElementById('fullscreen-btn');
+  if (btn) btn.classList.toggle('active', isFs);
+  document.body.classList.toggle('is-fullscreen', isFs);
+});
+document.addEventListener('mozfullscreenchange', function() {
+  var isFs = !!document.mozFullScreenElement;
+  var btn = document.getElementById('fullscreen-btn');
+  if (btn) btn.classList.toggle('active', isFs);
+  document.body.classList.toggle('is-fullscreen', isFs);
+});
+document.addEventListener('MSFullscreenChange', function() {
+  var isFs = !!document.msFullscreenElement;
+  var btn = document.getElementById('fullscreen-btn');
+  if (btn) btn.classList.toggle('active', isFs);
+  document.body.classList.toggle('is-fullscreen', isFs);
+});
 
 window.toggleZenMode = function() {
   document.body.classList.toggle('pseudo-fullscreen');

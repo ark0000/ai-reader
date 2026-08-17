@@ -9,35 +9,39 @@ function initQuillEditor() {
   
   if (typeof Quill === 'undefined') {
     console.error("Quill is not loaded.");
+    alert("The Rich Text Editor failed to load because the Quill library is missing. Please check your internet connection.");
     return;
   }
 
-  // Removed image resize due to CDN/module loading conflicts
+  try {
+    const toolbarOptions = [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      ['blockquote', 'code-block'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'script': 'sub'}, { 'script': 'super' }],
+      [{ 'align': [] }],
+      ['link', 'image', 'video', 'formula'],
+      ['clean'] 
+    ];
 
-  const toolbarOptions = [
-    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-    ['bold', 'italic', 'underline', 'strike'],
-    ['blockquote', 'code-block'],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-    [{ 'script': 'sub'}, { 'script': 'super' }],
-    [{ 'align': [] }],
-    ['link', 'image', 'video', 'formula'],
-    ['clean'] // Removed table buttons because standard quill doesn't have great table support and we dropped quill-better-table to fix bugs. The user hasn't strictly required it in the rollback.
-  ];
+    window.quillEditor = new Quill('#quill-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: toolbarOptions
+      },
+      placeholder: 'Start writing your note here...'
+    });
 
-  window.quillEditor = new Quill('#quill-editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: toolbarOptions
-    },
-    placeholder: 'Start writing your note here...'
-  });
-
-  // Auto-save logic
-  window.quillEditor.on('text-change', function() {
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(saveExternalNote, 5000); // Auto-save every 5 seconds
-  });
+    // Auto-save logic
+    window.quillEditor.on('text-change', function() {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(saveExternalNote, 5000); // Auto-save every 5 seconds
+    });
+  } catch (err) {
+    console.error("Failed to initialize Quill editor:", err);
+    alert("An error occurred while loading the editor: " + err.message);
+  }
 }
 
 function openExternalNotes() {
@@ -103,8 +107,8 @@ async function loadExternalNotesList() {
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div style="font-size:11px; color:var(--text-3);">${date}</div>
           <div style="display:flex; gap:4px;">
-            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid transparent; border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader(${note.id})">Read</button>
-            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid transparent; border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote(${note.id})">Delete</button>
+            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid transparent; border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${note.id}')">Read</button>
+            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid transparent; border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>
           </div>
         </div>
       `;
@@ -201,21 +205,20 @@ async function saveExternalNote(silent = false) {
 }
 
 async function deleteExternalNote(id) {
-  const parsedId = isNaN(Number(id)) ? id : Number(id);
-  if (!confirm("Are you sure you want to delete this global note?")) return;
-  if (!window.notesRepo) return;
-  
-  try {
-    await window.notesRepo.deleteNote(parsedId);
-    if (currentExternalNoteId === parsedId) {
-      createNewExternalNote(); // Clear editor if we deleted the currently open note
-    } else {
-      loadExternalNotesList();
+    const parsedId = isNaN(Number(id)) ? id : Number(id);
+    // Removed confirm() because Chrome's "Prevent this page from creating additional dialogs" permanently breaks it
+    try {
+      await window.notesRepo.deleteNote(parsedId);
+      if (currentExternalNoteId === parsedId) {
+        createNewExternalNote(); // Clear editor if we deleted the currently open note
+      } else {
+        loadExternalNotesList();
+      }
+    } catch(e) {
+      console.error("Failed to delete note:", e);
+      alert("Error: " + e.message);
     }
-  } catch(e) {
-    console.error("Failed to delete note:", e);
   }
-}
 
 function exportExternalNoteTXT() {
   if (!window.quillEditor) return;

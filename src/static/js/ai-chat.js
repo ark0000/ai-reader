@@ -275,37 +275,51 @@ class ChatAPI {
 class ConnectionManager {
   async loadConnections() {
     try {
+      console.log("loadConnections started");
+      var list = document.getElementById('conn-mgr-list');
+      var disp = document.getElementById('active-connection-display');
+      
       var r = await fetch('/api/connections', { headers: window.authHeaders() });
+      console.log("fetch returned", r.status, r.ok);
       if(r.ok) {
         var conns = await r.json();
-        var list = document.getElementById('conn-mgr-list');
-        var disp = document.getElementById('active-connection-display');
-        
-        list.innerHTML = '';
+        console.log("parsed conns:", conns);
+        if(list) list.innerHTML = '';
         if(conns.length === 0) {
-          list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2);font-size:13px;">No connections added yet.</div>';
-          disp.textContent = 'None - Add a connection first';
+          if(list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2);font-size:13px;">No connections added yet.</div>';
+          if(disp) disp.textContent = 'None - Add a connection first';
           window.activeConnectionId = null;
         } else {
           var activeFound = false;
-          conns.forEach(c => {
-            if(c.is_active) {
-              window.activeConnectionId = c.id;
-              disp.textContent = c.name + ' (' + c.provider_name + ')';
-              activeFound = true;
-            }
-            var d = document.createElement('div');
-            d.style.cssText = 'padding:10px; border-radius:6px; margin-bottom:8px; cursor:pointer; border:1px solid ' + (c.is_active ? 'var(--accent)' : 'transparent') + '; background:' + (c.is_active ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent');
-            d.innerHTML = '<div style="font-weight:600; font-size:13px; color:var(--text-1); display:flex; align-items:center; justify-content:space-between;">' + window.escapeHTML(c.name) + (c.is_active ? ' <span style="font-size:10px;color:var(--accent);">&#10003; Active</span>' : '') + '</div><div style="font-size:11px; color:var(--text-2);">' + window.escapeHTML(c.provider_name) + '</div>';
-            d.onclick = () => { this.edit(c); };
-            list.appendChild(d);
-          });
-          
-          if(!activeFound) disp.textContent = 'None selected';
+          try {
+            conns.forEach(c => {
+              if(c.is_active) {
+                window.activeConnectionId = c.id;
+                if(disp) disp.textContent = c.name + ' (' + c.provider_name + ')';
+                activeFound = true;
+              }
+              if(list) {
+                var d = document.createElement('div');
+                d.style.cssText = 'padding:10px; border-radius:6px; margin-bottom:8px; cursor:pointer; border:1px solid ' + (c.is_active ? 'var(--accent)' : 'transparent') + '; background:' + (c.is_active ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent');
+                d.innerHTML = '<div style="font-weight:600; font-size:13px; color:var(--text-1); display:flex; align-items:center; justify-content:space-between;">' + window.escapeHTML(c.name) + (c.is_active ? ' <span style="font-size:10px;color:var(--accent);">&#10003; Active</span>' : '') + '</div><div style="font-size:11px; color:var(--text-2);">' + window.escapeHTML(c.provider_name) + '</div>';
+                d.onclick = () => { this.edit(c); };
+                list.appendChild(d);
+              }
+            });
+          } catch (innerE) {
+            console.error("Error in render loop:", innerE);
+            if (list) list.innerHTML = '<div style="color:red">Render Error: ' + innerE.message + '</div>';
+          }
+          if(!activeFound && disp) disp.textContent = 'None selected';
         }
+      } else {
+        console.error("Non-OK response:", r.status);
+        if(list) list.innerHTML = '<div style="padding:20px;text-align:center;color:#e53e3e;font-size:13px;">Error loading connections: ' + r.status + '</div>';
       }
     } catch(e) {
       console.error('Failed to load connections', e);
+      var listEl = document.getElementById('conn-mgr-list');
+      if (listEl) listEl.innerHTML = '<div style="padding:20px;text-align:center;color:#e53e3e;font-size:13px;">Failed to load connections: ' + e.message + '</div>';
     }
   }
 
@@ -645,5 +659,18 @@ window.addEventListener('AI_EXPLAIN', (e) => {
     }
   }
 });
+
+// AI Chat Brightness Controller
+(function initAiBrightness() {
+  const aiBrightnessSlider = document.getElementById('ai-brightness-slider');
+  const chatWin = document.getElementById('chat-win');
+  
+  if (aiBrightnessSlider && chatWin) {
+    aiBrightnessSlider.addEventListener('input', (e) => {
+      const brightness = e.target.value;
+      chatWin.style.filter = `brightness(${brightness})`;
+    });
+  }
+})();
 
 

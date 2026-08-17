@@ -21,6 +21,10 @@ body {
   background: var(--bg-body) !important;
 }
 
+body.is-fullscreen #top-bar {
+  display: none !important;
+}
+
 /* Pseudo-fullscreen: hides toolbars when native fullscreen API fails */
 body.pseudo-fullscreen #top-bar,
 body.pseudo-fullscreen #secondary-toolbar {
@@ -2113,6 +2117,9 @@ body.presentation-mode #panel,
 body.presentation-mode #fab {
   display: none !important;
 }
+
+/* Native Fullscreen adjustments removed as requested by user */
+
 
 body.presentation-mode #main-content {
   top: 0 !important;

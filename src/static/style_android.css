@@ -413,3 +413,16 @@ input:checked + .toggle-slider:before {
     gap: 15px;
     margin-top: 20px;
 }
+
+/* --- ANDROID WEBVIEW OVERRIDES --- */
+@media screen and (max-width: 1024px) {
+    .app-container { padding: 1rem; }
+    .app-header { flex-direction: column; gap: 15px; }
+    .main-grid { grid-template-columns: 1fr; }
+    .drag-zone { padding: 2rem 1rem; min-height: 250px; }
+    .preview-slider-container { flex-direction: column; }
+    .preview-card { width: 100%; }
+    .action-buttons { flex-direction: column; width: 100%; }
+    .action-buttons .btn-primary, .action-buttons .btn-secondary { width: 100%; text-align: center; justify-content: center; }
+    .stats-badge-grid { flex-direction: column; gap: 10px; width: 100%; }
+}

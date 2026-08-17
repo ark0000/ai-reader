@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🌀Enhanced-Reader</title>
+  <title>AuraReader | Reader</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -21,6 +21,7 @@
   <!-- Quill Editor -->
   <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
   <style>
     /* Quill Dark Mode Overrides */
     .ql-snow .ql-toolbar {
@@ -68,7 +69,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Source+Code+Pro:wght@400;500&family=Lato:wght@300;400;700&family=Open+Sans:wght@300;400;600&family=Atkinson+Hyperlegible&family=Source+Serif+4:wght@400;700&family=IBM+Plex+Sans:wght@400;450;700&family=Source+Sans+3:wght@400;700&family=Lexend:wght@400;700&family=Nunito+Sans:wght@400;700&family=Alegreya+Sans:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Charis+SIL&display=swap"
     rel="stylesheet" crossorigin="anonymous">
   <link rel="stylesheet" href="/static/css/theme-engine.css?v=1005">
-  <link rel="stylesheet" href="/static/css/reader-engine.css?v=1015">
+  <link rel="stylesheet" href="/static/css/reader-engine.css?v=1011">
   <link rel="stylesheet" href="/static/css/ai-chat.css?v=1011">
   <link rel="stylesheet" href="/static/css/reader-layout.css?v=1008">
   <link rel="stylesheet" href="/static/css/uno.css?v=1005">
@@ -494,13 +495,54 @@
       display: flex;
       align-items: center;
       gap: 8px;
+    /* Android Overrides for Reader + AI Chat */
+    @media screen and (max-width: 1024px) {
+      #layout {
+        flex-direction: column !important;
+        overflow-y: auto !important;
+      }
+      #doc-pane {
+        width: 100% !important;
+        height: 50vh !important;
+        flex: none !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border) !important;
+      }
+      #ai-panel {
+        width: 100% !important;
+        height: 50vh !important;
+        flex: none !important;
+        position: relative !important;
+        right: auto !important;
+        top: auto !important;
+        border-left: none !important;
+      }
+      #top-bar {
+        flex-wrap: wrap !important;
+        height: auto !important;
+        padding: 8px !important;
+      }
+      .toolbar-group {
+        flex-wrap: wrap !important;
+        gap: 4px !important;
+        margin: 4px 0;
+      }
+      /* Hide some non-essential desktop buttons on mobile to save space */
+      .tb-sep, #width-sel, #font-size-controls, .theme-btn {
+        display: none !important;
+      }
+      #secondary-toolbar {
+        flex-wrap: wrap !important;
+        height: auto !important;
+        padding: 4px 8px !important;
+      }
     }
   </style>
 </head>
 
 <body class="th-night dark">
   <div id="zen-mode-trigger"></div>
-  <div id="zen-mode-exit" onclick="if(window.toggleZenMode) window.toggleZenMode()">
+  <div id="zen-mode-exit" onclick="if(window.toggleZenMode) window.toggleZenMode();">
     <span>&#10006;</span> Exit Zen Mode
   </div>
   <div id="top-bar">
@@ -618,8 +660,7 @@
     <button class="tb-btn pdf-only" id="pdf-btn-crop" title="Crop/Screenshot" onclick="setPdfTool('crop')">&#9986;
       Screenshot</button>
       <span class="tb-sep pdf-only" style="margin-left:auto"></span>
-      <button class="tb-btn" id="os-fullscreen-btn" title="OS Fullscreen (F11)" onclick="fetch('/api/system/fullscreen', {method: 'POST'}).catch(e => alert('API Error: ' + e));">&#x2921;</button>
-      <button class="tb-btn" id="fullscreen-btn" title="Browser Fullscreen" onclick="toggleFullScreen()">&#x26F6;</button>
+      <button class="tb-btn" title="Browser Fullscreen" onclick="toggleFullScreen()">&#x26F6;</button>
       <button class="tb-btn" id="zen-mode-btn" title="Zen Mode (Hide Toolbars)" onclick="toggleZenMode()">&#128065;</button>
       <button class="tb-btn pdf-only" title="Zoom Out" onclick="pdfZoom(-0.25)">&#8722;</button>
     <button class="tb-btn pdf-only" title="Zoom In" onclick="pdfZoom(0.25)">&#43;</button>
@@ -1345,17 +1386,17 @@
       }
     });
   </script>
-  <script src="/static/js/brightness-engine.js?v=2"></script>
-  <script src="/static/js/theme-engine.js?v=2"></script>
-  <script src="/static/js/reader-core.js?v=3"></script>
-  <script src="/static/js/ui-components.js?v=2034"></script>
-  <script src="/static/js/ai-chat.js?v=9"></script>
-  <script src="/static/js/dictionary-tools.js?v=2"></script>
-  <script src="/static/js/notes-tts.js?v=2"></script>
-  <script src="/static/js/markdown-handler.js?v=6"></script>
-  <script src="/static/js/epub-handler.js?v=3"></script>
-  <script src="/static/js/pdf-handler.js?v=4"></script>
-  <script src="/static/js/desktop-updater.js?v=2026"></script>
+  <script src="/static/js/brightness-engine.js?v=2025"></script>
+  <script src="/static/js/theme-engine.js?v=2025"></script>
+  <script src="/static/js/reader-core.js?v=2025"></script>
+  <script src="/static/js/ui-components.js?v=2025"></script>
+  <script src="/static/js/ai-chat.js?v=2025"></script>
+  <script src="/static/js/dictionary-tools.js?v=2025"></script>
+  <script src="/static/js/notes-tts.js?v=2025"></script>
+  <script src="/static/js/markdown-handler.js?v=2025"></script>
+  <script src="/static/js/epub-handler.js?v=2025"></script>
+  <script src="/static/js/pdf-handler.js?v=2025"></script>
+  <script src="/static/js/desktop-updater.js?v=2025"></script>
 
   <script>
     function filterSettings(query) {
@@ -1492,8 +1533,8 @@
   </div>
 </div>
 
-<script src="/static/js/notes-repository.js?v=2032"></script>
-<script src="/static/js/external-editor.js?v=2034"></script>
+<script src="/static/js/notes-repository.js?v=1000"></script>
+<script src="/static/js/external-editor.js?v=1000"></script>
 
   <script>
     // Heartbeat to keep desktop backend alive. If closed, backend shuts down automatically.
