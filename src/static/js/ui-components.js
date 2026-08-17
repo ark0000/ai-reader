@@ -213,40 +213,60 @@ window.toggleFullScreen = function() {
   }
 };
 
-window.toggleOSFullScreen = async function() {
-  try {
-    const response = await fetch('/api/system/fullscreen', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    if (!response.ok) {
-      console.warn('[Fullscreen] OS-level fullscreen failed or unsupported');
+// Fullscreen WITH toolbar visible (⤡ button)
+// Uses browser fullscreen API but does NOT hide the top toolbar.
+window.toggleOSFullScreen = function() {
+  const doc = document.documentElement;
+  const fullscreenElement = document.fullscreenElement || document.mozFullScreenElement ||
+    document.webkitFullscreenElement || document.msFullscreenElement;
+
+  if (!fullscreenElement) {
+    // Mark that THIS fullscreen was triggered by the toolbar-mode button
+    window._fullscreenWithToolbar = true;
+    const fsPromise = doc.requestFullscreen ? doc.requestFullscreen() :
+                      doc.webkitRequestFullscreen ? doc.webkitRequestFullscreen() :
+                      doc.mozRequestFullScreen ? doc.mozRequestFullScreen() :
+                      doc.msRequestFullscreen ? doc.msRequestFullscreen() :
+                      Promise.reject(new Error('Fullscreen API not supported'));
+    if (fsPromise && fsPromise.catch) {
+      fsPromise.catch(function(err) {
+        window._fullscreenWithToolbar = false;
+        console.warn('[Fullscreen] Toolbar-fullscreen failed:', err.message);
+      });
     }
-  } catch (err) {
-    console.error('[Fullscreen] Error communicating with backend:', err);
+  } else {
+    window._fullscreenWithToolbar = false;
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
   }
 };
 
-document.addEventListener('fullscreenchange', function() {
-  var isFs = !!document.fullscreenElement;
+function _handleFullscreenChange() {
+  var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+  var toolbarMode = window._fullscreenWithToolbar && isFs;
+
+  // Regular fullscreen button state
   var btn = document.getElementById('fullscreen-btn');
-  if (btn) btn.classList.toggle('active', isFs);
-  document.body.classList.toggle('is-fullscreen', isFs);
-});
-document.addEventListener('webkitfullscreenchange', function() {
-  var isFs = !!document.webkitFullscreenElement;
-  var btn = document.getElementById('fullscreen-btn');
-  if (btn) btn.classList.toggle('active', isFs);
-  document.body.classList.toggle('is-fullscreen', isFs);
-});
-document.addEventListener('mozfullscreenchange', function() {
-  var isFs = !!document.mozFullScreenElement;
-  var btn = document.getElementById('fullscreen-btn');
-  if (btn) btn.classList.toggle('active', isFs);
-  document.body.classList.toggle('is-fullscreen', isFs);
-});
+  if (btn) btn.classList.toggle('active', isFs && !toolbarMode);
+
+  // Toolbar-mode fullscreen button state
+  var osBtn = document.getElementById('os-fullscreen-btn');
+  if (osBtn) osBtn.classList.toggle('active', toolbarMode);
+
+  // is-fullscreen class hides toolbar — only apply for regular fullscreen
+  document.body.classList.toggle('is-fullscreen', isFs && !toolbarMode);
+  // fullscreen-toolbar-mode keeps toolbar visible in fullscreen
+  document.body.classList.toggle('fullscreen-toolbar-mode', toolbarMode);
+
+  // Reset the flag when exiting
+  if (!isFs) window._fullscreenWithToolbar = false;
+}
+
+document.addEventListener('fullscreenchange', _handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', _handleFullscreenChange);
+document.addEventListener('mozfullscreenchange', _handleFullscreenChange);
 document.addEventListener('MSFullscreenChange', function() {
   var isFs = !!document.msFullscreenElement;
   var btn = document.getElementById('fullscreen-btn');
