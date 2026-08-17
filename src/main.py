@@ -101,17 +101,7 @@ async def favicon():
     from fastapi import Response
     return Response(status_code=204)
 
-from src.system.system_controller import SystemController
-system_controller = SystemController()
 
-@app.post("/api/system/fullscreen")
-async def toggle_os_fullscreen():
-    """Simulate F11 keypress to toggle true OS-level fullscreen (Windows only)"""
-    success = await system_controller.toggle_fullscreen()
-    if success:
-        return {"status": "success", "message": "F11 pressed via SystemController"}
-    else:
-        raise HTTPException(status_code=500, detail="All fullscreen strategies failed")
 
 @app.get("/legacy", response_class=HTMLResponse)
 async def get_legacy():
