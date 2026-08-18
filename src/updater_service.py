@@ -250,7 +250,7 @@ class DesktopUpdaterFacade:
             if is_git:
                 # Check for Git updates by seeing if origin/main is ahead
                 subprocess.run(["git", "fetch", "origin", "main"], cwd=root, capture_output=True, timeout=10)
-                count_res = subprocess.run(["git", "rev-list", "HEAD...origin/main", "--count"], cwd=root, capture_output=True, text=True, timeout=5)
+                count_res = subprocess.run(["git", "rev-list", "HEAD..origin/main", "--count"], cwd=root, capture_output=True, text=True, timeout=5)
                 commits_behind = int(count_res.stdout.strip() or 0)
                 
                 result.update({
@@ -312,11 +312,6 @@ class DesktopUpdaterFacade:
         res["strategy"] = strategy_name
         res["current_version"] = CURRENT_VERSION
         res["latest_version"] = update_info.get("latest_version", CURRENT_VERSION)
-        
-        # Invalidate cache so it doesn't falsely report an update on reload
-        cls._cached_result = None
-        cls._cache_time = 0
-        
         return res
 
     @classmethod
