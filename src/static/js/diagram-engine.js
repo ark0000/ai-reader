@@ -224,14 +224,19 @@
     }
 
     _apply(smooth) {
-      if (smooth) {
-        this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
-      } else {
-        this._layer.style.transition = 'none';
-      }
-      this._layer.style.transform =
-        'translate(' + this._tx + 'px,' + this._ty + 'px) scale(' + this._scale + ')';
-      this._onScale(this.getScalePct());
+      if (this._raf) cancelAnimationFrame(this._raf);
+      this._raf = requestAnimationFrame(() => {
+        if (smooth) {
+          this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
+        } else {
+          this._layer.style.transition = 'none';
+        }
+        // GPU accelerate the canvas layer to prevent repaint lag
+        this._layer.style.willChange = 'transform';
+        this._layer.style.transform =
+          'translate3d(' + this._tx + 'px,' + this._ty + 'px, 0) scale(' + this._scale + ')';
+        this._onScale(this.getScalePct());
+      });
     }
 
     _bindEvents() {
