@@ -470,13 +470,35 @@ class MarkdownDocumentHandler {
 
       if (mediaEl.tagName.toLowerCase() !== 'code') {
         actions.push({
-          label: '&#128269; Enlarge',
+          label: '&#9651; Enlarge',
           actionFn: function() {
             if (window.showEnlargedMedia) {
               var clone = mediaEl.cloneNode(true);
               clone.style.cursor = 'default';
               window.showEnlargedMedia(clone);
             }
+          }
+        });
+      }
+
+      // Open mermaid source in the Diagram Builder panel
+      if (mediaEl.classList && mediaEl.classList.contains('mermaid') && window.DiagramBuilder) {
+        var _mermaidSrc = mediaEl.getAttribute('data-dgb-src') || mediaEl.textContent || '';
+        actions.push({
+          label: '&#11041; Open in Diagram Builder',
+          actionFn: function() {
+            var editor = document.getElementById('dgb-editor');
+            window.DiagramBuilder.open();
+            // Populate the editor after the panel is open
+            setTimeout(function() {
+              var ed = document.getElementById('dgb-editor');
+              if (ed) {
+                ed.value = _mermaidSrc.trim();
+                // Trigger run automatically so diagram renders immediately
+                var runBtn = document.getElementById('dgb-btn-run');
+                if (runBtn) runBtn.click();
+              }
+            }, 150);
           }
         });
       }
@@ -593,6 +615,8 @@ class MarkdownDocumentHandler {
       var div = document.createElement('div');
       div.className = 'mermaid';
       div.textContent = el.textContent;
+      // Preserve raw source so Diagram Builder can retrieve it after mermaid.init() replaces textContent
+      div.setAttribute('data-dgb-src', el.textContent);
       pre.replaceWith(div);
     });
     

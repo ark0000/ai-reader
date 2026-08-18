@@ -88,6 +88,15 @@ async def receive_heartbeat():
     last_heartbeat = time.time()
     return {"status": "ok"}
 
+@app.get("/api/updater/check")
+async def updater_check(force: bool = False):
+    """Updater polling endpoint. Returns no-update so the client doesn't 404-loop."""
+    return {
+        "update_available": False,
+        "current_version": app.version,
+        "checked_at": int(time.time())
+    }
+
 # UI Routes
 @app.get("/", response_class=HTMLResponse)
 async def get_root():

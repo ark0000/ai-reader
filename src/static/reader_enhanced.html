@@ -70,6 +70,7 @@
   <link rel="stylesheet" href="/static/css/theme-engine.css?v=1005">
   <link rel="stylesheet" href="/static/css/reader-engine.css?v=1015">
   <link rel="stylesheet" href="/static/css/ai-chat.css?v=1011">
+  <link rel="stylesheet" href="/static/css/diagram-engine.css?v=11000">
   <link rel="stylesheet" href="/static/css/reader-layout.css?v=1008">
   <link rel="stylesheet" href="/static/css/uno.css?v=1005">
   <style>
@@ -1027,6 +1028,7 @@
             <button class="chat-toolbar__btn" onclick="undoLast()" title="Undo last exchange">↩ Undo</button>
             <span title="Chat Brightness" style="font-size:14px; margin-left: 6px; cursor: help;">☀</span>
             <input type="range" id="ai-brightness-slider" min="0.3" max="1.5" step="0.1" value="1" title="Adjust AI Chat Brightness" style="width: 60px;">
+            <button id="dgb-open-btn" onclick="window.DiagramBuilder && window.DiagramBuilder.open()" title="Open Diagram Builder" class="chat-toolbar__btn" style="margin-left:4px;">&#11041;</button>
           </div>
           <div style="display:flex; gap:4px; align-items:center;">
             <button class="chat-toolbar__btn" onclick="exportChat()" title="Export chat history">📋 Export</button>
@@ -1494,6 +1496,7 @@
 
 <script src="/static/js/notes-repository.js?v=2032"></script>
 <script src="/static/js/external-editor.js?v=2034"></script>
+<script src="/static/js/diagram-engine.js?v=12000"></script>
 
   <script>
     // Heartbeat to keep desktop backend alive. If closed, backend shuts down automatically.

@@ -1,0 +1,416 @@
+/* ==========================================================================
+   diagram-engine.css — Isolated Diagram Builder Panel Styles
+   ALL selectors scoped under #diagram-builder-panel or .dgb- prefix.
+   Zero impact on any existing app styles.
+
+   UX benchmark: mermaid.live, draw.io, Figma, VS Code preview
+   ========================================================================== */
+
+/* ─── Full-screen overlay wrapper ─────────────────────────────────────────── */
+#diagram-builder-panel {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+  pointer-events: none;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+#diagram-builder-panel.dgb-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  animation: dgb-fade-in 0.18s ease both;
+}
+
+/* ─── Backdrop ─────────────────────────────────────────────────────────────── */
+#dgb-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ─── Shell ───────────────────────────────────────────────────────────────── */
+#dgb-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: calc(100vw - 40px);
+  height: calc(100vh - 40px);
+  max-width: 1900px;
+  background: #12121e;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.80),
+    0 0 0 1px rgba(108, 99, 255, 0.14);
+  overflow: hidden;
+  animation: dgb-slide-up 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Fullscreen — shell occupies entire screen, no rounded corners */
+#dgb-shell:fullscreen,
+#dgb-shell:-webkit-full-screen,
+#dgb-shell:-moz-full-screen,
+#dgb-shell[data-fullscreen] {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+/* In fullscreen — hide editor pane & resizer; diagram canvas fills everything.
+   [data-fullscreen] is set via JS fullscreenchange — more reliable than
+   :fullscreen pseudo-class on deeply nested elements in Chrome. */
+#dgb-shell:fullscreen #dgb-editor-pane,
+#dgb-shell:fullscreen #dgb-resizer,
+#dgb-shell:-webkit-full-screen #dgb-editor-pane,
+#dgb-shell:-webkit-full-screen #dgb-resizer,
+#dgb-shell:-moz-full-screen #dgb-editor-pane,
+#dgb-shell:-moz-full-screen #dgb-resizer,
+#dgb-shell[data-fullscreen] #dgb-editor-pane,
+#dgb-shell[data-fullscreen] #dgb-resizer {
+  display: none !important;
+}
+
+/* In fullscreen — canvas pane fills all remaining width */
+#dgb-shell:fullscreen #dgb-canvas-pane,
+#dgb-shell:-webkit-full-screen #dgb-canvas-pane,
+#dgb-shell:-moz-full-screen #dgb-canvas-pane,
+#dgb-shell[data-fullscreen] #dgb-canvas-pane {
+  flex: 1 !important;
+  width: 100% !important;
+  border-left: none !important;
+}
+
+/* Support for native F11 (where HTML5 Fullscreen API is bypassed) */
+@media all and (display-mode: fullscreen) {
+  #dgb-shell #dgb-editor-pane,
+  #dgb-shell #dgb-resizer {
+    display: none !important;
+  }
+  #dgb-shell #dgb-canvas-pane {
+    flex: 1 !important;
+    width: 100% !important;
+    border-left: none !important;
+  }
+}
+
+/* ─── Title bar ───────────────────────────────────────────────────────────── */
+#dgb-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 46px;
+  background: #0e0e1a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+#dgb-titlebar-left { display: flex; align-items: center; gap: 10px; }
+#dgb-titlebar-right { display: flex; align-items: center; gap: 6px; }
+
+#dgb-icon  { font-size: 18px; color: #6c63ff; line-height: 1; }
+#dgb-title { font-size: 14px; font-weight: 700; color: rgba(255,255,255,.90); letter-spacing: -0.01em; }
+
+#dgb-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #6c63ff; background: rgba(108,99,255,.14);
+  border: 1px solid rgba(108,99,255,.28); border-radius: 4px; padding: 2px 7px;
+}
+
+.dgb-hdr-btn {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.65); border-radius: 6px; padding: 4px 10px;
+  font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.dgb-hdr-btn:hover { background: rgba(108,99,255,.18); border-color: rgba(108,99,255,.40); color: #fff; }
+.dgb-close-x { padding: 4px 9px; font-size: 13px; }
+.dgb-close-x:hover { background: rgba(252,129,129,.18) !important; border-color: rgba(252,129,129,.35) !important; color: #fc8181 !important; }
+
+/* ─── Toolbar ─────────────────────────────────────────────────────────────── */
+#dgb-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  background: #0f0f1c; border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+}
+
+.dgb-tb-btn {
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  color: rgba(255,255,255,.70); border-radius: 6px; padding: 5px 12px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .15s, color .15s, transform .10s; font-family: inherit;
+}
+.dgb-tb-btn:hover { background: rgba(255,255,255,.12); color: #fff; }
+.dgb-tb-btn:disabled { opacity: .4; cursor: not-allowed; transform: none !important; }
+
+.dgb-run-btn {
+  background: linear-gradient(135deg, #6c63ff 0%, #48c6ef 100%);
+  border-color: transparent; color: #fff;
+  box-shadow: 0 2px 8px rgba(108,99,255,.35);
+}
+.dgb-run-btn:hover {
+  background: linear-gradient(135deg, #7c74ff 0%, #58d6ff 100%);
+  box-shadow: 0 4px 16px rgba(108,99,255,.55); transform: translateY(-1px);
+}
+
+#dgb-status { font-size: 11.5px; font-weight: 500; margin-left: 4px; }
+.dgb-status-ok    { color: #68d391; }
+.dgb-status-error { color: #fc8181; }
+.dgb-status-warn  { color: #f6ad55; }
+.dgb-status-info  { color: #63b3ed; }
+
+#dgb-shortcut-tip {
+  margin-left: auto; font-size: 10px; color: rgba(255,255,255,.20); letter-spacing: 0.015em;
+}
+
+/* ─── Split ───────────────────────────────────────────────────────────────── */
+#dgb-split { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+
+#dgb-editor-pane {
+  flex: 0 0 38%; display: flex; flex-direction: column; min-height: 0; min-width: 0;
+}
+
+#dgb-canvas-pane {
+  flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  border-left: 1px solid rgba(255,255,255,.06);
+  background: #0d0d1e; position: relative;
+}
+
+/* ─── Preview header (label + fullscreen btn) ─────────────────────────────── */
+#dgb-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 10px 0 14px; height: 30px;
+  background: #0e0e1a; border-bottom: 1px solid rgba(255,255,255,.06);
+  flex-shrink: 0;
+}
+
+.dgb-pane-label-inline {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: rgba(255,255,255,.28);
+}
+
+/* Fullscreen toggle button */
+.dgb-preview-action-btn {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.45); border-radius: 5px;
+  width: 26px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer;
+  transition: background .15s, color .15s, transform .10s;
+  font-family: inherit;
+}
+.dgb-preview-action-btn:hover {
+  background: rgba(108,99,255,.20); border-color: rgba(108,99,255,.40);
+  color: #c4b5fd; transform: scale(1.10);
+}
+
+/* Old pane-label (editor side) */
+.dgb-pane-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: rgba(255,255,255,.28);
+  padding: 7px 14px 6px; background: #0e0e1a;
+  border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+}
+
+/* ─── Editor textarea ─────────────────────────────────────────────────────── */
+#dgb-editor {
+  flex: 1; min-height: 0; resize: none; width: 100%;
+  background: #0a0a16; color: #e2e8f0; border: none; outline: none;
+  padding: 16px;
+  font-family: 'JetBrains Mono','Source Code Pro','Fira Code','Consolas', monospace;
+  font-size: 13.5px; line-height: 1.7; tab-size: 2;
+  white-space: pre; overflow: auto; box-sizing: border-box; caret-color: #6c63ff;
+}
+#dgb-editor::placeholder { color: rgba(255,255,255,.17); font-style: italic; }
+#dgb-editor:focus { outline: none; box-shadow: inset 2px 0 0 #6c63ff; }
+
+/* ─── Resizer ─────────────────────────────────────────────────────────────── */
+#dgb-resizer {
+  width: 5px; flex-shrink: 0; background: rgba(255,255,255,.04);
+  cursor: col-resize; transition: background .15s; position: relative;
+}
+#dgb-resizer:hover, #dgb-resizer:active { background: rgba(108,99,255,.45); }
+#dgb-resizer::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%); height: 44px; width: 3px;
+  border-radius: 2px; background: rgba(255,255,255,.12);
+}
+
+/* ─── Zoom bar — floats in bottom-right corner INSIDE #dgb-viewport ───────── */
+#dgb-zoom-bar {
+  position: absolute;
+  bottom: 14px;       /* inside the viewport, anchored bottom-right */
+  right:  12px;
+  top: auto;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  background: rgba(18, 18, 34, 0.97);
+  border: 1.5px solid rgba(108, 99, 255, 0.55);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.80),
+    0 0 0 1px rgba(108, 99, 255, 0.12) inset;
+  pointer-events: all;
+  /* Promote to own GPU compositor layer so the browser compositor
+     respects z-index ordering against #dgb-layer (will-change:transform).
+     Without this, the GPU layer for #dgb-layer can composite above the
+     zoom bar even with z-index:9000. */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+}
+
+.dgb-zoom-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(108, 99, 255, 0.12);
+  border: 1.5px solid rgba(108, 99, 255, 0.35);
+  border-radius: 7px;
+  color: #e2d9ff;              /* bright lavender — always readable */
+  font-size: 18px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s, transform .10s;
+  line-height: 1;
+  user-select: none;
+}
+.dgb-zoom-btn:hover {
+  background: rgba(108, 99, 255, 0.35);
+  border-color: rgba(167, 139, 250, 0.80);
+  color: #fff;
+  transform: scale(1.10);
+}
+.dgb-zoom-btn:active { transform: scale(0.92); background: rgba(108,99,255,.50); }
+
+/* Fit button — accent color to make it the most discoverable action */
+.dgb-zoom-fit-btn {
+  background: rgba(108,99,255,.20);
+  border-color: rgba(167,139,250,.55);
+  color: #c4b5fd;
+}
+.dgb-zoom-fit-btn:hover {
+  background: rgba(108,99,255,.45);
+  border-color: rgba(167,139,250,.90);
+  color: #fff;
+}
+
+/* 1:1 button */
+#dgb-zoom-100 { font-size: 11px; font-weight: 900; letter-spacing: -0.03em; }
+
+/* Live zoom percentage display — reads like a ruler readout */
+.dgb-zoom-pct {
+  width: 34px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #a78bfa;               /* bright purple — clearly readable */
+  letter-spacing: -0.01em;
+  user-select: none;
+  cursor: default;
+  padding: 3px 0;
+  border-top: 1px solid rgba(108,99,255,.20);
+  border-bottom: 1px solid rgba(108,99,255,.20);
+}
+
+/* ─── Viewport (drag surface) ──────────────────────────────────── */
+#dgb-viewport {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;  /* required: zoom bar inside uses position:absolute */
+  isolation: isolate;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+
+  /* Dot-grid background (draw.io / Figma infinite-canvas feel) */
+  background-color: #0d0d1e;
+  background-image:
+    radial-gradient(circle, rgba(108,99,255,0.20) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+#dgb-viewport:active { cursor: grabbing; }
+
+/* ─── Transform layer ────────────────────────────────────────── */
+#dgb-layer {
+  display: inline-block;
+  transform-origin: 0 0;
+  will-change: transform;
+  position: relative;  /* required for z-index to take effect */
+  z-index: 0;          /* EXPLICIT 0 — zoom bar's z-index:9000 always wins */
+  /* transition added/removed dynamically by PanZoomEngine._apply() */
+}
+
+#dgb-canvas {
+  display: inline-block;
+  /* box-shadow instead of filter:drop-shadow on the SVG.
+     box-shadow does NOT create a stacking context, so it never
+     interferes with the zoom bar's z-index. */
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.55);
+}
+
+#dgb-canvas svg {
+  display: block;
+  max-width: none !important;
+  border-radius: 8px;
+  /* filter removed — filter creates inner stacking contexts that fight z-index */
+}
+
+/* ─── Placeholder ─────────────────────────────────────────────────────────── */
+.dgb-placeholder {
+  min-width: 340px; min-height: 220px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 70px 40px; text-align: center;
+  color: rgba(255,255,255,.25); font-size: 14px; line-height: 1.65;
+}
+.dgb-ph-icon { font-size: 56px; color: rgba(108,99,255,.22); animation: dgb-pulse 2.8s ease-in-out infinite; }
+.dgb-placeholder strong { color: rgba(255,255,255,.55); }
+.dgb-ph-hint { font-size: 11px; color: rgba(255,255,255,.16); margin-top: 4px; }
+
+/* ─── Error block ─────────────────────────────────────────────────────────── */
+.dgb-error-block {
+  max-width: 520px; padding: 24px;
+  background: rgba(252,129,129,.06); border: 1px solid rgba(252,129,129,.18);
+  border-radius: 10px; color: #fc8181;
+}
+.dgb-error-icon  { font-size: 28px; margin-bottom: 8px; }
+.dgb-error-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; color: #fc8181; }
+.dgb-error-pre {
+  background: rgba(0,0,0,.35); border: 1px solid rgba(252,129,129,.15);
+  border-radius: 6px; padding: 10px 14px;
+  font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  color: rgba(255,200,200,.85); white-space: pre-wrap; overflow-wrap: break-word; margin: 0 0 10px;
+}
+.dgb-error-tip { font-size: 12px; color: rgba(255,255,255,.40); margin: 0; }
+.dgb-error-tip strong { color: rgba(255,255,255,.65); }
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes dgb-fade-in {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes dgb-slide-up {
+  from { opacity: 0; transform: scale(0.96) translateY(18px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes dgb-pulse {
+  0%, 100% { opacity: .22; transform: scale(1); }
+  50%       { opacity: .38; transform: scale(1.06); }
+}
