@@ -150,6 +150,17 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
                 if os.path.exists(extract_dir):
                     shutil.rmtree(extract_dir, ignore_errors=True)
                     
+                # Save the new SHA
+                latest_sha = release_data.get("latest_version", "unknown")
+                # Since latest_version in release_data might be truncated ([:7]), we should use zipball_url or just save what we have
+                # Actually, release_name might have it. Or we can just save latest_version
+                version_file = os.path.join(root, ".version")
+                try:
+                    with open(version_file, "w") as f:
+                        f.write(latest_sha)
+                except Exception as e:
+                    logger.error(f"Failed to write .version file: {e}")
+                    
                 return {
                     "status": "success",
                     "message": "Update downloaded and applied successfully!",
@@ -262,8 +273,10 @@ class DesktopUpdaterFacade:
                 cls._cached_result = result
                 cls._cache_time = now
             else:
+                # For frozen apps, check the latest commit on main branch instead of releases
+                commit_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
                 req = urllib.request.Request(
-                    GITHUB_API_URL,
+                    commit_api_url,
                     headers={
                         'User-Agent': 'AuraReader-Desktop',
                         'Accept': 'application/vnd.github.v3+json'
@@ -272,26 +285,27 @@ class DesktopUpdaterFacade:
                 with urllib.request.urlopen(req, timeout=5) as response:
                     if response.status == 200:
                         data = json.loads(response.read().decode('utf-8'))
-                        latest_tag = data.get("tag_name", "")
+                        latest_sha = data.get("sha", "")
                         
-                        # Prefer compiled release asset over source zipball
-                        asset_url = None
-                        assets = data.get("assets", [])
-                        for asset in assets:
-                            if asset.get("name", "").endswith(".zip"):
-                                asset_url = asset.get("browser_download_url")
-                                break
+                        # Read the local .version file to know our current SHA
+                        current_sha = CURRENT_VERSION
+                        version_file = os.path.join(root, ".version")
+                        if os.path.exists(version_file):
+                            with open(version_file, "r") as f:
+                                current_sha = f.read().strip()
+                        
+                        has_update = latest_sha != "" and latest_sha != current_sha
                         
                         result.update({
-                            "latest_version": latest_tag or CURRENT_VERSION,
-                            "has_update": SemVerComparator.is_newer(latest_tag, CURRENT_VERSION),
-                            "release_name": data.get("name") or latest_tag or "New Release",
-                            "release_notes": data.get("body") or "Bug fixes and performance improvements.",
+                            "latest_version": latest_sha[:7] if latest_sha else CURRENT_VERSION,
+                            "current_version": current_sha[:7] if len(current_sha) > 7 else current_sha,
+                            "has_update": has_update,
+                            "release_name": f"Commit {latest_sha[:7]}",
+                            "release_notes": data.get("commit", {}).get("message", "Latest updates from main branch."),
                             "release_url": data.get("html_url") or result["release_url"],
-                            "published_at": data.get("published_at") or "",
-                            "asset_url": asset_url,
-                            "zipball_url": data.get("zipball_url"),
-                            "tarball_url": data.get("tarball_url")
+                            "published_at": data.get("commit", {}).get("author", {}).get("date", ""),
+                            "zipball_url": f"https://github.com/{GITHUB_REPO}/archive/refs/heads/main.zip",
+                            "asset_url": None
                         })
                         
                         cls._cached_result = result
