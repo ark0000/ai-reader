@@ -312,6 +312,11 @@ class DesktopUpdaterFacade:
         res["strategy"] = strategy_name
         res["current_version"] = CURRENT_VERSION
         res["latest_version"] = update_info.get("latest_version", CURRENT_VERSION)
+        
+        # Invalidate cache so it doesn't falsely report an update on reload
+        cls._cached_result = None
+        cls._cache_time = 0
+        
         return res
 
     @classmethod
