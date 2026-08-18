@@ -10,7 +10,20 @@
     latestInfo: null,
     isUpdating: false,
 
-    init: function() {
+    init: async function() {
+      // Instantly load the correct local version so the UI doesn't show v1.0.0
+      try {
+        const lvRes = await fetch('/api/updater/local-version');
+        if (lvRes.ok) {
+          const lvData = await lvRes.json();
+          this.currentVersion = lvData.version;
+          const curVerEl = document.getElementById('updater-current-version');
+          if (curVerEl) curVerEl.textContent = this.currentVersion;
+        }
+      } catch (e) {
+        console.warn('Failed to load local version fast:', e);
+      }
+
       // Setup UI listeners and auto-check on startup
       const autoCheckPref = window.safeStorage ? window.safeStorage.getItem('aura-auto-update') : localStorage.getItem('aura-auto-update');
       const shouldAutoCheck = autoCheckPref === null || autoCheckPref === 'true';
