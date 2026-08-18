@@ -265,14 +265,14 @@
             msgBox.style.background = 'rgba(16, 185, 129, 0.15)';
             msgBox.style.border = '1px solid rgba(16, 185, 129, 0.4)';
             msgBox.style.color = '#34d399';
-            msgBox.innerHTML = `&#10003; <strong>${result.message}</strong><br><span style="font-size:12px;">Restart AuraReader to complete the upgrade.</span>`;
+            msgBox.innerHTML = `&#10003; <strong>${result.message}</strong><br><span style="font-size:12px;">Shutdown AuraReader and manually open it again to complete the upgrade.</span>`;
           }
 
           if (applyBtn) {
             applyBtn.disabled = false;
             applyBtn.style.opacity = '1';
-            applyBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-            applyBtn.textContent = '🔄 Restart App Now';
+            applyBtn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
+            applyBtn.textContent = '🛑 Shutdown App Now';
             applyBtn.onclick = () => this.restartApp();
           }
         } else if (result.status === 'manual' && result.download_url) {
@@ -314,15 +314,15 @@
 
     restartApp: async function() {
       const applyBtn = document.getElementById('updater-apply-btn');
-      if (applyBtn) applyBtn.textContent = 'Restarting...';
+      if (applyBtn) applyBtn.textContent = 'Shutting down...';
 
       try {
         await fetch('/api/updater/restart', { method: 'POST' });
       } catch(e) {}
 
       setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+        document.body.innerHTML = '<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0f172a; color:#fff; font-family:sans-serif; text-align:center;"><h2>App Shut Down Successfully</h2><p style="color:#94a3b8; margin-top:10px;">The updater has finished applying your files.</p><p style="color:#94a3b8;">You may now close this browser tab and manually launch AuraReader again.</p></div>';
+      }, 1000);
     }
   };
 

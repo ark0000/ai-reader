@@ -336,19 +336,8 @@ class DesktopUpdaterFacade:
 
     @classmethod
     def restart_application(cls) -> Dict[str, Any]:
-        """Safely trigger application restart."""
+        """Safely trigger application shutdown for manual restart."""
         try:
-            root = get_project_root()
-            if getattr(sys, 'frozen', False):
-                exe_path = sys.argv[0]
-                creation_flags = 0
-                if os.name == 'nt':
-                    creation_flags = getattr(subprocess, 'DETACHED_PROCESS', 0x00000008) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x00000200)
-                subprocess.Popen([exe_path], cwd=root, creationflags=creation_flags)
-            else:
-                script_path = os.path.join(root, "src", "run_desktop.py")
-                subprocess.Popen([sys.executable, script_path], cwd=root)
-                
             # Schedule delayed process exit
             import threading
             def _exit_later():
@@ -356,7 +345,7 @@ class DesktopUpdaterFacade:
                 os._exit(0)
             threading.Thread(target=_exit_later, daemon=True).start()
             
-            return {"status": "restarting", "message": "Application is restarting..."}
+            return {"status": "restarting", "message": "Application is shutting down..."}
         except Exception as e:
-            logger.error(f"Restart failed: {e}")
-            return {"status": "error", "message": f"Restart failed: {str(e)}"}
+            logger.error(f"Shutdown failed: {e}")
+            return {"status": "error", "message": f"Shutdown failed: {str(e)}"}
