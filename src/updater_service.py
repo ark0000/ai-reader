@@ -247,42 +247,57 @@ class DesktopUpdaterFacade:
         }
         
         try:
-            req = urllib.request.Request(
-                GITHUB_API_URL,
-                headers={
-                    'User-Agent': 'AuraReader-Desktop',
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            )
-            with urllib.request.urlopen(req, timeout=5) as response:
-                if response.status == 200:
-                    data = json.loads(response.read().decode('utf-8'))
-                    latest_tag = data.get("tag_name", "")
-                    
-                    # Prefer compiled release asset over source zipball
-                    asset_url = None
-                    assets = data.get("assets", [])
-                    for asset in assets:
-                        if asset.get("name", "").endswith(".zip"):
-                            asset_url = asset.get("browser_download_url")
-                            break
-                    
-                    result.update({
-                        "latest_version": latest_tag or CURRENT_VERSION,
-                        "has_update": SemVerComparator.is_newer(latest_tag, CURRENT_VERSION),
-                        "release_name": data.get("name") or latest_tag or "New Release",
-                        "release_notes": data.get("body") or "Bug fixes and performance improvements.",
-                        "release_url": data.get("html_url") or result["release_url"],
-                        "published_at": data.get("published_at") or "",
-                        "asset_url": asset_url,
-                        "zipball_url": data.get("zipball_url"),
-                        "tarball_url": data.get("tarball_url")
-                    })
-                    
-                    cls._cached_result = result
-                    cls._cache_time = now
+            if is_git:
+                # Check for Git updates by seeing if origin/main is ahead
+                subprocess.run(["git", "fetch", "origin", "main"], cwd=root, capture_output=True, timeout=10)
+                count_res = subprocess.run(["git", "rev-list", "HEAD...origin/main", "--count"], cwd=root, capture_output=True, text=True, timeout=5)
+                commits_behind = int(count_res.stdout.strip() or 0)
+                
+                result.update({
+                    "has_update": commits_behind > 0,
+                    "release_name": f"{commits_behind} New Commits Available",
+                    "release_notes": "Updates have been pushed to the git repository. Click Apply to pull the latest changes.",
+                    "latest_version": "git-latest" if commits_behind > 0 else CURRENT_VERSION
+                })
+                cls._cached_result = result
+                cls._cache_time = now
+            else:
+                req = urllib.request.Request(
+                    GITHUB_API_URL,
+                    headers={
+                        'User-Agent': 'AuraReader-Desktop',
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read().decode('utf-8'))
+                        latest_tag = data.get("tag_name", "")
+                        
+                        # Prefer compiled release asset over source zipball
+                        asset_url = None
+                        assets = data.get("assets", [])
+                        for asset in assets:
+                            if asset.get("name", "").endswith(".zip"):
+                                asset_url = asset.get("browser_download_url")
+                                break
+                        
+                        result.update({
+                            "latest_version": latest_tag or CURRENT_VERSION,
+                            "has_update": SemVerComparator.is_newer(latest_tag, CURRENT_VERSION),
+                            "release_name": data.get("name") or latest_tag or "New Release",
+                            "release_notes": data.get("body") or "Bug fixes and performance improvements.",
+                            "release_url": data.get("html_url") or result["release_url"],
+                            "published_at": data.get("published_at") or "",
+                            "asset_url": asset_url,
+                            "zipball_url": data.get("zipball_url"),
+                            "tarball_url": data.get("tarball_url")
+                        })
+                        
+                        cls._cached_result = result
+                        cls._cache_time = now
         except Exception as e:
-            logger.warning(f"Could not check for updates from GitHub: {e}")
+            logger.warning(f"Could not check for updates: {e}")
             result["error"] = str(e)
             
         return result
