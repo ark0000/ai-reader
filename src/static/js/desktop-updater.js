@@ -101,7 +101,7 @@
 
         if (data.has_update) {
           if (statusLabel) {
-            statusLabel.innerHTML = `<span style="color:#fbbf24; font-weight:600;">Update Available: ${data.latest_version}</span>`;
+            statusLabel.innerHTML = `<span style="color:#fbbf24; font-weight:600; cursor:pointer; text-decoration:underline; text-decoration-style:dotted;" onclick="window.DesktopUpdater.openUpdateModal()">Update Available: ${data.latest_version} ℹ️</span>`;
           }
           this.showUpdateBadge(data);
           if (manual) {
@@ -109,7 +109,7 @@
           }
         } else {
           if (statusLabel) {
-            statusLabel.innerHTML = `<span style="color:#10b981; font-weight:600;">&#10003; Up to date (${this.currentVersion})</span>`;
+            statusLabel.innerHTML = `<span style="color:#10b981; font-weight:600; cursor:pointer; text-decoration:underline; text-decoration-style:dotted;" onclick="window.DesktopUpdater.openUpdateModal()">&#10003; Up to date (${this.currentVersion}) ℹ️</span>`;
           }
           this.showUpdateBadge(data);
           if (manual && window.showToast) {
