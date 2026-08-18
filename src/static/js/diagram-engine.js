@@ -1061,6 +1061,18 @@
       this._panel.classList.remove('dgb-open');
       this._panel.setAttribute('aria-hidden', 'true');
       this._isOpen = false;
+      
+      // Cleanup lingering Mermaid syntax error overlays attached to the body
+      document.querySelectorAll('svg[id^="dmermaid"], svg[id^="ddgb-svg"], .error-icon, .error-text').forEach(el => {
+        if (el.parentElement === document.body) el.remove();
+      });
+      // Fallback: mermaid also sometimes uses `d` + id
+      const errorDivs = document.querySelectorAll('div[id^="d"]');
+      errorDivs.forEach(el => {
+        if (el.parentElement === document.body && el.id.includes('dgb-svg')) {
+          el.remove();
+        }
+      });
     }
 
     toggle() { this._isOpen ? this.close() : this.open(); }
