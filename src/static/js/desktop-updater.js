@@ -111,6 +111,7 @@
           if (statusLabel) {
             statusLabel.innerHTML = `<span style="color:#10b981; font-weight:600;">&#10003; Up to date (${this.currentVersion})</span>`;
           }
+          this.showUpdateBadge(data);
           if (manual && window.showToast) {
             window.showToast(`AuraReader is up to date (${this.currentVersion})`, 'success');
           }
@@ -133,15 +134,31 @@
       if (!badge) {
         badge = document.createElement('button');
         badge.id = 'topbar-update-badge';
-        badge.className = 'updater-badge-btn';
-        badge.innerHTML = `<span>&#10024;</span> Update to ${data.latest_version}`;
-        badge.onclick = () => this.openUpdateModal(this.latestInfo || data);
-
+        
         const topBar = document.getElementById('top-bar') || document.querySelector('.app-header');
         if (topBar) {
           const group = topBar.querySelector('.toolbar-group:last-child') || topBar;
           group.prepend(badge);
         }
+      }
+      
+      badge.onclick = () => this.openUpdateModal(this.latestInfo || data);
+      
+      if (data.has_update) {
+        badge.className = 'updater-badge-btn';
+        badge.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.2))';
+        badge.style.border = '1px solid rgba(245, 158, 11, 0.4)';
+        badge.style.color = '#fbbf24';
+        badge.style.animation = 'pulseGlow 2s infinite ease-in-out';
+        badge.innerHTML = `<span>&#10024;</span> Update to ${data.latest_version}`;
+      } else {
+        badge.className = 'updater-badge-btn';
+        badge.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15))';
+        badge.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+        badge.style.color = '#34d399';
+        badge.style.animation = 'none';
+        badge.style.boxShadow = 'none';
+        badge.innerHTML = `<span>&#10003;</span> Up to date`;
       }
     },
 
@@ -169,9 +186,9 @@
           <!-- Header -->
           <div style="padding:18px 24px; border-bottom:1px solid var(--border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03);">
             <div style="display:flex; align-items:center; gap:10px;">
-              <span style="font-size:24px;">🚀</span>
+              <span style="font-size:24px;">${data.has_update ? '🚀' : '✅'}</span>
               <div>
-                <h3 style="margin:0; font-size:17px; font-weight:700; color:var(--text-1, #fff);">New Update Available</h3>
+                <h3 style="margin:0; font-size:17px; font-weight:700; color:var(--text-1, #fff);">${data.has_update ? 'New Update Available' : 'App is Up to Date'}</h3>
                 <span style="font-size:12px; color:var(--text-2, #94a3b8);">${data.current_version} &rarr; <strong style="color:var(--accent, #60a5fa);">${data.latest_version}</strong></span>
               </div>
             </div>
@@ -206,8 +223,8 @@
           <div style="padding:14px 24px; border-top:1px solid var(--border, rgba(255,255,255,0.1)); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02);">
             <a href="${data.release_url}" target="_blank" rel="noopener noreferrer" style="font-size:12px; color:var(--text-3, #94a3b8); text-decoration:none;">🌐 View Release on GitHub</a>
             <div style="display:flex; gap:10px;">
-              <button class="tb-btn" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border, rgba(255,255,255,0.15)); background:transparent; color:var(--text-1);" onclick="document.getElementById('updater-modal').style.display='none'">Later</button>
-              <button id="updater-apply-btn" class="tb-btn" style="padding:8px 20px; border-radius:8px; background:linear-gradient(135deg, #3b82f6, #8b5cf6); color:#fff; font-weight:600; border:none; cursor:pointer;" onclick="DesktopUpdater.applyUpdate()">⚡ 1-Click Update Now</button>
+              <button class="tb-btn" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border, rgba(255,255,255,0.15)); background:transparent; color:var(--text-1);" onclick="document.getElementById('updater-modal').style.display='none'">${data.has_update ? 'Later' : 'Close'}</button>
+              <button id="updater-apply-btn" class="tb-btn" style="padding:8px 20px; border-radius:8px; background:linear-gradient(135deg, #3b82f6, #8b5cf6); color:#fff; font-weight:600; border:none; cursor:pointer;" onclick="DesktopUpdater.applyUpdate()">${data.has_update ? '⚡ 1-Click Update Now' : '🔄 Force Reinstall'}</button>
             </div>
           </div>
 
