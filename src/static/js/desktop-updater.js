@@ -144,6 +144,12 @@
 
     showUpdateBadge: function(data) {
       let badge = document.getElementById('topbar-update-badge');
+      
+      if (!data.has_update) {
+        if (badge) badge.remove();
+        return;
+      }
+
       if (!badge) {
         badge = document.createElement('button');
         badge.id = 'topbar-update-badge';
@@ -157,22 +163,12 @@
       
       badge.onclick = () => this.openUpdateModal(this.latestInfo || data);
       
-      if (data.has_update) {
-        badge.className = 'updater-badge-btn';
-        badge.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.2))';
-        badge.style.border = '1px solid rgba(245, 158, 11, 0.4)';
-        badge.style.color = '#fbbf24';
-        badge.style.animation = 'pulseGlow 2s infinite ease-in-out';
-        badge.innerHTML = `<span>&#10024;</span> Update to ${data.latest_version}`;
-      } else {
-        badge.className = 'updater-badge-btn';
-        badge.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15))';
-        badge.style.border = '1px solid rgba(16, 185, 129, 0.4)';
-        badge.style.color = '#34d399';
-        badge.style.animation = 'none';
-        badge.style.boxShadow = 'none';
-        badge.innerHTML = `<span>&#10003;</span> Up to date`;
-      }
+      badge.className = 'updater-badge-btn';
+      badge.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.2))';
+      badge.style.border = '1px solid rgba(245, 158, 11, 0.4)';
+      badge.style.color = '#fbbf24';
+      badge.style.animation = 'pulseGlow 2s infinite ease-in-out';
+      badge.innerHTML = `<span>&#10024;</span> Update to ${data.latest_version}`;
     },
 
     openUpdateModal: function(data) {
