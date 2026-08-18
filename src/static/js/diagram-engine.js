@@ -7,11 +7,6 @@
  *  - PanZoomEngine       (SRP)              owns pan/zoom/fit/fullscreen state
  *  - DiagramUIController (SRP)              owns panel DOM & events
  *
- * UX benchmark sources analysed:
- *  - mermaid.live    : pan/zoom, minimap, fit, keyboard shortcuts
- *  - draw.io         : dotted grid bg, zoom %, minimap, fullscreen
- *  - VS Code preview : fit + zoom bar + keyboard
- *  - Notion          : clean embed + click-to-expand
  * Result → best-of-all implemented below.
  *
  * Isolation guarantee:
@@ -22,6 +17,63 @@
 
 ;(function DiagramEngineIIFE() {
   'use strict';
+
+  // =========================================================================
+  // Utilities: FNV1aHasher, LRUSVGCache, Debouncer
+  // =========================================================================
+  class FNV1aHasher {
+    static hash(str) {
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return (h >>> 0).toString(36);
+    }
+  }
+
+  class LRUSVGCache {
+    constructor(maxSize = 10) {
+      this._maxSize = maxSize;
+      this._cache   = new Map(); // key → { code, svg } for collision safety
+    }
+    get(code) {
+      const key = FNV1aHasher.hash(code);
+      if (!this._cache.has(key)) return null;
+      const entry = this._cache.get(key);
+      // Bug-fix: guard against FNV-1a hash collisions by verifying original string
+      if (entry.code !== code) return null;
+      this._cache.delete(key);
+      this._cache.set(key, entry); // promote to MRU position
+      return entry.svg;
+    }
+    set(code, svgStr) {
+      const key = FNV1aHasher.hash(code);
+      if (this._cache.has(key)) this._cache.delete(key);
+      this._cache.set(key, { code, svg: svgStr });
+      if (this._cache.size > this._maxSize) {
+        this._cache.delete(this._cache.keys().next().value); // evict LRU
+      }
+    }
+  }
+
+  class Debouncer {
+    constructor(delay = 400) {
+      this._delay = delay;
+      this._timer = null;
+    }
+    run(fn) {
+      if (this._timer) clearTimeout(this._timer);
+      this._timer = setTimeout(() => {
+        this._timer = null;
+        fn();
+      }, this._delay);
+    }
+    cancel() {
+      if (this._timer) clearTimeout(this._timer);
+      this._timer = null;
+    }
+  }
 
   // =========================================================================
   // 1. MermaidAdapter  (Adapter Pattern)
@@ -52,24 +104,139 @@
   }
 
   // =========================================================================
+  // Rendering Strategies
+  // =========================================================================
+  class IDiagramRenderer {
+    async mount(svgString, container) { throw new Error('abstract'); }
+    invalidate() {}
+    getRawSVG() { return null; }
+  }
+
+  class DOMRendererStrategy extends IDiagramRenderer {
+    constructor() { super(); this._rawSvg = null; }
+    async mount(svgString, container) {
+      this._rawSvg = svgString;
+      container.innerHTML = svgString;
+      const svgEl = container.querySelector('svg');
+      if (svgEl) {
+        svgEl.style.display = 'block';
+        svgEl.style.maxWidth = 'none';
+        svgEl.classList.add('dgb-dom-svg');
+      }
+    }
+    getRawSVG() { return this._rawSvg; }
+  }
+
+  class CanvasRendererStrategy extends IDiagramRenderer {
+    constructor() {
+      super();
+      this._rawSvg = null;
+      this._canvas = null;
+      this._img = null;
+    }
+
+    async mount(svgString, container) {
+      this._rawSvg = svgString;
+      
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgString, 'image/svg+xml');
+      const svgEl = doc.querySelector('svg');
+      let w = 800, h = 600;
+      if (svgEl) {
+        const vb = svgEl.getAttribute('viewBox');
+        if (vb) {
+          // Bug-fix: viewBox may use commas or mixed whitespace (e.g. "0,0,800,600")
+          const parts = vb.trim().split(/[\s,]+/);
+          w = parseFloat(parts[2]);
+          h = parseFloat(parts[3]);
+        }
+        if (!svgEl.getAttribute('width')) {
+          svgString = svgString.replace('<svg ', `<svg width="${w}" height="${h}" `);
+        }
+      }
+
+      container.innerHTML = '';
+      this._canvas = document.createElement('canvas');
+      this._canvas.className = 'dgb-canvas-el';
+      // Center the canvas naturally so scaling from center works
+      this._canvas.style.transformOrigin = '0 0';
+      container.appendChild(this._canvas);
+
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      return new Promise((resolve, reject) => {
+        this._img = new Image();
+        this._img.onload = () => {
+          const dpr = window.devicePixelRatio || 1;
+          this._canvas.width = w * dpr;
+          this._canvas.height = h * dpr;
+          this._canvas.style.width = w + 'px';
+          this._canvas.style.height = h + 'px';
+          
+          const ctx = this._canvas.getContext('2d');
+          ctx.scale(dpr, dpr);
+          ctx.drawImage(this._img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        this._img.onerror = (e) => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Failed to rasterize SVG'));
+        };
+        this._img.src = url;
+      });
+    }
+
+    getRawSVG() { return this._rawSvg; }
+  }
+
+  class RendererFactory {
+    static create(mode) {
+      return mode === 'canvas' ? new CanvasRendererStrategy() : new DOMRendererStrategy();
+    }
+  }
+
+  // =========================================================================
   // 2. DiagramEngine  (Facade + Strategy)
   // =========================================================================
   class DiagramEngine {
-    constructor() { this._adapter = new MermaidAdapter(); this._seq = 0; }
+    constructor() { 
+      this._adapter = new MermaidAdapter(); 
+      this._cache = new LRUSVGCache(20);
+      this._renderer = new DOMRendererStrategy();
+      this._seq = 0; 
+      this._rendering = false;
+    }
+
+    setStrategy(strategy) {
+      this._renderer = strategy;
+    }
+
+    getStrategy() {
+      return this._renderer;
+    }
 
     _uid() { this._seq++; return 'dgb-svg-' + Date.now().toString(36) + '-' + this._seq; }
 
     async render(code, container) {
+      if (this._rendering) return { ok: false, error: 'busy' };
       container.innerHTML = '';
       const trimmed = code.trim();
       if (!trimmed) { this._showError(container, 'Paste Mermaid code above then click Run.'); return { ok: false, error: 'empty' }; }
+      
+      this._rendering = true;
       try {
-        const svg = await this._adapter.render(this._uid(), trimmed);
-        container.innerHTML = svg;
-        const svgEl = container.querySelector('svg');
-        if (svgEl) { svgEl.style.display = 'block'; svgEl.style.maxWidth = 'none'; }
+        let svg = this._cache.get(trimmed);
+        if (!svg) {
+          svg = await this._adapter.render(this._uid(), trimmed);
+          this._cache.set(trimmed, svg);
+        }
+        await this._renderer.mount(svg, container);
+        this._rendering = false;
         return { ok: true };
       } catch (err) {
+        this._rendering = false;
         const msg = err && err.message ? err.message : String(err);
         this._showError(container, msg);
         return { ok: false, error: msg };
@@ -91,7 +258,7 @@
 
   // =========================================================================
   // 3. PanZoomEngine  (SRP)
-  // Best-in-class pan+zoom matching mermaid.live / draw.io behaviour.
+  // Best-in-class pan+zoom behaviour.
   //
   // Features:
   //  - Mouse-wheel zoom at cursor   (diagram point under cursor stays fixed)
@@ -99,9 +266,9 @@
   //  - Two-finger pinch zoom        (mobile)
   //  - fitToView()                  (contain-fit with 6% padding, centered)
   //  - Smooth CSS transition on button clicks (none on wheel/drag = no lag)
-  //  - Zoom percentage HUD          (live readout like draw.io / Figma)
+  //  - Zoom percentage HUD          (live readout)
   //  - Minimap                      (small overview for large diagrams)
-  //  - Double-click to fit          (mermaid.live behaviour)
+  //  - Double-click to fit
   //  - Keyboard: +/- zoom, F=fit, 0=100%
   //  - Fullscreen API               (native browser fullscreen on the shell)
   // =========================================================================
@@ -117,13 +284,29 @@
       this._layer    = layer;
       this._shell    = shell;
       this._onScale  = onScale || (() => {});
-      this._scale    = 1;
-      this._tx       = 0;
-      this._ty       = 0;
+      this._m        = new DOMMatrix();
       this._dragging = false;
       this._lastX    = 0;
       this._lastY    = 0;
+      this._velX     = 0;
+      this._velY     = 0;
+      this._lastTime = 0;
+      this._inertiaRaf = null;
       this._isFullscreen = false;
+
+      // Opt-3: Set will-change ONCE in constructor — not on every _apply() call.
+      // Re-assigning the same value every rAF is a wasted style mutation.
+      this._layer.style.willChange = 'transform';
+
+      // Opt-2: Cache getBoundingClientRect() via ResizeObserver.
+      // wheel events fire at 60+Hz — calling getBCR() each time forces a layout
+      // flush (expensive). Observer fires only when the container actually resizes.
+      this._vpRect = viewport.getBoundingClientRect();
+      this._ro = new ResizeObserver(() => {
+        this._vpRect = viewport.getBoundingClientRect();
+      });
+      this._ro.observe(viewport);
+
       this._bindEvents();
     }
 
@@ -131,10 +314,10 @@
 
     fitToView() {
       // Reset to identity so getBCR gives true pixel size
-      this._scale = 1; this._tx = 0; this._ty = 0;
+      this._m = new DOMMatrix();
       this._apply(false);
 
-      const svgEl = this._layer.querySelector('svg');
+      const svgEl = this._layer.querySelector('svg, canvas');
       if (!svgEl) return;
 
       const svgRect = svgEl.getBoundingClientRect();
@@ -147,15 +330,17 @@
       // contain-fit with 6% padding
       const scaleX = (vpW * 0.94) / cW;
       const scaleY = (vpH * 0.94) / cH;
-      this._scale  = Math.min(scaleX, scaleY);
-      this._tx     = (vpW - cW * this._scale) / 2;
-      this._ty     = (vpH - cH * this._scale) / 2;
+      const scale  = Math.min(scaleX, scaleY);
+      const tx     = (vpW - cW * scale) / 2;
+      const ty     = (vpH - cH * scale) / 2;
+      
+      this._m = new DOMMatrix().translate(tx, ty).scale(scale);
       this._apply(true);   // smooth transition for fit
     }
 
     zoomIn()  { this._zoomCenter(1.25, true);  }
     zoomOut() { this._zoomCenter(0.80, true);  }
-    reset()   { this._scale = 1; this._tx = 0; this._ty = 0; this._apply(true); }
+    reset()   { this._m = new DOMMatrix(); this._apply(true); }
 
     toggleFullscreen() {
       const doc = document;
@@ -168,42 +353,34 @@
       const btn        = doc.getElementById('dgb-btn-fullscreen');
 
       if (!isFs) {
-        // Set attribute for CSS rules
         if (shell) shell.setAttribute('data-fullscreen', 'true');
-
-        // DIRECTLY set inline styles — guaranteed to hide regardless of CSS cache/conflicts
         if (editorPane) { editorPane.dataset.fsDisplay = editorPane.style.display; editorPane.style.setProperty('display', 'none', 'important'); }
         if (resizer)    { resizer.dataset.fsDisplay    = resizer.style.display;    resizer.style.setProperty('display', 'none', 'important'); }
         if (canvasPane) canvasPane.style.flex = '1';
         if (btn) btn.title = 'Exit Fullscreen (Esc / F11)';
         this._isFullscreen = true;
 
-        // Also request browser fullscreen as an enhancement
         const el = doc.documentElement;
         const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (req) req.call(el).catch(() => { /* silently ignore if blocked */ });
-
-        if (this._layer.querySelector('svg')) setTimeout(() => this.fitToView(), 300);
+        if (req) req.call(el).catch(() => {});
+        if (this._layer.querySelector('svg, canvas')) setTimeout(() => this.fitToView(), 300);
       } else {
-        // Remove attribute
         if (shell) shell.removeAttribute('data-fullscreen');
-
-        // DIRECTLY restore inline styles
         if (editorPane) { editorPane.style.removeProperty('display'); if (editorPane.dataset.fsDisplay) editorPane.style.display = editorPane.dataset.fsDisplay; }
         if (resizer)    { resizer.style.removeProperty('display');    if (resizer.dataset.fsDisplay)    resizer.style.display = resizer.dataset.fsDisplay; }
         if (canvasPane) canvasPane.style.flex = '';
         if (btn) btn.title = 'Fullscreen preview (F11)';
         this._isFullscreen = false;
 
-        // Also exit browser fullscreen if active
         const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
         if (exit && (doc.fullscreenElement || doc.webkitFullscreenElement)) exit.call(doc).catch(() => {});
-
-        if (this._layer.querySelector('svg')) setTimeout(() => this.fitToView(), 300);
+        if (this._layer.querySelector('svg, canvas')) setTimeout(() => this.fitToView(), 300);
       }
     }
 
-    getScalePct() { return Math.round(this._scale * 100); }
+    // Bug-fix: use determinant square root for true uniform scale — immune to
+    // floating-point drift where m.a ≠ m.d after many matrix multiplications.
+    getScalePct() { return Math.round(Math.sqrt(this._m.a * this._m.d - this._m.b * this._m.c) * 100); }
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
@@ -215,59 +392,118 @@
 
     _zoomAt(cx, cy, factor, smooth) {
       const MIN = 0.05, MAX = 20;
-      const newScale = Math.min(MAX, Math.max(MIN, this._scale * factor));
-      const ratio    = newScale / this._scale;
-      this._tx       = cx - ratio * (cx - this._tx);
-      this._ty       = cy - ratio * (cy - this._ty);
-      this._scale    = newScale;
+      let newScale = this._m.a * factor;
+      newScale = Math.min(MAX, Math.max(MIN, newScale));
+      const ratio = newScale / this._m.a;
+      if (ratio === 1) return;
+
+      this._m = new DOMMatrix().translate(cx, cy).scale(ratio).translate(-cx, -cy).multiply(this._m);
       this._apply(smooth);
     }
 
     _apply(smooth) {
       if (this._raf) cancelAnimationFrame(this._raf);
-      this._raf = requestAnimationFrame(() => {
-        if (smooth) {
-          this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
-        } else {
-          this._layer.style.transition = 'none';
-        }
-        // GPU accelerate the canvas layer to prevent repaint lag
-        this._layer.style.willChange = 'transform';
-        this._layer.style.transform =
-          'translate3d(' + this._tx + 'px,' + this._ty + 'px, 0) scale(' + this._scale + ')';
-        this._onScale(this.getScalePct());
-      });
+      this._raf = requestAnimationFrame(() => this._commit(smooth));
+    }
+
+    // Opt-1: _applyDirect() writes to DOM immediately — used by paths that are
+    // already inside a rAF callback (inertia loop, pointermove). Calling _apply()
+    // from within a rAF nests another rAF, deferring the write one extra frame
+    // and effectively halving the animation framerate on those paths.
+    _applyDirect(smooth) {
+      this._commit(smooth);
+    }
+
+    _commit(smooth) {
+      if (smooth) {
+        this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
+      } else {
+        if (this._layer.style.transition) this._layer.style.transition = 'none';
+      }
+      this._layer.style.transform = this._m.toString();
+      this._onScale(this.getScalePct());
     }
 
     _bindEvents() {
       // ── Mouse wheel zoom at cursor ──
       this._vp.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const rect  = this._vp.getBoundingClientRect();
+        // Opt-2: use cached rect — no layout flush on every wheel tick.
+        // ResizeObserver keeps _vpRect fresh when the container resizes.
         const factor = e.deltaY < 0 ? 1.10 : 0.91;
-        this._zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor, false);
+        this._zoomAt(e.clientX - this._vpRect.left, e.clientY - this._vpRect.top, factor, false);
       }, { passive: false });
 
-      // ── Pointer drag to pan ──
+      // ── Pointer drag to pan with inertia ──
       this._vp.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        if (this._inertiaRaf) cancelAnimationFrame(this._inertiaRaf);
         this._dragging = true;
         this._lastX = e.clientX; this._lastY = e.clientY;
+        this._lastTime = performance.now();
+        this._velX = 0; this._velY = 0;
         this._vp.style.cursor = 'grabbing';
         this._vp.setPointerCapture(e.pointerId);
       });
       this._vp.addEventListener('pointermove', (e) => {
         if (!this._dragging) return;
-        this._tx += e.clientX - this._lastX;
-        this._ty += e.clientY - this._lastY;
+        const dx = e.clientX - this._lastX;
+        const dy = e.clientY - this._lastY;
+        const now = performance.now();
+        const dt = Math.max(1, now - this._lastTime);
+        
+        // Exponential moving average for velocity (pixels per ms)
+        this._velX = (this._velX * 0.5) + ((dx / dt) * 0.5);
+        this._velY = (this._velY * 0.5) + ((dy / dt) * 0.5);
+        
         this._lastX = e.clientX; this._lastY = e.clientY;
-        this._apply(false);
+        this._lastTime = now;
+        
+        this._m = new DOMMatrix().translate(dx, dy).multiply(this._m);
+        // Opt-1: already inside a pointermove handler (browser fires on rAF boundary
+        // in modern Chromium). Use _applyDirect to avoid a nested rAF that would
+        // defer the DOM write one full extra frame.
+        this._applyDirect(false);
       });
-      const stopDrag = () => { this._dragging = false; this._vp.style.cursor = 'grab'; };
+      
+      const stopDrag = () => { 
+        if (!this._dragging) return;
+        this._dragging = false; 
+        this._vp.style.cursor = 'grab'; 
+        
+        // Bug-fix: inertia was multiplying velocity by hardcoded 16 (assumed 60fps).
+        // On 120Hz displays this decays 2× too fast; on 30fps it was too fast.
+        // Fix: use real elapsed dt from performance.now() so inertia is framerate-
+        // independent and feels consistent across all refresh rates.
+        const FRICTION = 0.88;
+        let lastTs = performance.now();
+        // Opt-4: Reuse a single DOMMatrix for translation in the inertia loop
+        // instead of allocating a new DOMMatrix() every frame (~60 allocs/sec).
+        // m.translateSelf(dx, dy) mutates in-place — zero allocation per frame.
+        const translateM = new DOMMatrix();
+        const loop = (timestamp) => {
+          const dt = Math.min(timestamp - lastTs, 32);
+          lastTs = timestamp;
+          if (Math.abs(this._velX) < 0.01 && Math.abs(this._velY) < 0.01) return;
+          const dx = this._velX * dt;
+          const dy = this._velY * dt;
+          // Set e/f (translateX/Y) directly — no new allocation
+          translateM.e = dx;
+          translateM.f = dy;
+          this._m = translateM.multiply(this._m);
+          // Opt-1: already inside a rAF — write DOM directly.
+          this._applyDirect(false);
+          this._velX *= FRICTION;
+          this._velY *= FRICTION;
+          this._inertiaRaf = requestAnimationFrame(loop);
+        };
+        this._inertiaRaf = requestAnimationFrame(loop);
+      };
+      
       this._vp.addEventListener('pointerup',     stopDrag);
       this._vp.addEventListener('pointercancel', stopDrag);
 
-      // ── Double-click to fit (mermaid.live behaviour) ──
+      // ── Double-click to fit ──
       this._vp.addEventListener('dblclick', () => this.fitToView());
 
       // ── Touch pinch zoom ──
@@ -320,8 +556,8 @@
           if (btn)   btn.title = 'Fullscreen preview (F11)';
         }
 
-        // Re-fit after fullscreen transition completes
-        if (this._layer.querySelector('svg')) {
+        // Bug-fix: was only checking for 'svg', missing Canvas render mode.
+        if (this._layer.querySelector('svg, canvas')) {
           setTimeout(() => this.fitToView(), 300);
         }
       };
@@ -345,6 +581,7 @@
       this._viewport = null;
       this._pz       = null;
       this._isOpen   = false;
+      this._debouncer = new Debouncer(500);
     }
 
     // ── Bootstrap ────────────────────────────────────────────────────────────
@@ -367,6 +604,7 @@
               '<span id="dgb-badge">Mermaid</span>' +
             '</div>' +
             '<div id="dgb-titlebar-right">' +
+              '<button id="dgb-btn-add-notes" class="dgb-hdr-btn" title="Add Diagram to Notes">&#10133; Notes</button>' +
               '<button id="dgb-btn-save-png" class="dgb-hdr-btn" title="Export high-quality PNG (3x)">&#8595; PNG</button>' +
               '<button id="dgb-btn-save-svg" class="dgb-hdr-btn" title="Export crisp vector SVG">&#8595; SVG</button>' +
               '<button id="dgb-btn-close"    class="dgb-hdr-btn dgb-close-x" title="Close (Esc)">&#10005;</button>' +
@@ -378,6 +616,10 @@
             '<button id="dgb-btn-run"    class="dgb-tb-btn dgb-run-btn">&#9654; Run</button>' +
             '<button id="dgb-btn-clear"  class="dgb-tb-btn">&#10005; Clear</button>' +
             '<button id="dgb-btn-sample" class="dgb-tb-btn">&#128203; Sample</button>' +
+            '<label id="dgb-toggle-canvas" style="color: #a0a0a0; font-size: 13px; margin-left: 15px; cursor: pointer; display: flex; align-items: center; gap: 5px;">' +
+              '<input type="checkbox" id="dgb-cb-canvas">' +
+              'Canvas Render' +
+            '</label>' +
             '<span   id="dgb-status"></span>' +
             '<span   id="dgb-shortcut-tip">Ctrl+Enter to run &nbsp;|&nbsp; F=fit &nbsp;|&nbsp; +/- zoom &nbsp;|&nbsp; dbl-click to fit</span>' +
           '</div>' +
@@ -455,11 +697,12 @@
     _bindEvents() {
       document.getElementById('dgb-backdrop').addEventListener('click', () => this.close());
       document.getElementById('dgb-btn-close').addEventListener('click', () => this.close());
-      document.getElementById('dgb-btn-run').addEventListener('click', () => this._run());
-      document.getElementById('dgb-btn-clear').addEventListener('click', () => this._clear());
-      document.getElementById('dgb-btn-sample').addEventListener('click', () => this._loadSample());
+      document.getElementById('dgb-btn-run').addEventListener('click', () => { this._debouncer.cancel(); this._run(); });
+      document.getElementById('dgb-btn-clear').addEventListener('click', () => { this._debouncer.cancel(); this._clear(); });
+      document.getElementById('dgb-btn-sample').addEventListener('click', () => { this._debouncer.cancel(); this._loadSample(); });
       document.getElementById('dgb-btn-save-png').addEventListener('click', () => this._exportPNG());
       document.getElementById('dgb-btn-save-svg').addEventListener('click', () => this._exportSVG());
+      document.getElementById('dgb-btn-add-notes').addEventListener('click', () => this._addToNotes());
       document.getElementById('dgb-btn-fullscreen').addEventListener('click', () => this._pz.toggleFullscreen());
 
       document.getElementById('dgb-zoom-in').addEventListener('click',  () => this._pz.zoomIn());
@@ -469,7 +712,20 @@
 
       // Ctrl+Enter runs; Escape closes or exits fallback fullscreen
       this._editor.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); this._run(); }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { 
+          e.preventDefault(); 
+          this._debouncer.cancel();
+          this._run(); 
+        }
+      });
+      this._editor.addEventListener('input', () => {
+        this._setStatus('Typing...', '');
+        this._debouncer.run(() => this._run());
+      });
+      document.getElementById('dgb-cb-canvas').addEventListener('change', (e) => {
+        const isCanvas = e.target.checked;
+        this._engine.setStrategy(RendererFactory.create(isCanvas ? 'canvas' : 'dom'));
+        this._run();
       });
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && this._isOpen) {
@@ -537,13 +793,16 @@
         'mindmap\n  root((Diagram Builder))\n    Pan & Zoom\n      Mouse Wheel\n      Drag to Pan\n      Pinch Zoom\n      Double-click Fit\n    Export\n      PNG 3x\n      SVG Vector\n    Keyboard\n      F = Fit\n      +/- Zoom\n      0 = Reset\n      F11 = Fullscreen'
       ];
       this._editor.value = samples[Math.floor(Math.random() * samples.length)];
-      this._setStatus('Sample loaded \u2014 press Run', 'info');
+      // Bug-fix: programmatic .value assignment does not fire the 'input' event,
+      // so the debouncer never triggered. Dispatch it manually so auto-render works.
+      this._editor.dispatchEvent(new Event('input'));
+      this._setStatus('Sample loaded \u2014 rendering\u2026', 'info');
     }
 
     // ── Export ───────────────────────────────────────────────────────────────
     async _exportPNG() {
-      const svgEl = this._canvas.querySelector('svg');
-      if (!svgEl) { alert('Run a diagram first before exporting.'); return; }
+      const renderedNode = this._canvas.querySelector('svg, canvas');
+      if (!renderedNode) { alert('Run a diagram first before exporting.'); return; }
       this._setStatus('Exporting PNG\u2026', 'info');
       try {
         if (typeof htmlToImage === 'undefined') throw new Error('html-to-image not available.');
@@ -559,9 +818,14 @@
     }
 
     _exportSVG() {
-      const svgEl = this._canvas.querySelector('svg');
-      if (!svgEl) { alert('Run a diagram first before exporting.'); return; }
-      const clone = svgEl.cloneNode(true);
+      const rawSvg = this._engine.getStrategy().getRawSVG();
+      if (!rawSvg) { alert('Run a diagram first before exporting.'); return; }
+      
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rawSvg, 'image/svg+xml');
+      const clone = doc.querySelector('svg');
+      if (!clone) return;
+
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       if (!clone.getAttribute('viewBox') && clone.width && clone.width.baseVal && clone.width.baseVal.value) {
         clone.setAttribute('viewBox', '0 0 ' + clone.width.baseVal.value + ' ' + clone.height.baseVal.value);
@@ -572,6 +836,51 @@
       this._download(url, 'diagram.svg');
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       this._setStatus('SVG saved (vector, infinite zoom)', 'ok');
+    }
+    
+    _addToNotes() {
+      const rawSvg = this._engine.getStrategy().getRawSVG();
+      if (!rawSvg) { alert('Run a diagram first before adding to notes.'); return; }
+      
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rawSvg, 'image/svg+xml');
+      const clone = doc.querySelector('svg');
+      if (!clone) return;
+
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      if (!clone.getAttribute('viewBox') && clone.width && clone.width.baseVal && clone.width.baseVal.value) {
+        clone.setAttribute('viewBox', '0 0 ' + clone.width.baseVal.value + ' ' + clone.height.baseVal.value);
+      }
+      clone.style.background = '#ffffff'; // White background for notes
+      clone.style.maxWidth = '100%';
+      clone.style.height = 'auto';
+      clone.style.border = '1px solid var(--border)';
+      clone.style.borderRadius = '4px';
+      clone.style.padding = '8px';
+      clone.style.marginTop = '8px';
+      
+      const svgHtml = clone.outerHTML;
+      
+      if (window.notes && window.renderNotes) {
+        window.notes.push({
+          q: svgHtml,
+          txt: 'Diagram generated from builder',
+          id: Date.now(),
+          isScreenshot: true // use screenshot styling logic
+        });
+        window.renderNotes();
+        
+        if (window.switchTab) window.switchTab('notes');
+        
+        // Ensure panel is open
+        if (window.panel && window.panel.classList.contains('hidden') && window.togglePanel) {
+          window.togglePanel();
+        }
+        
+        this._setStatus('Added to Notes!', 'ok');
+      } else {
+        this._setStatus('Failed to add to notes.', 'error');
+      }
     }
 
     _download(url, filename) {
@@ -610,7 +919,7 @@
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           // Re-fit after resize — diagram may have been clipped
-          if (this._canvas && this._canvas.querySelector('svg')) {
+          if (this._canvas && this._canvas.querySelector('svg, canvas')) {
             setTimeout(() => this._pz.fitToView(), 100);
           }
         }
