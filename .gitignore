@@ -33,6 +33,7 @@ venv/
 env/
 .env
 .env.*
+node_modules/
 
 # Application specifics
 *.db
