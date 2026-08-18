@@ -141,6 +141,12 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
                 # Not frozen or downloaded source zipball: safely update static files only
                 src_static = os.path.join(source_folder, "src", "static")
                 dst_static = os.path.join(root, "src", "static")
+                
+                if getattr(sys, 'frozen', False):
+                    internal_static = os.path.join(root, "_internal", "src", "static")
+                    if os.path.exists(internal_static):
+                        dst_static = internal_static
+                        
                 if os.path.exists(src_static) and os.path.exists(dst_static):
                     shutil.copytree(src_static, dst_static, dirs_exist_ok=True)
                 
@@ -294,7 +300,7 @@ class DesktopUpdaterFacade:
                             with open(version_file, "r") as f:
                                 current_sha = f.read().strip()
                         
-                        has_update = latest_sha != "" and latest_sha != current_sha
+                        has_update = latest_sha != "" and not latest_sha.startswith(current_sha)
                         
                         result.update({
                             "latest_version": latest_sha[:7] if latest_sha else CURRENT_VERSION,
@@ -335,7 +341,10 @@ class DesktopUpdaterFacade:
             root = get_project_root()
             if getattr(sys, 'frozen', False):
                 exe_path = sys.argv[0]
-                subprocess.Popen([exe_path], cwd=root)
+                creation_flags = 0
+                if os.name == 'nt':
+                    creation_flags = getattr(subprocess, 'DETACHED_PROCESS', 0x00000008) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x00000200)
+                subprocess.Popen([exe_path], cwd=root, creationflags=creation_flags)
             else:
                 script_path = os.path.join(root, "src", "run_desktop.py")
                 subprocess.Popen([sys.executable, script_path], cwd=root)
