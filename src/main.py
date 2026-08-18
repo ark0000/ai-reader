@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from src.database import init_db
 from src.task_queue import task_queue
 from src.config import settings
-from src.routers import auth, chat, connections, files, themes, tts
+from src.routers import auth, chat, connections, files, themes, tts, updater
 from src.rag.manager import RAGManager
 from src.rag.providers.local_chroma import LocalChromaRAGProvider
 
@@ -88,14 +88,7 @@ async def receive_heartbeat():
     last_heartbeat = time.time()
     return {"status": "ok"}
 
-@app.get("/api/updater/check")
-async def updater_check(force: bool = False):
-    """Updater polling endpoint. Returns no-update so the client doesn't 404-loop."""
-    return {
-        "update_available": False,
-        "current_version": app.version,
-        "checked_at": int(time.time())
-    }
+
 
 # UI Routes
 @app.get("/", response_class=HTMLResponse)
@@ -150,6 +143,7 @@ app.include_router(connections.router)
 app.include_router(files.router)
 app.include_router(themes.router)
 app.include_router(tts.router)
+app.include_router(updater.router)
 
 # Static Files (mount last to avoid overriding routes)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

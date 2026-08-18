@@ -109,11 +109,11 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
     
     def apply(self, release_data: Dict[str, Any]) -> Dict[str, Any]:
         root = get_project_root()
-        zip_url = release_data.get("zipball_url")
+        download_url = release_data.get("asset_url") or release_data.get("zipball_url")
         html_url = release_data.get("html_url", f"https://github.com/{GITHUB_REPO}/releases/latest")
+        is_compiled_asset = bool(release_data.get("asset_url"))
         
-        # In a desktop web reader, we can download the updated zipball and replace static files safely
-        if not zip_url:
+        if not download_url:
             return {
                 "status": "manual",
                 "message": "Please download the latest release from GitHub.",
@@ -123,11 +123,11 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
         
         try:
             temp_zip = os.path.join(root, "temp_update.zip")
-            req = urllib.request.Request(zip_url, headers={'User-Agent': 'AuraReader-Updater'})
-            with urllib.request.urlopen(req, timeout=30) as response, open(temp_zip, 'wb') as out_file:
+            req = urllib.request.Request(download_url, headers={'User-Agent': 'AuraReader-Updater'})
+            with urllib.request.urlopen(req, timeout=60) as response, open(temp_zip, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             
-            # Extract and update static & source files
+            # Extract
             import zipfile
             extract_dir = os.path.join(root, "temp_update_extracted")
             with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
@@ -135,25 +135,63 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
             
             # Find the root folder inside the extracted zip
             subfolders = [os.path.join(extract_dir, f) for f in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, f))]
-            source_folder = subfolders[0] if subfolders else extract_dir
+            source_folder = subfolders[0] if len(subfolders) == 1 else extract_dir
             
-            # Copy static files (HTML/CSS/JS) to current src/static
-            src_static = os.path.join(source_folder, "src", "static")
-            dst_static = os.path.join(root, "src", "static")
-            if os.path.exists(src_static) and os.path.exists(dst_static):
-                shutil.copytree(src_static, dst_static, dirs_exist_ok=True)
-            
-            # Cleanup temp files
-            if os.path.exists(temp_zip):
-                os.remove(temp_zip)
-            if os.path.exists(extract_dir):
-                shutil.rmtree(extract_dir, ignore_errors=True)
+            if not getattr(sys, 'frozen', False) or not is_compiled_asset:
+                # Not frozen or downloaded source zipball: safely update static files only
+                src_static = os.path.join(source_folder, "src", "static")
+                dst_static = os.path.join(root, "src", "static")
+                if os.path.exists(src_static) and os.path.exists(dst_static):
+                    shutil.copytree(src_static, dst_static, dirs_exist_ok=True)
                 
-            return {
-                "status": "success",
-                "message": "Update downloaded and applied successfully!",
-                "requires_restart": True
-            }
+                # Cleanup temp files
+                if os.path.exists(temp_zip):
+                    os.remove(temp_zip)
+                if os.path.exists(extract_dir):
+                    shutil.rmtree(extract_dir, ignore_errors=True)
+                    
+                return {
+                    "status": "success",
+                    "message": "Update downloaded and applied successfully!",
+                    "requires_restart": True
+                }
+            else:
+                # Frozen PyInstaller App: Spawn a batch script to overwrite the running executable
+                bat_path = os.path.join(root, "apply_update.bat")
+                exe_name = os.path.basename(sys.argv[0])
+                
+                bat_script = f"""@echo off
+echo Waiting for AuraReader to close...
+ping 127.0.0.1 -n 3 > nul
+echo Updating files...
+xcopy /s /e /y "{os.path.basename(extract_dir)}\\{os.path.basename(source_folder)}\\*" "."
+echo Cleaning up...
+rmdir /s /q "{os.path.basename(extract_dir)}"
+del /f /q "{os.path.basename(temp_zip)}"
+echo Starting new version...
+start "" "{exe_name}"
+del "%~f0"
+"""
+                with open(bat_path, "w", encoding="utf-8") as f:
+                    f.write(bat_script)
+                
+                # Execute batch file detached
+                creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+                subprocess.Popen(["cmd.exe", "/c", bat_path], cwd=root, creationflags=creation_flags)
+                
+                # Schedule immediate exit so batch script can acquire file locks
+                import threading
+                def _exit_later():
+                    time.sleep(1.5)
+                    os._exit(0)
+                threading.Thread(target=_exit_later, daemon=True).start()
+                
+                return {
+                    "status": "success",
+                    "message": "Update applied. Restarting immediately...",
+                    "requires_restart": False
+                }
+                
         except Exception as e:
             logger.error(f"Asset update failed: {e}")
             return {
@@ -221,6 +259,14 @@ class DesktopUpdaterFacade:
                     data = json.loads(response.read().decode('utf-8'))
                     latest_tag = data.get("tag_name", "")
                     
+                    # Prefer compiled release asset over source zipball
+                    asset_url = None
+                    assets = data.get("assets", [])
+                    for asset in assets:
+                        if asset.get("name", "").endswith(".zip"):
+                            asset_url = asset.get("browser_download_url")
+                            break
+                    
                     result.update({
                         "latest_version": latest_tag or CURRENT_VERSION,
                         "has_update": SemVerComparator.is_newer(latest_tag, CURRENT_VERSION),
@@ -228,6 +274,7 @@ class DesktopUpdaterFacade:
                         "release_notes": data.get("body") or "Bug fixes and performance improvements.",
                         "release_url": data.get("html_url") or result["release_url"],
                         "published_at": data.get("published_at") or "",
+                        "asset_url": asset_url,
                         "zipball_url": data.get("zipball_url"),
                         "tarball_url": data.get("tarball_url")
                     })
