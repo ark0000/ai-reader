@@ -958,6 +958,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (window.clearHighlighter) window.clearHighlighter();
 
       // CLEANUP Document State
+      window.currentFileName = null; // Prevent accidental overwrite of previous file's notes in DB
       window.notes = [];
       window.pdfHighlights = [];
       if (window.renderNotes) window.renderNotes();
@@ -1006,19 +1007,27 @@ document.addEventListener('DOMContentLoaded', function () {
         window.triggerLibrarySave(f, f.name, ext);
       }
 
-      // Load notes if persistence is on
-      if (window.safeStorage.getItem('aura-notes-state') === 'true') {
-        if (window.storageRepository) {
-          var uname2 = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
-          window.storageRepository.loadNotes(uname2 + '_' + f.name).then(noteData => {
-            if (noteData) {
-              window.notes = noteData.notes || [];
-              window.pdfHighlights = noteData.pdfHighlights || [];
-              if (window.renderNotes) window.renderNotes();
-              if (window.redrawPdfHighlights) window.redrawPdfHighlights();
-            }
-          });
-        }
+      // Always attempt to load notes if they exist in the database (e.g. from a manual save)
+      if (window.storageRepository) {
+        var uname2 = window.settingsRepo ? window.settingsRepo.getUsername() : (window.currentUsername || 'guest');
+        var loadKey = uname2 + '_' + f.name;
+        console.log("Loading notes for key: ", loadKey);
+        
+        window.storageRepository.loadNotes(loadKey).then(noteData => {
+          if (noteData) {
+            window.notes = noteData.notes || [];
+            window.pdfHighlights = noteData.pdfHighlights || [];
+            
+            console.log("Aura Diagnostics: Key searched: " + loadKey + " Notes found: " + window.notes.length);
+            
+            if (window.renderNotes) window.renderNotes();
+            if (window.redrawPdfHighlights) window.redrawPdfHighlights();
+          } else {
+            console.log("Aura Diagnostics: No notes found in database for key: " + loadKey);
+          }
+        }).catch(err => {
+            console.error("Aura Diagnostics Error: ", err);
+        });
       }
     };
 
@@ -1052,8 +1061,8 @@ document.addEventListener('DOMContentLoaded', function () {
 // --- Save scroll state before page unload ---
 window.addEventListener('beforeunload', function () {
   if (!window.currentFileName || !window.storageRepository) return;
-  if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
-  var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
+  if (!window.settingsRepo || !window.settingsRepo.isTrue('aura-reading-state')) return;
+  var uname = window.settingsRepo.getUsername();
   if (window.triggerStateSave) {
     window.triggerStateSave();
   }

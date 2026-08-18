@@ -804,8 +804,8 @@
                 <span class="settings-help">Used to separate your library documents from other users.</span>
               </div>
               <div style="display:flex; width:100%; gap:8px;">
-                <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" oninput="window.safeStorage.setItem('username', this.value); window.currentUsername = this.value; document.getElementById('logout-btn').style.display = this.value.trim() ? 'inline-block' : 'none';">
-                <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444;" onclick="window.safeStorage.setItem('username', ''); document.getElementById('username-input').value=''; this.style.display='none';">Log out</button>
+                <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" oninput="if(window.settingsRepo) window.settingsRepo.set('username', this.value);">
+                <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444;" onclick="if(window.settingsRepo) window.settingsRepo.set('username', '');">Log out</button>
               </div>
             </div>
             <div class="settings-row">
@@ -814,7 +814,7 @@
                 <span class="settings-help">Adds a save button instead of auto-saving everything.</span>
               </div>
               <label class="toggle-switch">
-                <input type="checkbox" id="manual-save-cb" role="switch" onchange="window.safeStorage.setItem('aura-manual-save', this.checked ? 'true' : 'false'); if(window.toggleManualSaveButton) window.toggleManualSaveButton();">
+                <input type="checkbox" id="manual-save-cb" role="switch" onchange="if(window.settingsRepo) window.settingsRepo.set('aura-manual-save', this.checked ? 'true' : 'false');">
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -1349,14 +1349,14 @@
   </script>
   <script src="/static/js/brightness-engine.js?v=2"></script>
   <script src="/static/js/theme-engine.js?v=2"></script>
-  <script src="/static/js/reader-core.js?v=3"></script>
-  <script src="/static/js/ui-components.js?v=2035"></script>
+  <script src="/static/js/reader-core.js?v=4"></script>
+  <script src="/static/js/ui-components.js?v=2036"></script>
   <script src="/static/js/ai-chat.js?v=9"></script>
   <script src="/static/js/dictionary-tools.js?v=2"></script>
-  <script src="/static/js/notes-tts.js?v=2"></script>
+  <script src="/static/js/notes-tts.js?v=3"></script>
   <script src="/static/js/markdown-handler.js?v=6"></script>
   <script src="/static/js/epub-handler.js?v=3"></script>
-  <script src="/static/js/pdf-handler.js?v=4"></script>
+  <script src="/static/js/pdf-handler.js?v=5"></script>
   <script src="/static/js/desktop-updater.js?v=2026"></script>
 
   <script>

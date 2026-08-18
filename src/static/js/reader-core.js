@@ -600,20 +600,103 @@ class StorageRepository {
 window.dbManager = new DatabaseManager();
 window.storageRepository = new StorageRepository(window.dbManager);
 
-window.triggerLibrarySave = function(file, fileName, ext, force = false) {
-  if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
-  // If manual save is enabled, we only save when force is true
-  if (!force && window.safeStorage.getItem('aura-manual-save') === 'true') return;
+// --- Event Bus ---
+class EventBus {
+  constructor() {
+    this.listeners = {};
+  }
+  on(event, callback) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  }
+  emit(event, data) {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(cb => cb(data));
+    }
+  }
+}
+window.appEventBus = new EventBus();
 
-  window.currentFileObj = file; // Save for manual save later
-  const uname = window.safeStorage.getItem('username') || 'guest';
+// --- Settings Repository ---
+class SettingsRepository {
+  constructor() {
+    this.cache = {};
+  }
+  get(key) {
+    if (this.cache[key] !== undefined) return this.cache[key];
+    
+    // Check if it's a boolean preference stored in aura-state-save-prefs
+    if (key === 'aura-reading-state' || key === 'aura-notes-state') {
+        const prefsRaw = localStorage.getItem('aura-state-save-prefs');
+        if (prefsRaw) {
+            try {
+                const prefs = JSON.parse(prefsRaw);
+                if (prefs[key] !== undefined) {
+                    const val = prefs[key] ? 'true' : 'false';
+                    this.cache[key] = val;
+                    return val;
+                }
+            } catch(e) {}
+        }
+    }
+
+    const val = window.safeStorage.getItem(key);
+    this.cache[key] = val;
+    return val;
+  }
+  set(key, value) {
+    this.cache[key] = value;
+    window.safeStorage.setItem(key, value);
+    window.appEventBus.emit(`SettingsChanged:${key}`, value);
+  }
+  isTrue(key) {
+    return this.get(key) === 'true';
+  }
+  getUsername() {
+    return this.get('username') || 'guest';
+  }
+}
+window.settingsRepo = new SettingsRepository();
+
+// --- Document Context Manager ---
+class DocumentContextManager {
+  constructor() {
+    this.fileObj = null;
+    this.fileName = null;
+    this.fileExt = null;
+  }
+  setDocument(file, name, ext) {
+    this.fileObj = file;
+    this.fileName = name;
+    this.fileExt = ext;
+    window.currentFileName = name; // legacy fallback
+    window.currentExt = ext;       // legacy fallback
+  }
+  getDocument() {
+    return { file: this.fileObj, name: this.fileName, ext: this.fileExt };
+  }
+}
+window.documentContext = new DocumentContextManager();
+
+// --- Core Saving Logic ---
+window.triggerLibrarySave = function(file, fileName, ext, force = false) {
+  // Always update the core context when a file is opened
+  window.documentContext.setDocument(file, fileName, ext);
+
+  // If this is an auto-save attempt (force=false), we enforce preferences
+  if (!force) {
+    if (window.settingsRepo.isTrue('aura-manual-save')) return;
+    if (!window.settingsRepo.isTrue('aura-reading-state')) return;
+  }
+
+  const uname = window.settingsRepo.getUsername();
   const scrollState = window.pendingScrollState || (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState ? window.getActiveHandler().getScrollState() : null);
   window.storageRepository.saveDocument(uname + '_' + fileName, file, fileName, ext, scrollState);
 };
 
 window.triggerStateSave = function() {
-  if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
-  const uname = window.safeStorage.getItem('username') || 'guest';
+  if (!window.settingsRepo.isTrue('aura-reading-state')) return;
+  const uname = window.settingsRepo.getUsername();
   if (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
     const state = window.getActiveHandler().getScrollState();
     if (state) {
@@ -623,33 +706,57 @@ window.triggerStateSave = function() {
 };
 
 window.manualSaveDocument = function() {
-  if (!window.currentFileObj) {
+  const doc = window.documentContext.getDocument();
+  if (!doc.file) {
       alert("No document currently loaded to save.");
       return;
   }
   const btn = document.getElementById('manual-save-btn');
-  const ogText = btn.innerHTML;
-  btn.innerHTML = '&#10004; Saved';
-  setTimeout(() => btn.innerHTML = ogText, 2000);
+  if (btn) {
+    const ogText = btn.innerHTML;
+    btn.innerHTML = '&#10004; Saved';
+    setTimeout(() => btn.innerHTML = ogText, 2000);
+  }
   
+  // 1. Save the Document Blob
   if (window.triggerLibrarySave) {
-      window.triggerLibrarySave(window.currentFileObj, window.currentFileName, window.currentExt, true);
+      window.triggerLibrarySave(doc.file, doc.name, doc.ext, true);
+  }
+  
+  // 2. Explicitly force save the Notes and Highlights for this file right now
+  const uname = window.settingsRepo.getUsername();
+  const key = uname + '_' + doc.name;
+  if (window.storageRepository && window.notes) {
+      window.storageRepository.saveNotes(key, window.notes, window.pdfHighlights);
+  }
+  
+  // 3. Explicitly force save the reading state/scroll position right now
+  if (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
+      const state = window.getActiveHandler().getScrollState();
+      if (state && window.storageRepository) {
+          window.storageRepository.saveScrollState(key, state);
+      }
   }
 };
 
-window.toggleManualSaveButton = function() {
+window.toggleManualSaveButton = function(isManualSaveEnabled) {
   const btn = document.getElementById('manual-save-btn');
   if (btn) {
-    btn.style.display = (window.safeStorage.getItem('aura-manual-save') === 'true') ? 'inline-block' : 'none';
+    btn.style.display = isManualSaveEnabled ? 'inline-block' : 'none';
   }
 };
+
+// Listen to UI Side effects via EventBus
+window.appEventBus.on('SettingsChanged:aura-manual-save', (val) => {
+  window.toggleManualSaveButton(val === 'true');
+});
 
 // Auto-restore logic on load
 // IMPORTANT: We use 'load' (not DOMContentLoaded) to ensure all <script> tags
 // have finished executing and the file-upload event listener from pdf-handler.js is registered.
 window.addEventListener('load', async () => {
-  window.currentUsername = window.safeStorage.getItem('username') || 'guest';
-  const isDocSaveEnabled = window.safeStorage.getItem('aura-reading-state') === 'true';
+  window.currentUsername = window.settingsRepo.getUsername();
+  const isDocSaveEnabled = window.settingsRepo.isTrue('aura-reading-state') || window.settingsRepo.isTrue('aura-manual-save');
 
   if (!isDocSaveEnabled) return;
 

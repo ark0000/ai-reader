@@ -436,7 +436,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn && savedUser && savedUser !== 'guest') {
-      logoutBtn.style.display = 'inline';
+      logoutBtn.style.display = 'inline-block';
+    }
+
+    // Isolate UI side effects using EventBus
+    if (window.appEventBus) {
+      window.appEventBus.on('SettingsChanged:username', (val) => {
+        if (userInput) userInput.value = val;
+        window.currentUsername = val || 'guest';
+        if (logoutBtn) logoutBtn.style.display = val.trim() ? 'inline-block' : 'none';
+      });
     }
   }
 });

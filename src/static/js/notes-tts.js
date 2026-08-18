@@ -211,9 +211,9 @@ window.cancelEdit = function(id) {
 
 window.renderNotes = function(){
   // Save notes to IndexedDB for persistence if enabled
-  if (window.safeStorage && window.safeStorage.getItem('aura-notes-state') === 'true' && window.currentFileName) {
+  if (window.settingsRepo && window.settingsRepo.isTrue('aura-notes-state') && window.currentFileName) {
     if (window.storageRepository) {
-      var uname = window.currentUsername || (window.safeStorage && window.safeStorage.getItem('username')) || 'guest';
+      var uname = window.settingsRepo.getUsername();
       window.storageRepository.saveNotes(uname + '_' + window.currentFileName, window.notes, window.pdfHighlights);
     }
   }
