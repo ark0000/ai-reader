@@ -31,8 +31,8 @@ describe('Theme Engine', () => {
       }
     };
 
-    // 3. Load theme-engine.js using eval to run it in the global context
-    const jsPath = path.resolve(__dirname, '../src/static/js/theme-engine.js');
+    // 3. Load reading-themes.js using eval to run it in the global context
+    const jsPath = path.resolve(__dirname, '../src/static/js/reading-themes.js');
     const scriptContent = fs.readFileSync(jsPath, 'utf8');
     
     // Evaluate the IIFE in the current global context

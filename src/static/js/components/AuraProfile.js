@@ -98,4 +98,6 @@ class AuraProfile extends HTMLElement {
   }
 }
 
-customElements.define('aura-profile', AuraProfile);
+if (!customElements.get('aura-profile')) {
+  customElements.define('aura-profile', AuraProfile);
+}

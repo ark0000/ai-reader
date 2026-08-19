@@ -681,34 +681,6 @@ class EventBus {
 }
 window.appEventBus = new EventBus();
 
-// --- Profile Migration Manager ---
-class ProfileMigrationManager {
-  constructor(storageRepo, settingsRepo, eventBus) {
-    this.storageRepo = storageRepo;
-    this.settingsRepo = settingsRepo;
-    this.eventBus = eventBus;
-    this.lastUsername = this.settingsRepo.getUsername();
-    this._bindEvents();
-  }
-
-  _bindEvents() {
-    if (!this.eventBus) return;
-    this.eventBus.on('SettingsChanged:username', async (newVal) => {
-      const newUsername = newVal && newVal.trim() ? newVal.trim() : 'guest';
-      const oldUsername = this.lastUsername || 'guest';
-      
-      if (oldUsername !== newUsername && newUsername !== 'guest') {
-        console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
-        await this.storageRepo.migrateNamespace(oldUsername, newUsername);
-        if (window.renderLibrary) window.renderLibrary();
-      }
-      
-      this.lastUsername = newUsername;
-    });
-  }
-}
-window.profileMigrationManager = new ProfileMigrationManager(window.storageRepository, window.settingsRepo, window.appEventBus);
-
 // --- Settings Repository ---
 class SettingsRepository {
   constructor() {
@@ -749,6 +721,36 @@ class SettingsRepository {
   }
 }
 window.settingsRepo = new SettingsRepository();
+
+// --- Profile Migration Manager ---
+class ProfileMigrationManager {
+  constructor(storageRepo, settingsRepo, eventBus) {
+    this.storageRepo = storageRepo;
+    this.settingsRepo = settingsRepo;
+    this.eventBus = eventBus;
+    this.lastUsername = this.settingsRepo ? this.settingsRepo.getUsername() : 'guest';
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    if (!this.eventBus) return;
+    this.eventBus.on('SettingsChanged:username', async (newVal) => {
+      const newUsername = newVal && newVal.trim() ? newVal.trim() : 'guest';
+      const oldUsername = this.lastUsername || 'guest';
+      
+      if (oldUsername !== newUsername && newUsername !== 'guest') {
+        console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
+        if (this.storageRepo && this.storageRepo.migrateNamespace) {
+          await this.storageRepo.migrateNamespace(oldUsername, newUsername);
+        }
+        if (window.renderLibrary) window.renderLibrary();
+      }
+      
+      this.lastUsername = newUsername;
+    });
+  }
+}
+window.profileMigrationManager = new ProfileMigrationManager(window.storageRepository, window.settingsRepo, window.appEventBus);
 
 // --- Document Context Manager ---
 class DocumentContextManager {
