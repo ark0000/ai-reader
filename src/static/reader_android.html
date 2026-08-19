@@ -1543,9 +1543,11 @@
         <h2 style="margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">📝 Notes Editor</h2>
         <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:6px 12px; border-radius:6px; width:300px; outline:none; font-family:var(--font-ui);">
       </div>
-      <div style="display:flex; gap:12px;">
-        <button class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
-        <button class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
+        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
+        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
         <button id="save-external-btn" class="tb-btn" style="padding:6px 16px; border-radius:20px; background:var(--accent); color:#fff; border:none; font-weight:600;" onclick="saveExternalNote()">Save</button>
         <button class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="closeExternalNotes()">Close</button>
       </div>

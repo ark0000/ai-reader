@@ -30,8 +30,11 @@ function initQuillEditor() {
       modules: {
         toolbar: toolbarOptions
       },
-      placeholder: 'Start writing your note here...'
+      placeholder: 'Start writing your note here (Markdown shortcuts supported: #, -, >, ```, **bold**)...'
     });
+
+    // Attach Markdown Intelligence Engine
+    window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
     // Auto-save logic
     window.quillEditor.on('text-change', function() {
@@ -41,6 +44,182 @@ function initQuillEditor() {
   } catch (err) {
     console.error("Failed to initialize Quill editor:", err);
     alert("An error occurred while loading the editor: " + err.message);
+  }
+}
+
+/**
+ * MarkdownIntelligenceEngine
+ * 
+ * Provides intelligent Markdown capabilities to Quill Rich Text Editor:
+ * 1. Live Typing Shortcuts (Real-time auto-formatting for headers, lists, quotes, code blocks, dividers)
+ * 2. Smart Paste Recognition (Detects and parses pasted Markdown structures into styled rich text)
+ * 3. On-demand Conversion (Converts raw Markdown content in editor to rich text via marked.js)
+ * 4. HTML to Markdown Serialization (For clean .md export)
+ */
+class MarkdownIntelligenceEngine {
+  constructor(quill) {
+    this.quill = quill;
+    this._initStrategies();
+    this._bindEvents();
+  }
+
+  _initStrategies() {
+    // Line-level trigger rules (Prefix -> Formatting Strategy)
+    this.lineStrategies = [
+      { pattern: /^#{6}\s$/, format: { header: 6 }, prefixLen: 7 },
+      { pattern: /^#{5}\s$/, format: { header: 5 }, prefixLen: 6 },
+      { pattern: /^#{4}\s$/, format: { header: 4 }, prefixLen: 5 },
+      { pattern: /^#{3}\s$/, format: { header: 3 }, prefixLen: 4 },
+      { pattern: /^#{2}\s$/, format: { header: 2 }, prefixLen: 3 },
+      { pattern: /^#{1}\s$/, format: { header: 1 }, prefixLen: 2 },
+      { pattern: /^[-*+]\s$/, format: { list: 'bullet' }, prefixLen: 2 },
+      { pattern: /^\d+\.\s$/, format: { list: 'ordered' }, prefixLen: (text) => text.indexOf('.') + 2 },
+      { pattern: /^>\s$/, format: { blockquote: true }, prefixLen: 2 },
+      { pattern: /^```\s*$/, format: { 'code-block': true }, prefixLen: 3 }
+    ];
+  }
+
+  _bindEvents() {
+    if (!this.quill) return;
+
+    // 1. Listen for keydown / text-change for live typing shortcuts
+    this.quill.on('text-change', (delta, oldDelta, source) => {
+      if (source !== 'user') return;
+      this._handleTextChange();
+    });
+
+    // 2. Intercept paste on editor root for smart Markdown recognition
+    this.quill.root.addEventListener('paste', (e) => {
+      this._handlePaste(e);
+    });
+  }
+
+  _handleTextChange() {
+    const range = this.quill.getSelection();
+    if (!range) return;
+
+    const [line, offset] = this.quill.getLine(range.index);
+    if (!line) return;
+
+    const lineText = line.domNode ? (line.domNode.textContent || '') : '';
+    const textUpToCursor = lineText.substring(0, offset);
+
+    // Check line-level shortcut (e.g. user just typed "# ", "- ", "> ")
+    for (const strategy of this.lineStrategies) {
+      if (strategy.pattern.test(textUpToCursor)) {
+        const pLen = typeof strategy.prefixLen === 'function' ? strategy.prefixLen(textUpToCursor) : strategy.prefixLen;
+        const lineIndex = this.quill.getIndex(line);
+
+        // Delete trigger characters from the line
+        this.quill.deleteText(lineIndex, pLen, 'user');
+
+        // Apply formatting to the line
+        Object.entries(strategy.format).forEach(([key, val]) => {
+          this.quill.formatLine(lineIndex, 1, key, val, 'user');
+        });
+        return;
+      }
+    }
+  }
+
+  _handlePaste(e) {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+
+    // If clipboard explicitly provides HTML, allow Quill's native rich paste unless it's just wrapped plain text
+    const htmlData = clipboardData.getData('text/html');
+    const textData = clipboardData.getData('text/plain');
+    if (!textData || textData.trim().length < 3) return;
+
+    // Detect if content is structured Markdown
+    if (this.detectMarkdown(textData)) {
+      e.preventDefault();
+      
+      let html = '';
+      if (typeof marked !== 'undefined' && marked.parse) {
+        try {
+          html = marked.parse(textData);
+        } catch (err) {
+          console.warn('Marked parse fallback:', err);
+          html = textData.replace(/\n/g, '<br>');
+        }
+      } else {
+        html = textData.replace(/\n/g, '<br>');
+      }
+
+      const range = this.quill.getSelection() || { index: this.quill.getLength(), length: 0 };
+      
+      if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
+        this.quill.clipboard.dangerouslyPasteHTML(range.index, html, 'user');
+      } else {
+        this.quill.root.innerHTML += html;
+      }
+
+      this._showToast('✨ Markdown recognized & formatted');
+    }
+  }
+
+  detectMarkdown(text) {
+    if (!text || typeof text !== 'string') return false;
+
+    let score = 0;
+    // Header pattern
+    if (/^#{1,6}\s+.+$/m.test(text)) score += 3;
+    // Code block
+    if (/^```[\s\S]*?```$/m.test(text)) score += 4;
+    // List items
+    if (/^(\s*[-*+]|\s*\d+\.)\s+.+$/m.test(text)) score += 2;
+    // Blockquotes
+    if (/^>\s+.+$/m.test(text)) score += 2;
+    // Links / Images
+    if (/!?\[[^\]]+\]\([^)]+\)/.test(text)) score += 2;
+    // Bold / Italic / Inline Code
+    if (/(\*\*|__)[^\n]+(\*\*|__)|`[^`\n]+`|~~[^\n]+~~/.test(text)) score += 2;
+    // Tables
+    if (/\|.+\|[\r\n]+\|[-:| ]+\|/.test(text)) score += 3;
+
+    return score >= 2;
+  }
+
+  convertCurrentContent() {
+    if (!this.quill) return;
+    const rawText = this.quill.getText().trim();
+    if (!rawText) {
+      this._showToast('Editor is empty');
+      return;
+    }
+
+    if (typeof marked === 'undefined' || !marked.parse) {
+      alert('Marked.js parser is not available.');
+      return;
+    }
+
+    try {
+      const html = marked.parse(rawText);
+      this.quill.root.innerHTML = html;
+      this._showToast('✨ Converted Markdown to Rich Text');
+    } catch(err) {
+      console.error('Markdown conversion error:', err);
+      alert('Error parsing Markdown: ' + err.message);
+    }
+  }
+
+  _showToast(msg) {
+    let toast = document.getElementById('md-intelligence-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'md-intelligence-toast';
+      toast.style.cssText = 'position:fixed; bottom:30px; right:30px; background:rgba(20,20,30,0.95); color:#fff; padding:10px 20px; border-radius:20px; font-size:13px; font-weight:600; z-index:999999; box-shadow:0 10px 30px rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); transition:opacity 0.3s ease, transform 0.3s ease; pointer-events:none; display:flex; align-items:center; gap:8px;';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+    }, 2400);
   }
 }
 
@@ -266,6 +445,86 @@ async function deleteExternalNote(id) {
       alert("Error: " + e.message);
     }
   }
+
+/**
+ * Converts Quill HTML DOM structure to clean Markdown text
+ */
+function htmlToMarkdown(htmlOrNode) {
+  const container = typeof htmlOrNode === 'string' ? document.createElement('div') : htmlOrNode;
+  if (typeof htmlOrNode === 'string') container.innerHTML = htmlOrNode;
+
+  function traverse(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.nodeValue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const tag = node.tagName.toLowerCase();
+    let childrenText = Array.from(node.childNodes).map(traverse).join('');
+
+    switch (tag) {
+      case 'h1': return `\n# ${childrenText.trim()}\n\n`;
+      case 'h2': return `\n## ${childrenText.trim()}\n\n`;
+      case 'h3': return `\n### ${childrenText.trim()}\n\n`;
+      case 'h4': return `\n#### ${childrenText.trim()}\n\n`;
+      case 'h5': return `\n##### ${childrenText.trim()}\n\n`;
+      case 'h6': return `\n###### ${childrenText.trim()}\n\n`;
+      case 'strong':
+      case 'b': return `**${childrenText}**`;
+      case 'em':
+      case 'i': return `*${childrenText}*`;
+      case 's':
+      case 'strike': return `~~${childrenText}~~`;
+      case 'u': return `<u>${childrenText}</u>`;
+      case 'code':
+        return node.parentElement && node.parentElement.tagName.toLowerCase() === 'pre'
+          ? childrenText
+          : `\`${childrenText}\``;
+      case 'pre': return `\n\`\`\`\n${childrenText.trim()}\n\`\`\`\n\n`;
+      case 'blockquote': return `\n> ${childrenText.trim().replace(/\n/g, '\n> ')}\n\n`;
+      case 'ul': return `\n${childrenText}\n`;
+      case 'ol': {
+        let idx = 1;
+        return `\n${Array.from(node.children).map(li => `${idx++}. ${traverse(li).trim()}`).join('\n')}\n\n`;
+      }
+      case 'li': return `- ${childrenText.trim()}\n`;
+      case 'p': return `${childrenText.trim()}\n\n`;
+      case 'a': return `[${childrenText}](${node.getAttribute('href') || ''})`;
+      case 'hr': return `\n---\n\n`;
+      case 'br': return `\n`;
+      default: return childrenText;
+    }
+  }
+
+  return traverse(container).trim().replace(/\n{3,}/g, '\n\n');
+}
+window.htmlToMarkdown = htmlToMarkdown;
+
+function exportExternalNoteMD() {
+  if (!window.quillEditor) return;
+  const content = window.quillEditor.root.innerHTML;
+  if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
+  
+  const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
+  const mdText = htmlToMarkdown(content);
+  
+  const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title + '.md';
+  a.click();
+}
+window.exportExternalNoteMD = exportExternalNoteMD;
+
+function convertCurrentNoteFromMarkdown() {
+  if (window.mdIntelligence) {
+    window.mdIntelligence.convertCurrentContent();
+  } else if (window.quillEditor && typeof marked !== 'undefined' && marked.parse) {
+    const raw = window.quillEditor.getText().trim();
+    if (raw) window.quillEditor.root.innerHTML = marked.parse(raw);
+  }
+}
+window.convertCurrentNoteFromMarkdown = convertCurrentNoteFromMarkdown;
 
 function exportExternalNoteTXT() {
   if (!window.quillEditor) return;
