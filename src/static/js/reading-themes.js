@@ -16,6 +16,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#064E3B",
         "--bg-pane": "#0A5E48",
+        "--bg-panel": "#0A5E48",
         "--bg-toolbar": "#043F32",
         "--text-1": "#ECFDF5",
         "--text-2": "#A7F3D0",
@@ -34,6 +35,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#FDF6E3", // Solarized-inspired warm ivory
         "--bg-pane": "#F4EAD5",
+        "--bg-panel": "#F4EAD5",
         "--bg-toolbar": "#EFE3C8",
         "--text-1": "#241811",  // Extremely high contrast deep brown
         "--text-2": "#5C4A3D",  // Highly readable secondary brown
@@ -52,6 +54,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#F9FAFB", // Tailwind Gray 50 (softest white)
         "--bg-pane": "#F3F4F6", // Tailwind Gray 100
+        "--bg-panel": "#F3F4F6",
         "--bg-toolbar": "#E5E7EB", 
         "--text-1": "#111827",  // Tailwind Gray 900 (crisp near-black)
         "--text-2": "#4B5563",  // Tailwind Gray 600
@@ -70,6 +73,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#FFFFFF", // Pure white for absolute contrast
         "--bg-pane": "#F8F9FA", // Google's Material standard grey
+        "--bg-panel": "#F8F9FA",
         "--bg-toolbar": "#F1F3F4",
         "--text-1": "#000000",  // Pure black text (maximum WCAG contrast)
         "--text-2": "#3C4043",  // Dark Material grey
@@ -88,6 +92,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#0B0F0E",
         "--bg-pane": "#000000",
+        "--bg-panel": "#000000",
         "--bg-toolbar": "#050706",
         "--text-1": "#DDEBE5",
         "--text-2": "#A0B5AC",
@@ -106,6 +111,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#002B36",
         "--bg-pane": "#073642",
+        "--bg-panel": "#073642",
         "--bg-toolbar": "#001D24",
         "--text-1": "#839496",
         "--text-2": "#93A1A1",
@@ -124,6 +130,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#182235",
         "--bg-pane": "#1F2B42",
+        "--bg-panel": "#1F2B42",
         "--bg-toolbar": "#101826",
         "--text-1": "#DCE7F5",
         "--text-2": "#91C8FF",
@@ -142,6 +149,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#24170D",
         "--bg-pane": "#2C1D11",
+        "--bg-panel": "#2C1D11",
         "--bg-toolbar": "#1A1009",
         "--text-1": "#F8D9A7",
         "--text-2": "#F6B35B",
@@ -160,6 +168,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#EAF4EC", // "Bean Green" / Eye-care green
         "--bg-pane": "#DDF0E1",
+        "--bg-panel": "#DDF0E1",
         "--bg-toolbar": "#CEE8D3",
         "--text-1": "#0A2B15",  // Extremely dark forest green (near black)
         "--text-2": "#285936",  // Highly readable secondary green
@@ -178,6 +187,7 @@ window.ReadingThemes = {
       cssVars: {
         "--bg-body": "#242033",
         "--bg-pane": "#2D2940",
+        "--bg-panel": "#2D2940",
         "--bg-toolbar": "#1B1726",
         "--text-1": "#EEE9FF",
         "--text-2": "#C4B5FD",
