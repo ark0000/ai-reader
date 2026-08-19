@@ -64,42 +64,9 @@
   border: none !important;
 }
 
-/* In fullscreen — hide editor pane & resizer; diagram canvas fills everything.
-   [data-fullscreen] is set via JS fullscreenchange — more reliable than
-   :fullscreen pseudo-class on deeply nested elements in Chrome. */
-#dgb-shell:fullscreen #dgb-editor-pane,
-#dgb-shell:fullscreen #dgb-resizer,
-#dgb-shell:-webkit-full-screen #dgb-editor-pane,
-#dgb-shell:-webkit-full-screen #dgb-resizer,
-#dgb-shell:-moz-full-screen #dgb-editor-pane,
-#dgb-shell:-moz-full-screen #dgb-resizer,
-#dgb-shell[data-fullscreen] #dgb-editor-pane,
-#dgb-shell[data-fullscreen] #dgb-resizer {
-  display: none !important;
-}
 
-/* In fullscreen — canvas pane fills all remaining width */
-#dgb-shell:fullscreen #dgb-canvas-pane,
-#dgb-shell:-webkit-full-screen #dgb-canvas-pane,
-#dgb-shell:-moz-full-screen #dgb-canvas-pane,
-#dgb-shell[data-fullscreen] #dgb-canvas-pane {
-  flex: 1 !important;
-  width: 100% !important;
-  border-left: none !important;
-}
 
-/* Support for native F11 (where HTML5 Fullscreen API is bypassed) */
-@media all and (display-mode: fullscreen) {
-  #dgb-shell #dgb-editor-pane,
-  #dgb-shell #dgb-resizer {
-    display: none !important;
-  }
-  #dgb-shell #dgb-canvas-pane {
-    flex: 1 !important;
-    width: 100% !important;
-    border-left: none !important;
-  }
-}
+
 
 /* ─── Title bar ───────────────────────────────────────────────────────────── */
 #dgb-titlebar {
