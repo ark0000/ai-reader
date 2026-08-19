@@ -65,7 +65,8 @@ async def lifespan(app: FastAPI):
     watchdog_task = asyncio.create_task(desktop_watchdog())
     
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
+        async with httpx.AsyncClient(timeout=60.0, limits=limits) as client:
             app.state.http_client = client
             yield
     except asyncio.CancelledError:

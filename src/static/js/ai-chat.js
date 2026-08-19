@@ -104,7 +104,15 @@ class ChatUI {
       el.className = 'msg msg-' + (node.role === 'user' ? 'u' : 'a');
       
       const textDiv = document.createElement('div');
-      textDiv.innerHTML = window.sanitizeHTML(window.fmt ? window.fmt(node.content) : node.content);
+      let contentStr = node.content || '';
+      let formatted = window.fmt ? window.fmt(contentStr) : contentStr;
+      let cleanHtml = window.sanitizeHTML(formatted);
+      if (window.settingsRepo && window.settingsRepo.isTrue('aura-rag-citations')) {
+        cleanHtml = cleanHtml.replace(/\[(?:Page|Doc Page|p\.)\s*(\d+)\]/gi, function(match, pNum) {
+          return `<button class="rag-citation-badge" onclick="if(window.jumpToCitation) window.jumpToCitation(${pNum}); event.stopPropagation();" title="Jump to Page ${pNum}">📄 Page ${pNum}</button>`;
+        });
+      }
+      textDiv.innerHTML = cleanHtml;
       el.appendChild(textDiv);
       
       // Add hover actions container
@@ -230,37 +238,99 @@ class ChatAPI {
       const recentThread = thread.slice(-20).map(n => ({ role: n.role, content: n.content }));
       messagesToSend = messagesToSend.concat(recentThread);
   
+      var isStreaming = (window.settingsRepo ? window.settingsRepo.isTrue('aura-ai-streaming') : true);
+      var topK = (window.settingsRepo ? parseInt(window.settingsRepo.get('aura-rag-topk') || '3', 10) : 3);
+
       var payload = {
         connection_id: window.activeConnectionId,
         messages: messagesToSend,
         temperature: 0.7,
         rag_enabled: isRag,
-        file_id: window.currentFileId
+        file_id: window.currentFileId,
+        top_k: topK
       };
       
-      var r = await fetch('/api/chat', {
-        method: 'POST',
-        headers: Object.assign({'Content-Type': 'application/json'}, window.authHeaders()),
-        body: JSON.stringify(payload)
-      });
-      
-      if(!r.ok) {
-        let errText = await r.text();
-        try {
-          let errJson = JSON.parse(errText);
-          if (errJson.detail) errText = errJson.detail;
-        } catch (e) {}
-        throw new Error(errText);
+      if (isStreaming) {
+        var r = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type': 'application/json'}, window.authHeaders()),
+          body: JSON.stringify(payload)
+        });
+        
+        if(!r.ok) {
+          let errText = await r.text();
+          try {
+            let errJson = JSON.parse(errText);
+            if (errJson.detail) errText = errJson.detail;
+          } catch (e) {}
+          throw new Error(errText);
+        }
+        
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        this.state.tree[loadNodeId].content = '';
+        let rafId = null;
+
+        const scheduleRender = () => {
+          if (!rafId) {
+            rafId = requestAnimationFrame(() => {
+              this.ui.render();
+              rafId = null;
+            });
+          }
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep last partial line
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data:')) continue;
+            const dataStr = trimmed.slice(5).trim();
+            if (dataStr === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.token) {
+                this.state.tree[loadNodeId].content += parsed.token;
+                scheduleRender();
+              } else if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+            } catch(pe) {}
+          }
+        }
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        this.ui.render();
+      } else {
+        var r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type': 'application/json'}, window.authHeaders()),
+          body: JSON.stringify(payload)
+        });
+        
+        if(!r.ok) {
+          let errText = await r.text();
+          try {
+            let errJson = JSON.parse(errText);
+            if (errJson.detail) errText = errJson.detail;
+          } catch (e) {}
+          throw new Error(errText);
+        }
+        
+        var d = await r.json();
+        if (!d.choices || !d.choices[0] || !d.choices[0].message) {
+          throw new Error("Invalid response format from AI provider: " + JSON.stringify(d));
+        }
+        var ans = d.choices[0].message.content;
+        
+        this.state.tree[loadNodeId].content = ans;
+        this.ui.render();
       }
-      
-      var d = await r.json();
-      if (!d.choices || !d.choices[0] || !d.choices[0].message) {
-        throw new Error("Invalid response format from AI provider: " + JSON.stringify(d));
-      }
-      var ans = d.choices[0].message.content;
-      
-      this.state.tree[loadNodeId].content = ans;
-      this.ui.render();
     } catch(e) {
       this.state.tree[loadNodeId].content = 'Error: ' + e.message;
       this.ui.render();

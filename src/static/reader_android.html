@@ -801,6 +801,44 @@
               Manage AI Connections</button>
           </div>
 
+          <label class="settings-header">AI & RAG Intelligence</label>
+          <div class="settings-group">
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Real-Time Streaming</span>
+                <span class="settings-help">Stream AI responses word-by-word with zero delay.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Real-Time Streaming">
+                <input type="checkbox" id="ai-streaming-cb" role="switch" checked
+                  onchange="if(window.settingsRepo) window.settingsRepo.set('aura-ai-streaming', this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label-container">
+                <span class="settings-label">Interactive Page Citations</span>
+                <span class="settings-help">Clickable [Page X] badges that scroll directly to source pages.</span>
+              </div>
+              <label class="toggle-switch" aria-label="Interactive Page Citations">
+                <input type="checkbox" id="rag-citations-cb" role="switch" checked
+                  onchange="if(window.settingsRepo) window.settingsRepo.set('aura-rag-citations', this.checked);">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row" style="border-bottom:none;">
+              <div class="settings-label-container">
+                <span class="settings-label">RAG Context Depth</span>
+                <span class="settings-help">Number of relevant excerpts provided to the AI.</span>
+              </div>
+              <select id="rag-topk-sel" class="tb-sel" style="max-width: 140px;"
+                onchange="if(window.settingsRepo) window.settingsRepo.set('aura-rag-topk', this.value);">
+                <option value="3" selected>Fast (3 Chunks)</option>
+                <option value="5">Balanced (5 Chunks)</option>
+                <option value="10">Deep (10 Chunks)</option>
+              </select>
+            </div>
+          </div>
+
           <label class="settings-header">Dictionary Mode</label>
           <div class="settings-group">
             <div class="settings-row" style="border-bottom:none;padding-bottom:0;padding-top:6px;">
@@ -1388,14 +1426,14 @@
   </script>
   <script src="/static/js/brightness-engine.js?v=2025"></script>
   <script src="/static/js/theme-engine.js?v=2025"></script>
-  <script src="/static/js/reader-core.js?v=2025"></script>
-  <script src="/static/js/ui-components.js?v=2025"></script>
-  <script src="/static/js/ai-chat.js?v=2025"></script>
+  <script src="/static/js/reader-core.js?v=2026"></script>
+  <script src="/static/js/ui-components.js?v=2026"></script>
+  <script src="/static/js/ai-chat.js?v=2026"></script>
   <script src="/static/js/dictionary-tools.js?v=2025"></script>
   <script src="/static/js/notes-tts.js?v=2026"></script>
-  <script src="/static/js/markdown-handler.js?v=2026"></script>
-  <script src="/static/js/epub-handler.js?v=2026"></script>
-  <script src="/static/js/pdf-handler.js?v=2026"></script>
+  <script src="/static/js/markdown-handler.js?v=2027"></script>
+  <script src="/static/js/epub-handler.js?v=2027"></script>
+  <script src="/static/js/pdf-handler.js?v=2027"></script>
   <script src="/static/js/desktop-updater.js?v=2026"></script>
 
   <script>

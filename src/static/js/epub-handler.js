@@ -313,6 +313,22 @@ class EpubDocumentHandler {
       window.epubToc = toc;
     });
   }
+
+  jumpTo(target) {
+    if (window.currentEpubRendition) {
+      if (typeof target === 'string' && target.startsWith('epubcfi')) {
+        window.currentEpubRendition.display(target);
+      } else {
+        var p = parseInt(target, 10);
+        if (!isNaN(p) && window.currentEpubBook && window.currentEpubBook.spine && window.currentEpubBook.spine.spineItems) {
+          var items = window.currentEpubBook.spine.spineItems;
+          if (items[p - 1]) {
+            window.currentEpubRendition.display(items[p - 1].href);
+          }
+        }
+      }
+    }
+  }
 }
 
 // Attach to window so DocumentHandlerFactory can use it

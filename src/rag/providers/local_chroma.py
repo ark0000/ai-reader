@@ -95,6 +95,14 @@ class LocalChromaRAGProvider(IRAGProvider):
         )
         logger.info(f"Finished indexing {file_id}")
 
+    from functools import lru_cache
+
+    @lru_cache(maxsize=256)
+    def _cached_query_encode(self, query: str) -> tuple:
+        """Caches query embeddings in-memory to accelerate repeated searches."""
+        model = self._get_embedding_model()
+        return tuple(model.encode([query])[0].tolist())
+
     def search_document(self, file_id: str, query: str, top_k: int = 3) -> List[str]:
         if not chromadb or not SentenceTransformer:
             return []
@@ -106,8 +114,7 @@ class LocalChromaRAGProvider(IRAGProvider):
         except Exception:
             return [] # Collection not found
             
-        model = self._get_embedding_model()
-        query_embedding = model.encode([query])[0].tolist()
+        query_embedding = list(self._cached_query_encode(query))
         
         results = collection.query(
             query_embeddings=[query_embedding],

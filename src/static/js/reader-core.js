@@ -53,7 +53,19 @@ window.StateRegistry = {
   'aura-pdf-virt-pre-deep-search': { label: 'Virtualization Pre-Search', category: 'perf', saveable: true },
   'aura-pdf-lazy-pre-deep-search': { label: 'Lazy Pre-Search', category: 'perf', saveable: true },
   'aura-reading-state':          { label: 'Remember Reading State',category: 'reading', saveable: true },
-  'aura-notes-state':            { label: 'Remember Notes',        category: 'reading', saveable: true }
+  'aura-notes-state':            { label: 'Remember Notes',        category: 'reading', saveable: true },
+  'aura-ai-streaming':           { label: 'Real-Time Streaming AI Chat', category: 'ai', saveable: true },
+  'aura-rag-citations':          { label: 'Interactive Page Citations in RAG', category: 'ai', saveable: true },
+  'aura-rag-topk':               { label: 'RAG Context Depth', category: 'ai', saveable: true }
+};
+
+window.jumpToCitation = function(target) {
+  const handler = window.getActiveHandler();
+  if (handler && typeof handler.jumpTo === 'function') {
+    handler.jumpTo(target);
+  } else if (window.pdfGotoPage && !isNaN(parseInt(target, 10))) {
+    window.pdfGotoPage(parseInt(target, 10));
+  }
 };
 
 window.safeStorage = {

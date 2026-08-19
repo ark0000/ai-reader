@@ -662,6 +662,25 @@ class MarkdownDocumentHandler {
         window.triggerLibrarySave(file, file.name, 'md');
     }
   }
+
+  jumpTo(target) {
+    if (!window.contentEl) return;
+    var headings = window.contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6, [data-slug]');
+    var p = parseInt(target, 10);
+    if (!isNaN(p) && headings && headings[p - 1]) {
+      var h = headings[p - 1];
+      h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      h.style.transition = 'background-color 0.3s ease';
+      var oldBg = h.style.backgroundColor;
+      h.style.backgroundColor = 'rgba(255, 107, 0, 0.25)';
+      setTimeout(() => { h.style.backgroundColor = oldBg; }, 1500);
+    } else if (typeof target === 'string') {
+      var match = Array.from(headings).find(el => el.textContent.toLowerCase().includes(target.toLowerCase()));
+      if (match) {
+        match.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }
 }
 
 class TextDocumentHandler {

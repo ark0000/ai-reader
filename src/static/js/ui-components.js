@@ -433,6 +433,15 @@ window.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('robust-selection-cb')) {
       document.getElementById('robust-selection-cb').checked = window.safeStorage.getItem('aura-robust-selection') !== 'false';
     }
+    if (document.getElementById('ai-streaming-cb')) {
+      document.getElementById('ai-streaming-cb').checked = window.safeStorage.getItem('aura-ai-streaming') !== 'false';
+    }
+    if (document.getElementById('rag-citations-cb')) {
+      document.getElementById('rag-citations-cb').checked = window.safeStorage.getItem('aura-rag-citations') !== 'false';
+    }
+    if (document.getElementById('rag-topk-sel')) {
+      document.getElementById('rag-topk-sel').value = window.safeStorage.getItem('aura-rag-topk') || '3';
+    }
 
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn && savedUser && savedUser !== 'guest') {

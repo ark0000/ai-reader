@@ -167,6 +167,19 @@ class PdfDocumentHandler {
   getScrollState() {
     return window.getPdfScrollState ? window.getPdfScrollState() : null;
   }
+
+  jumpTo(pageNum) {
+    var p = parseInt(pageNum, 10);
+    if (!isNaN(p) && window.pdfGotoPage) {
+      window.pdfGotoPage(p);
+      var el = document.getElementById('page-wrap-' + p);
+      if (el) {
+        el.style.transition = 'box-shadow 0.3s ease';
+        el.style.boxShadow = '0 0 0 4px var(--accent)';
+        setTimeout(() => { el.style.boxShadow = ''; }, 1200);
+      }
+    }
+  }
 }
 
 // ─── Scroll-state helpers ───────────────────────────────────────────────────

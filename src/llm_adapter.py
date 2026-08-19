@@ -2,7 +2,7 @@ import uuid
 import json
 import logging
 import httpx
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncIterator
 from abc import ABC, abstractmethod
 
 from .database import ConnectionRepository
@@ -15,6 +15,10 @@ class ILLMAdapter(ABC):
     """
     @abstractmethod
     async def generate_completion(self, messages: List[Dict[str, str]], temperature: float) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def generate_stream(self, messages: List[Dict[str, str]], temperature: float) -> AsyncIterator[str]:
         pass
 
 class OpenAIAdapter(ILLMAdapter):
@@ -41,6 +45,39 @@ class OpenAIAdapter(ILLMAdapter):
             raise Exception(f"OpenAI API Error: {response.status_code} - {response.text}")
             
         return response.json()
+
+    async def generate_stream(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> AsyncIterator[str]:
+        url = self.base_url if self.base_url.endswith("/chat/completions") else f"{self.base_url}/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+            
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True
+        }
+        
+        async with self.client.stream("POST", url, headers=headers, json=payload, timeout=60.0) as resp:
+            if not resp.is_success:
+                err_text = await resp.aread()
+                raise Exception(f"OpenAI API Error: {resp.status_code} - {err_text.decode('utf-8', errors='ignore')}")
+            async for line in resp.aiter_lines():
+                line = line.strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data_str = line[len("data:"):].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content")
+                    if content:
+                        yield content
+                except Exception:
+                    pass
 
 class AnthropicAdapter(ILLMAdapter):
     def __init__(self, base_url: str, api_key: Optional[str], model: str, client: httpx.AsyncClient):
@@ -96,6 +133,52 @@ class AnthropicAdapter(ILLMAdapter):
                 }
             ]
         }
+
+    async def generate_stream(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> AsyncIterator[str]:
+        url = f"{self.base_url}/messages"
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key or "",
+            "anthropic-version": "2023-06-01"
+        }
+        
+        system_prompt = ""
+        anthropic_msgs = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_prompt += msg["content"] + "\n"
+            else:
+                anthropic_msgs.append({"role": msg["role"], "content": msg["content"]})
+                
+        payload = {
+            "model": self.model,
+            "messages": anthropic_msgs,
+            "temperature": temperature,
+            "max_tokens": 4096,
+            "stream": True
+        }
+        if system_prompt.strip():
+            payload["system"] = system_prompt.strip()
+            
+        async with self.client.stream("POST", url, headers=headers, json=payload, timeout=60.0) as resp:
+            if not resp.is_success:
+                err_text = await resp.aread()
+                raise Exception(f"Anthropic API Error: {resp.status_code} - {err_text.decode('utf-8', errors='ignore')}")
+            async for line in resp.aiter_lines():
+                line = line.strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data_str = line[len("data:"):].strip()
+                try:
+                    data = json.loads(data_str)
+                    if data.get("type") == "content_block_delta":
+                        delta = data.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            text = delta.get("text")
+                            if text:
+                                yield text
+                except Exception:
+                    pass
 
 class GeminiAdapter(ILLMAdapter):
     def __init__(self, base_url: str, api_key: Optional[str], model: str, client: httpx.AsyncClient):
@@ -156,6 +239,54 @@ class GeminiAdapter(ILLMAdapter):
                 }
             ]
         }
+
+    async def generate_stream(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> AsyncIterator[str]:
+        url = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse&key={self.api_key or ''}"
+        headers = {"Content-Type": "application/json"}
+        
+        system_prompt = ""
+        gemini_contents = []
+        
+        for msg in messages:
+            if msg["role"] == "system":
+                system_prompt += msg["content"] + "\n"
+            else:
+                role = "user" if msg["role"] == "user" else "model"
+                gemini_contents.append({
+                    "role": role,
+                    "parts": [{"text": msg["content"]}]
+                })
+                
+        if system_prompt and gemini_contents:
+            gemini_contents[0]["parts"][0]["text"] = f"System: {system_prompt.strip()}\n\n---\n\n" + gemini_contents[0]["parts"][0]["text"]
+            
+        payload = {
+            "contents": gemini_contents,
+            "generationConfig": {
+                "temperature": temperature
+            }
+        }
+        
+        async with self.client.stream("POST", url, headers=headers, json=payload, timeout=60.0) as resp:
+            if not resp.is_success:
+                err_text = await resp.aread()
+                raise Exception(f"Gemini API Error: {resp.status_code} - {err_text.decode('utf-8', errors='ignore')}")
+            async for line in resp.aiter_lines():
+                line = line.strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data_str = line[len("data:"):].strip()
+                try:
+                    data = json.loads(data_str)
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        for p in parts:
+                            t = p.get("text", "")
+                            if t:
+                                yield t
+                except Exception:
+                    pass
 
 class ProviderFactory:
     @staticmethod
