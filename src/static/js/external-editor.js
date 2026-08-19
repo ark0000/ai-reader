@@ -468,19 +468,14 @@ window.openExternalEditorWithContent = async function(title, htmlContent) {
 function closeExternalNotes() {
   const overlay = document.getElementById('external-notes-overlay');
   if (overlay) overlay.style.display = 'none';
-  if (saveTimeout) {
-    clearTimeout(saveTimeout);
-    saveExternalNote(true); // silent save on close
-  }
+  // FIX Bug 2: Always save on close — not just when a pending auto-save timer exists.
+  // Clearing the timer prevents a double-save; the explicit call below handles the final state.
+  clearTimeout(saveTimeout);
+  saveExternalNote(true); // silent save
 }
 
-function createNewExternalNote() {
-  currentExternalNoteId = null;
-  currentSessionNoteId = null;
-  document.getElementById('external-note-title').value = '';
-  if (window.quillEditor) window.quillEditor.root.innerHTML = '';
-  loadExternalNotesList();
-}
+// NOTE: The complete createNewExternalNote (with markdown editor + mode reset) is defined below at line ~660.
+// The old incomplete duplicate here has been removed (Bug 1 fix).
 
 async function loadExternalNotesList() {
   if (!window.notesRepo) return;
@@ -634,7 +629,14 @@ class EditorModeController {
         } else {
           html = normalized.replace(/\n/g, '<br>');
         }
-        window.quillEditor.root.innerHTML = html;
+        // FIX Bug 7: Use dangerouslyPasteHTML to go through Quill's Delta model,
+        // not .root.innerHTML which bypasses undo history and change detection.
+        if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+          window.quillEditor.setText('');
+          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+        } else {
+          window.quillEditor.root.innerHTML = html;
+        }
       }
     }
   }
@@ -680,7 +682,15 @@ async function loadExternalNote(id) {
       currentSessionNoteId = null; // Clear session note context
       document.getElementById('external-note-title').value = note.title || '';
       if (window.quillEditor) {
-        window.quillEditor.root.innerHTML = note.content || '';
+        // FIX Bug 8: Use dangerouslyPasteHTML to go through Quill's Delta model.
+        // Direct .root.innerHTML assignment bypasses undo history — Ctrl+Z after load shows garbage.
+        const html = note.content || '';
+        if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+          window.quillEditor.setText('');
+          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+        } else {
+          window.quillEditor.root.innerHTML = html;
+        }
       }
       const rawEditor = document.getElementById('markdown-source-editor');
       if (rawEditor) {
@@ -716,16 +726,19 @@ async function saveExternalNote(silent = false) {
         if (typeof renderNotes === 'function') renderNotes();
       }
     }
-    
+
     if (!silent) {
+      // FIX Bug 3: Guard btn — overlay may be hidden when auto-save fires
       const btn = document.getElementById('save-external-btn');
-      const oldText = btn.textContent;
-      btn.textContent = 'Saved to Session';
-      btn.style.background = '#48bb78';
-      setTimeout(() => {
-        btn.textContent = oldText;
-        btn.style.background = 'var(--accent)';
-      }, 2000);
+      if (btn) {
+        const oldText = btn.textContent;
+        btn.textContent = 'Saved to Session';
+        btn.style.background = '#48bb78';
+        setTimeout(() => {
+          btn.textContent = oldText;
+          btn.style.background = 'var(--accent)';
+        }, 2000);
+      }
     }
     return;
   }
@@ -744,14 +757,17 @@ async function saveExternalNote(silent = false) {
     const saved = await window.notesRepo.saveNote(noteToSave);
     currentExternalNoteId = saved.id;
     if (!silent) {
+      // FIX Bug 3: Guard btn — overlay may be hidden when silent auto-save fires
       const btn = document.getElementById('save-external-btn');
-      const oldText = btn.textContent;
-      btn.textContent = 'Saved';
-      btn.style.background = '#48bb78';
-      setTimeout(() => {
-        btn.textContent = oldText;
-        btn.style.background = 'var(--accent)';
-      }, 2000);
+      if (btn) {
+        const oldText = btn.textContent;
+        btn.textContent = 'Saved';
+        btn.style.background = '#48bb78';
+        setTimeout(() => {
+          btn.textContent = oldText;
+          btn.style.background = 'var(--accent)';
+        }, 2000);
+      }
       loadExternalNotesList();
     }
   } catch(e) {
@@ -816,8 +832,13 @@ function htmlToMarkdown(htmlOrNode) {
       case 'blockquote': return `\n> ${childrenText.trim().replace(/\n/g, '\n> ')}\n\n`;
       case 'ul': return `\n${childrenText}\n`;
       case 'ol': {
+        // FIX Bug 5: Don't call traverse(li) which hits the 'li' case and prepends '- ',
+        // producing '1. - item'. Instead traverse the li's children directly for clean text.
         let idx = 1;
-        return `\n${Array.from(node.children).map(li => `${idx++}. ${traverse(li).trim()}`).join('\n')}\n\n`;
+        return `\n${Array.from(node.children).map(li => {
+          const liText = Array.from(li.childNodes).map(traverse).join('').trim();
+          return `${idx++}. ${liText}`;
+        }).join('\n')}\n\n`;
       }
       case 'li': return `- ${childrenText.trim()}\n`;
       case 'p': return `${childrenText.trim()}\n\n`;
@@ -921,25 +942,33 @@ function exportExternalNotePDF() {
 }
 
 // Function to open the Full Editor specifically for a session note (PDF highlight note)
-window.editSessionNoteInFullEditor = function(id) {
+window.editSessionNoteInFullEditor = async function(id) {
   if (!window.notes) return;
   const note = window.notes.find(n => String(n.id) === String(id));
   if (!note) return;
-  
+
   currentSessionNoteId = note.id;
   currentExternalNoteId = null; // Clear global context
-  
+
   openExternalNotes();
-  
+
   // Set the title visually (session notes don't formally use titles, but this looks better)
-  document.getElementById('external-note-title').value = 'Highlight Note ' + (note.isHl ? '(Annotated)' : '');
-  
-  setTimeout(() => {
-    if (window.quillEditor) {
-      window.quillEditor.root.innerHTML = note.txt || '';
+  const titleEl = document.getElementById('external-note-title');
+  if (titleEl) titleEl.value = 'Highlight Note ' + (note.isHl ? '(Annotated)' : '');
+
+  // FIX Bug 4: Use ensureQuillEditor() instead of a raw 100ms setTimeout.
+  // Raw timeout silently loses content on slow devices or when Quill hasn't loaded yet.
+  const editor = await ensureQuillEditor();
+  if (editor) {
+    const html = note.txt || '';
+    if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
+      editor.setText('');
+      editor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+    } else {
+      editor.root.innerHTML = html;
     }
-    loadExternalNotesList();
-  }, 100);
+  }
+  loadExternalNotesList();
 };
 
 // Open the note in the main Enhanced Reader viewer

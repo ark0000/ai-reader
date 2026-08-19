@@ -901,7 +901,12 @@
                 <span class="settings-help">Restores standard rich text editor behavior without markdown shortcuts or paste interception.</span>
               </div>
               <label class="toggle-switch">
-                <input type="checkbox" id="disable-editor-md-cb" role="switch" onchange="if(window.settingsRepo) window.settingsRepo.set('aura-disable-editor-markdown', this.checked ? 'true' : 'false'); window.safeStorage.setItem('aura-disable-editor-markdown', this.checked ? 'true' : 'false'); if(window.updateMarkdownUI) window.updateMarkdownUI();">
+                <input type="checkbox" id="disable-editor-md-cb" role="switch" onchange="
+                  var val = this.checked ? 'true' : 'false';
+                  if(window.settingsRepo) window.settingsRepo.set('aura-disable-editor-markdown', val);
+                  window.safeStorage.setItem('aura-disable-editor-markdown', val);
+                  if(window.appEventBus) window.appEventBus.emit('SettingsChanged:aura-disable-editor-markdown', val);
+                ">
                 <span class="toggle-slider"></span>
               </label>
             </div>
