@@ -47,6 +47,8 @@ src/database.db
 *.pdf
 *.jpg
 *.png
+*.log
+debug_log.txt
 
 # IDEs
 .idea/

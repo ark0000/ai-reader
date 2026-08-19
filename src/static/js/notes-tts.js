@@ -249,7 +249,7 @@ window.renderNotes = function(){
   });
 };
 window.exportNotes = function(format) {
-  if(!window.notes.length) { alert('No notes to export.'); return; }
+  if(!window.notes || !window.notes.length) { alert('No notes to export.'); return; }
   var hIdxTxt=1, hIdxPdf=1;
   if(format === 'txt') {
     var txt = window.notes.map(function(n) { 
@@ -257,7 +257,17 @@ window.exportNotes = function(format) {
       temp.innerHTML = n.txt;
       var cleanTxt = temp.innerText || temp.textContent || '';
       var noteTxt = n.isHl ? ('Highlight ' + (hIdxTxt++) + '\n' + cleanTxt) : cleanTxt;
-      return (n.q ? '"' + n.q + '"\n' : '') + (noteTxt ? 'Note: ' + noteTxt : ''); 
+      var qTxt = n.q;
+      if (qTxt) {
+        if (qTxt.includes('<svg') || qTxt.includes('<img')) {
+          qTxt = '[Diagram / Image]';
+        } else {
+          var tempQ = document.createElement('div');
+          tempQ.innerHTML = qTxt;
+          qTxt = tempQ.innerText || tempQ.textContent || qTxt;
+        }
+      }
+      return (qTxt ? '"' + qTxt + '"\n' : '') + (noteTxt ? 'Note: ' + noteTxt : ''); 
     }).join('\n\n---\n\n');
     var blob = new Blob([txt], {type: 'text/plain'});
     var a = document.createElement('a');
@@ -278,12 +288,20 @@ window.exportNotes = function(format) {
     doc.open();
     var preserveColors = window.safeStorage && window.safeStorage.getItem('aura-pdf-colors') === 'true';
     var styleOverride = preserveColors ? '' : '<style>* { color: #000 !important; } pre, code { background-color: #f5f5f5 !important; }</style>';
-    doc.write('<html><head><title>Emanation Reader Notes</title>' + styleOverride + '</head><body style="padding:20px;font-family:sans-serif;color:#000;background:#fff;">');
+    doc.write('<html><head><title>Emanation Reader Notes</title>' + styleOverride + '<style>body{font-family:sans-serif;padding:20px;line-height:1.6;} img, svg{max-width:100%;height:auto;}</style></head><body style="padding:20px;font-family:sans-serif;color:#000;background:#fff;">');
     doc.write('<h2>Emanation Reader Notes</h2><hr>' + window.notes.map(function(n) {
       var noteBadge = n.isHl ? '<span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:'+n.color+';color:#000;text-align:center;line-height:20px;font-weight:bold;font-size:12px;margin-right:8px;">' + (hIdxPdf++) + '</span>' : '';
       var noteTxt = noteBadge + n.txt;
       var qColor = n.isHl ? n.color : '#ccc';
-      return '<div style="margin-bottom:15px">' + (n.q ? '<blockquote style="border-left:3px solid '+qColor+';padding-left:10px;color:#555;font-style:italic">"' + n.q + '"</blockquote>' : '') + '<div style="color:#000;margin-top:8px">' + noteTxt + '</div></div>';
+      var qBlock = '';
+      if (n.q) {
+        if (n.q.startsWith('<img') || n.q.startsWith('<svg') || n.q.startsWith('<pre')) {
+          qBlock = '<div style="margin-bottom:8px;">' + n.q + '</div>';
+        } else {
+          qBlock = '<blockquote style="border-left:3px solid '+qColor+';padding-left:10px;color:#555;font-style:italic">"' + n.q + '"</blockquote>';
+        }
+      }
+      return '<div style="margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #eee;">' + qBlock + '<div style="color:#000;margin-top:8px">' + noteTxt + '</div></div>';
     }).join(''));
     doc.write('</body></html>');
     doc.close();
@@ -296,29 +314,76 @@ window.exportNotes = function(format) {
   }
 };
 
-window.openAllNotesInEditor = function() {
+window.openAllNotesInEditor = async function() {
   if(!window.notes || !window.notes.length) { alert('No session notes to export.'); return; }
   
-  var hIdxHtml = 1;
-  var allHtml = window.notes.map(function(n) {
-    var noteBadge = n.isHl ? '<strong>[Note ' + (hIdxHtml++) + ']</strong> ' : '';
-    var noteTxt = noteBadge + n.txt;
-    var qColor = n.isHl ? n.color : '#ccc';
-    return '<p>' + (n.q ? '<blockquote>"' + n.q + '"</blockquote><br>' : '') + noteTxt + '</p>';
-  }).join('<br><hr><br>');
+  var docTitle = window.currentFileName ? window.currentFileName.replace(/\.[^/.]+$/, "") : "Untitled Document";
+  var exportTitle = 'Notes from ' + docTitle;
   
-  // Open Full Editor
-  if (typeof openExternalNotes === 'function') {
+  var hIdxHtml = 1;
+  var noteBlocks = window.notes.map(function(n, idx) {
+    var blocks = [];
+    
+    // Note header / badge
+    if (n.isHl) {
+      blocks.push('<p><strong>[Highlight ' + (hIdxHtml++) + ']</strong></p>');
+    } else {
+      blocks.push('<p><strong>[Note ' + (idx + 1) + ']</strong></p>');
+    }
+    
+    // Quote / diagram / image / code
+    if (n.q && n.q.trim()) {
+      var qTrim = n.q.trim();
+      if (qTrim.includes('<svg')) {
+        // Convert SVG to data URI image so Quill renders it without stripping
+        var svg = qTrim;
+        if (!svg.includes('xmlns=')) {
+          svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        var uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        blocks.push('<p><img src="' + uri + '" alt="Diagram" style="max-width:100%; border:1px solid #444; border-radius:4px;" /></p>');
+      } else if (qTrim.startsWith('<img') || qTrim.includes('<img')) {
+        blocks.push('<p>' + qTrim + '</p>');
+      } else if (qTrim.startsWith('<pre') || qTrim.startsWith('<code')) {
+        blocks.push(qTrim);
+      } else {
+        var cleanQuote = qTrim.replace(/^["']|["']$/g, '');
+        blocks.push('<blockquote>' + cleanQuote + '</blockquote>');
+      }
+    }
+    
+    // Body note text
+    if (n.txt && n.txt.trim()) {
+      var txtTrim = n.txt.trim();
+      if (/^<(p|div|ul|ol|blockquote|h[1-6]|table|pre)/i.test(txtTrim)) {
+        blocks.push(txtTrim);
+      } else {
+        blocks.push('<p>' + txtTrim + '</p>');
+      }
+    }
+    
+    blocks.push('<p><br></p>');
+    return blocks.join('');
+  });
+  
+  var fullHtml = '<h2>Notes from ' + docTitle + '</h2><p><br></p>' + noteBlocks.join('');
+  
+  if (typeof window.openExternalEditorWithContent === 'function') {
+    await window.openExternalEditorWithContent(exportTitle, fullHtml);
+  } else if (typeof openExternalNotes === 'function') {
     openExternalNotes();
     setTimeout(function() {
-      // Create new note
       if (typeof createNewExternalNote === 'function') {
         createNewExternalNote();
-        
-        var docTitle = window.currentFileName ? window.currentFileName.replace(/\.[^/.]+$/, "") : "Untitled Document";
-        document.getElementById('external-note-title').value = 'Notes from ' + docTitle;
+        var titleEl = document.getElementById('external-note-title');
+        if (titleEl) titleEl.value = exportTitle;
         if (window.quillEditor) {
-          window.quillEditor.root.innerHTML = '<h2>Notes from ' + docTitle + '</h2><hr><br>' + allHtml;
+          if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+            window.quillEditor.clipboard.dangerouslyPasteHTML(0, fullHtml);
+          } else {
+            window.quillEditor.root.innerHTML = fullHtml;
+          }
+          if (typeof saveExternalNote === 'function') saveExternalNote(true);
         }
       }
     }, 200);

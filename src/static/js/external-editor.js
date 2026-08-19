@@ -44,6 +44,27 @@ function initQuillEditor() {
   }
 }
 
+function ensureQuillEditor() {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('external-notes-overlay');
+    if (overlay && overlay.style.display !== 'flex') {
+      overlay.style.display = 'flex';
+    }
+    if (window.quillEditor) {
+      return resolve(window.quillEditor);
+    }
+    initQuillEditor();
+    if (window.quillEditor) {
+      return resolve(window.quillEditor);
+    }
+    setTimeout(() => {
+      initQuillEditor();
+      resolve(window.quillEditor);
+    }, 100);
+  });
+}
+window.ensureQuillEditor = ensureQuillEditor;
+
 function openExternalNotes() {
   const overlay = document.getElementById('external-notes-overlay');
   if (overlay) {
@@ -55,6 +76,32 @@ function openExternalNotes() {
     loadExternalNotesList();
   }
 }
+
+window.openExternalEditorWithContent = async function(title, htmlContent) {
+  const overlay = document.getElementById('external-notes-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  
+  const editor = await ensureQuillEditor();
+  if (!editor) {
+    console.error("Quill editor is not available.");
+    return;
+  }
+  
+  currentExternalNoteId = null;
+  currentSessionNoteId = null;
+  
+  const titleInput = document.getElementById('external-note-title');
+  if (titleInput) titleInput.value = title || 'Untitled Note';
+  
+  if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
+    editor.clipboard.dangerouslyPasteHTML(0, htmlContent);
+  } else {
+    editor.root.innerHTML = htmlContent;
+  }
+  
+  await saveExternalNote(true);
+  loadExternalNotesList();
+};
 
 function closeExternalNotes() {
   const overlay = document.getElementById('external-notes-overlay');
