@@ -52,7 +52,7 @@ def session():
 def lmstudio_conn(session):
     """Create a test connection to LM Studio (if available) and return its ID."""
     r = session.post(f"{BASE}/api/connections", json={
-        "provider_id": "openai_compat",
+        "provider_id": "lmstudio",
         "name": "pytest-lmstudio",
         "base_url": "http://127.0.0.1:1234/v1",
         "model": "qwen/qwen3-coder-30b",
@@ -66,6 +66,7 @@ def lmstudio_conn(session):
     yield conn_id
     # Cleanup
     session.delete(f"{BASE}/api/connections/{conn_id}", timeout=TIMEOUT)
+
 
 
 # ── Server health ─────────────────────────────────────────────────────────────
