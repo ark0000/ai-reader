@@ -3,6 +3,30 @@ let currentExternalNoteId = null; // Used for global notes
 let currentSessionNoteId = null;  // Used for highlight notes
 let saveTimeout = null;
 
+// Register Custom Table Blot for Quill so tables are preserved and not stripped
+if (typeof Quill !== 'undefined') {
+  try {
+    const BlockEmbed = Quill.import('blots/block/embed');
+    class CustomTableBlot extends BlockEmbed {
+      static create(value) {
+        const node = super.create();
+        node.innerHTML = typeof value === 'string' ? value : '';
+        node.setAttribute('contenteditable', 'true');
+        return node;
+      }
+      static value(node) {
+        return node.innerHTML;
+      }
+    }
+    CustomTableBlot.blotName = 'custom-table';
+    CustomTableBlot.tagName = 'div';
+    CustomTableBlot.className = 'ql-custom-table-container';
+    Quill.register(CustomTableBlot, true);
+  } catch(e) {
+    console.warn("CustomTableBlot registration:", e);
+  }
+}
+
 // Wait for Quill to be ready
 function initQuillEditor() {
   if (window.quillEditor) return; // already initialized
@@ -261,6 +285,10 @@ class MarkdownIntelligenceEngine {
             marked.use({ gfm: true, breaks: true });
           }
           html = marked.parse(normalized);
+          // Wrap all <table>...</table> in custom-table container so Quill preserves them
+          html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
+            return `<div class="ql-custom-table-container">${match}</div>`;
+          });
         } catch (err) {
           console.warn('Marked parse fallback:', err);
           html = normalized.replace(/\n/g, '<br>');
@@ -321,7 +349,11 @@ class MarkdownIntelligenceEngine {
     try {
       const normalized = SmartMarkdownNormalizer.normalize(rawText);
       if (marked.use) marked.use({ gfm: true, breaks: true });
-      const html = marked.parse(normalized);
+      let html = marked.parse(normalized);
+      // Wrap all <table>...</table> in custom-table container
+      html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
+        return `<div class="ql-custom-table-container">${match}</div>`;
+      });
       
       if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
         this.quill.setText('');
@@ -622,6 +654,23 @@ function htmlToMarkdown(htmlOrNode) {
       case 'li': return `- ${childrenText.trim()}\n`;
       case 'p': return `${childrenText.trim()}\n\n`;
       case 'a': return `[${childrenText}](${node.getAttribute('href') || ''})`;
+      case 'table': {
+        const rows = Array.from(node.querySelectorAll('tr'));
+        if (rows.length === 0) return '';
+        const mdRows = [];
+        rows.forEach((tr, rowIndex) => {
+          const cells = Array.from(tr.querySelectorAll('th, td'));
+          const cellTexts = cells.map(c => Array.from(c.childNodes).map(traverse).join('').trim().replace(/\|/g, '\\|') || ' ');
+          mdRows.push('| ' + cellTexts.join(' | ') + ' |');
+          if (rowIndex === 0) {
+            mdRows.push('| ' + Array(cellTexts.length).fill('---').join(' | ') + ' |');
+          }
+        });
+        return '\n\n' + mdRows.join('\n') + '\n\n';
+      }
+      case 'th':
+      case 'td':
+        return childrenText.trim();
       case 'hr': return `\n---\n\n`;
       case 'br': return `\n`;
       default: return childrenText;
