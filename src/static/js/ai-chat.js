@@ -515,22 +515,35 @@ class ConnectionManager {
   }
 
   async test() {
+    // Derive a clean base URL for the /models probe.
+    // If the user entered the full chat completions URL, strip the path suffix
+    // so the backend can safely append /models (e.g. http://host/v1).
+    var rawUrl = document.getElementById('conn-mgr-baseurl').value.trim();
+    var probeBase = rawUrl
+      .replace(/\/chat\/completions\/?$/i, '')
+      .replace(/\/messages\/?$/i, '')
+      .replace(/\/generateContent.*$/i, '')
+      .replace(/\/streamGenerateContent.*$/i, '')
+      .replace(/\/$/, '');
+
     var payload = {
       provider_id: document.getElementById('conn-mgr-provider').value,
       name: document.getElementById('conn-mgr-name').value.trim() || 'test',
-      base_url: document.getElementById('conn-mgr-baseurl').value.trim(),
+      base_url: probeBase,
       model: document.getElementById('conn-mgr-model').value.trim(),
       is_active: false
     };
     
     var key = document.getElementById('conn-mgr-apikey').value.trim();
-    if(key) payload.api_key = key;
-    
-    var btn = document.querySelector('button[onclick="window.connMgrSave()"]').nextElementSibling; // Just a visual hack for the old button if needed, otherwise we can pass it
-    if (btn && btn.textContent.includes('Test')) {
-       var oldText = btn.textContent;
-       btn.textContent = "Testing...";
-       btn.disabled = true;
+    if (key) payload.api_key = key;
+
+    // Find the Test button by its onclick attribute (no window. prefix in HTML)
+    var testBtn = document.querySelector('#conn-mgr-detail button[onclick="connMgrTest()"]');
+    var oldText = '';
+    if (testBtn) {
+      oldText = testBtn.textContent;
+      testBtn.textContent = 'Testing…';
+      testBtn.disabled = true;
     }
     
     try {
@@ -540,25 +553,32 @@ class ConnectionManager {
         body: JSON.stringify(payload)
       });
       var data = await r.json();
-      if (data.status === "success") {
-        alert("✅ Connection successful!");
+      if (data.status === 'success') {
+        alert('✅ Connection successful!');
       } else {
-        alert("❌ Test failed: " + (data.message || data.detail || JSON.stringify(data)));
+        alert('❌ Test failed: ' + (data.message || data.detail || JSON.stringify(data)));
       }
-    } catch(e) {
-      alert("❌ Test failed: " + e.message);
+    } catch (e) {
+      alert('❌ Test failed: ' + e.message);
     } finally {
-      if (btn && btn.textContent.includes('Testing')) {
-         btn.textContent = oldText;
-         btn.disabled = false;
+      if (testBtn) {
+        testBtn.textContent = oldText;
+        testBtn.disabled = false;
       }
     }
   }
 
   async delete() {
     var id = document.getElementById('conn-mgr-id').value;
-    if(!id) return;
-    if(!confirm("Are you sure you want to delete this connection?")) return;
+    if (!id) {
+      alert('No connection selected.');
+      return;
+    }
+    if (!confirm('Are you sure you want to delete this connection?')) return;
+
+    var deleteBtn = document.getElementById('conn-mgr-delete-btn');
+    var oldText = '';
+    if (deleteBtn) { oldText = deleteBtn.textContent; deleteBtn.textContent = 'Deleting…'; deleteBtn.disabled = true; }
     
     try {
       var r = await fetch('/api/connections/' + id, {
@@ -566,15 +586,25 @@ class ConnectionManager {
         headers: window.authHeaders()
       });
       
-      if(r.ok) {
+      if (r.ok) {
+        // If the deleted connection was the active one, clear the active display
+        var disp = document.getElementById('active-connection-display');
+        if (disp && window.activeConnectionId === parseInt(id, 10)) {
+          window.activeConnectionId = null;
+          disp.textContent = 'None — add a connection first';
+        }
         document.getElementById('conn-mgr-sidebar').style.display = 'flex';
         document.getElementById('conn-mgr-detail').style.display = 'none';
         this.loadConnections();
       } else {
-        alert("Failed to delete connection");
+        var msg = 'Failed to delete connection';
+        try { var errJson = await r.json(); msg = errJson.detail || msg; } catch (_) {}
+        alert(msg);
       }
-    } catch(e) {
-      alert("Error: " + e.message);
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      if (deleteBtn) { deleteBtn.textContent = oldText; deleteBtn.disabled = false; }
     }
   }
 }
