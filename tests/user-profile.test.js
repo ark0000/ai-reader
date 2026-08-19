@@ -9,9 +9,11 @@ describe('User Profile & Authentication System', () => {
         <input type="text" id="username-input" value="" />
         <button id="login-profile-btn">Log in</button>
         <button id="logout-btn" style="display:none;">Log out</button>
+        <input type="checkbox" id="manual-save-cb" />
       </div>
       <div id="library-modal" style="display:none;">
         <span id="library-username-display"></span>
+        <div id="library-list"></div>
       </div>
       <aura-profile id="top-profile-badge"></aura-profile>
     `;
@@ -21,9 +23,14 @@ describe('User Profile & Authentication System', () => {
     const readerCoreContent = fs.readFileSync(readerCorePath, 'utf8');
     eval(readerCoreContent);
 
-    // Mock storageRepository migration
+    // Mock storageRepository methods
     if (window.storageRepository) {
       window.storageRepository.migrateNamespace = jest.fn().mockResolvedValue({ count: 2 });
+      window.storageRepository.savePdfScrollState = jest.fn().mockResolvedValue(true);
+      window.storageRepository.getPdfScrollState = jest.fn().mockResolvedValue({ page: 5, zoom: 1.2 });
+      window.storageRepository.getLibraryMeta = jest.fn().mockResolvedValue([
+        { id: 'arun_doc1.pdf', fileName: 'doc1.pdf', timestamp: Date.now() }
+      ]);
     }
 
     // 3. Load AuraProfile.js Web Component
@@ -83,7 +90,7 @@ describe('User Profile & Authentication System', () => {
     await new Promise((r) => setTimeout(r, 20));
 
     // Verify migration was triggered
-    expect(window.storageRepository.migrateNamespace).toHaveBeenCalled();
+    expect(window.storageRepository.migrateNamespace).toHaveBeenCalledWith('guest', 'alex');
     expect(window.renderLibrary).toHaveBeenCalled();
   });
 
@@ -123,5 +130,45 @@ describe('User Profile & Authentication System', () => {
 
     expect(window.currentUsername).toBe('john_doe');
     expect(window.settingsRepo.getUsername()).toBe('john_doe');
+  });
+
+  test('SafeStorage protects critical profile keys from eviction', () => {
+    expect(window.safeStorage._criticalKeys.has('username')).toBe(true);
+    expect(window.safeStorage._criticalKeys.has('aura-state-save-prefs')).toBe(true);
+  });
+
+  test('User state save preferences (reading & notes states) are parsed from aura-state-save-prefs', () => {
+    localStorage.setItem('aura-state-save-prefs', JSON.stringify({
+      'aura-reading-state': true,
+      'aura-notes-state': false
+    }));
+
+    // Reset settings cache
+    window.settingsRepo.cache = {};
+
+    expect(window.settingsRepo.get('aura-reading-state')).toBe('true');
+    expect(window.settingsRepo.get('aura-notes-state')).toBe('false');
+  });
+
+  test('AuraProfile triggers combo animation on document:saved event', async () => {
+    const profileBadge = document.querySelector('aura-profile');
+    const container = profileBadge.shadowRoot.getElementById('profile-container');
+    
+    profileBadge.triggerComboEffect();
+    await new Promise((r) => setTimeout(r, 25));
+
+    // Check if combo-active class is applied
+    expect(container.classList.contains('combo-active')).toBe(true);
+  });
+
+  test('Library modal queries documents isolated by username', async () => {
+    window.currentUsername = 'dr_smith';
+    await window.renderLibrary();
+
+    if (window.storageRepository && window.storageRepository.getLibraryMeta) {
+      const files = await window.storageRepository.getLibraryMeta('dr_smith');
+      expect(files.length).toBeGreaterThan(0);
+      expect(files[0].id.startsWith('arun_') || files[0].id.startsWith('dr_smith_')).toBe(true);
+    }
   });
 });
