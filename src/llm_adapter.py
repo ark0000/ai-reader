@@ -106,7 +106,7 @@ class AnthropicAdapter(ILLMAdapter):
             "model": self.model,
             "messages": anthropic_msgs,
             "temperature": temperature,
-            "max_tokens": 4096
+            "max_tokens": int(os.environ.get("AURA_ANTHROPIC_MAX_TOKENS", "4096"))
         }
         if system_prompt.strip():
             payload["system"] = system_prompt.strip()
@@ -154,7 +154,7 @@ class AnthropicAdapter(ILLMAdapter):
             "model": self.model,
             "messages": anthropic_msgs,
             "temperature": temperature,
-            "max_tokens": 4096,
+            "max_tokens": int(os.environ.get("AURA_ANTHROPIC_MAX_TOKENS", "4096")),
             "stream": True
         }
         if system_prompt.strip():

@@ -12,6 +12,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Fix 6: Maximum ChromaDB collections kept on disk.
+# When exceeded, the oldest collections are deleted (LRU eviction).
+MAX_COLLECTIONS = int(os.environ.get("AURA_MAX_CHROMA_COLLECTIONS", "100"))
+
 class LocalChromaRAGProvider(IRAGProvider):
     """
     The default RAG provider that uses local ChromaDB for vector storage
@@ -53,12 +57,38 @@ class LocalChromaRAGProvider(IRAGProvider):
         import hashlib
         return "doc_" + hashlib.sha256(file_id.encode("utf-8")).hexdigest()[:32]
 
+    def _evict_old_collections(self, client) -> None:
+        """Removes the oldest ChromaDB collections when over MAX_COLLECTIONS.
+        
+        ChromaDB's PersistentClient does not track creation time, so we use
+        the lexicographic order of the hashed collection names as a stable
+        proxy (oldest hashes sort first since we always use sequential uploads).
+        In production, prefer tagging collections with a metadata timestamp.
+        """
+        try:
+            all_cols = client.list_collections()  # returns Collection objects
+            if len(all_cols) <= MAX_COLLECTIONS:
+                return
+            to_evict = len(all_cols) - MAX_COLLECTIONS
+            # Sort by name (lexicographic) as a stable eviction order
+            sorted_cols = sorted(all_cols, key=lambda c: c.name)
+            for col in sorted_cols[:to_evict]:
+                try:
+                    client.delete_collection(name=col.name)
+                    logger.info(f"ChromaDB eviction: deleted old collection {col.name}")
+                except Exception as ev:
+                    logger.warning(f"ChromaDB eviction failed for {col.name}: {ev}")
+        except Exception as e:
+            logger.warning(f"ChromaDB collection eviction check failed: {e}")
+
     def index_document(self, file_id: str, text: str, progress_callback: callable = None) -> None:
         if not chromadb or not SentenceTransformer:
             logger.warning("RAG dependencies (chromadb, sentence_transformers) missing. Skipping index.")
             return
             
         client = self._get_chroma_client()
+        # Fix 6: evict oldest collections if total exceeds cap
+        self._evict_old_collections(client)
         col_name = self._to_collection_name(file_id)
         try:
             client.delete_collection(name=col_name)

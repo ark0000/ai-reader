@@ -14,12 +14,15 @@ from src.dependencies import resolve_user
 from src.database import HistoryRepository
 from src.storage import get_storage
 from src.task_queue import task_queue
-from src.rag_indexer import index_document
 from src.pdf_converter import convert_pdf_to_dark_mode
 from src.rag.manager import RAGManager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["files"])
+
+# ── Storage limits ──────────────────────────────────────────────────────────
+MAX_UPLOAD_BYTES = int(os.environ.get("AURA_MAX_UPLOAD_MB", "100")) * 1024 * 1024  # default 100 MB
+MAX_TEMP_DISK_BYTES = int(os.environ.get("AURA_MAX_TEMP_DISK_MB", "2048")) * 1024 * 1024  # default 2 GB
 
 storage_client = get_storage()
 task_user_mapping = {}
@@ -67,12 +70,41 @@ async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
         content_bytes = await file.read()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read upload: {str(e)}")
-        
+
+    # ── Fix 1: enforce upload size limit ──────────────────────────────────
+    if len(content_bytes) > MAX_UPLOAD_BYTES:
+        limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+        actual_mb = len(content_bytes) / (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large ({actual_mb:.1f} MB). Maximum allowed upload size is {limit_mb} MB."
+        )
+
+    # ── Fix 2: enforce temp disk quota ────────────────────────────────────
+    from src.storage import LOCAL_TEMP_DIR
+    try:
+        current_disk = sum(
+            os.path.getsize(os.path.join(LOCAL_TEMP_DIR, f))
+            for f in os.listdir(LOCAL_TEMP_DIR)
+            if os.path.isfile(os.path.join(LOCAL_TEMP_DIR, f))
+        )
+        if current_disk + len(content_bytes) > MAX_TEMP_DISK_BYTES:
+            limit_gb = MAX_TEMP_DISK_BYTES / (1024 ** 3)
+            raise HTTPException(
+                status_code=507,
+                detail=f"Server storage quota exceeded ({limit_gb:.0f} GB limit). Try again later or contact the administrator."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Disk quota check failed (non-fatal): {e}")
+
     input_filename = f"{task_id}_input.{ext}"
     try:
         storage_client.save_file(content_bytes, input_filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write storage: {str(e)}")
+
         
     total_pages = 1
     if ext == "pdf":

@@ -324,15 +324,28 @@ class DesktopUpdaterFacade:
 
     @classmethod
     def apply_update(cls) -> Dict[str, Any]:
-        """Apply the update using the appropriate strategy."""
+        """Apply the update using the appropriate strategy.
+        
+        A snapshot of the current state is automatically created before applying,
+        so the user can roll back if anything goes wrong.
+        """
         update_info = cls.check_for_updates(force=True)
         strategy_name, strategy = UpdateStrategyFactory.get_strategy()
-        
+
+        # Auto-snapshot before applying (Rollback Fix)
+        try:
+            from src.snapshot_manager import SnapshotManager
+            snap_result = SnapshotManager.create_snapshot(reason="pre-update")
+            logger.info(f"Pre-update snapshot: {snap_result.get('id', 'unknown')}")
+        except Exception as e:
+            logger.warning(f"Could not create pre-update snapshot (non-fatal): {e}")
+
         res = strategy.apply(update_info)
         res["strategy"] = strategy_name
         res["current_version"] = CURRENT_VERSION
         res["latest_version"] = update_info.get("latest_version", CURRENT_VERSION)
         return res
+
 
     @classmethod
     def restart_application(cls) -> Dict[str, Any]:

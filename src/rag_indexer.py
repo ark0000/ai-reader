@@ -1,6 +1,30 @@
+"""
+DEPRECATED — do not use this module in new code.
+
+This file is superseded by:
+    src/rag/providers/local_chroma.py  (via RAGManager)
+
+Issues with this module:
+  - Uses raw file_id as ChromaDB collection name (unsafe — special chars crash ChromaDB).
+  - Not registered with RAGManager; cannot be swapped out.
+  - Duplicate of LocalChromaRAGProvider logic.
+
+Use instead:
+    from src.rag.manager import RAGManager
+    provider = RAGManager.get_provider("default")
+    provider.index_document(file_id, text)
+"""
+import warnings
+warnings.warn(
+    "src.rag_indexer is deprecated. Use RAGManager.get_provider('default').index_document() instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import os
 import logging
 from typing import List
+
 
 try:
     import chromadb

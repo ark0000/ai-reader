@@ -740,6 +740,75 @@ window.authHeaders = function() {
   return {}; 
 };
 
+// Fix 8: Silent JWT auto-refresh
+// Reads the token expiry from the JWT payload and schedules a refresh
+// 5 minutes before it expires so the session never drops mid-use.
+(function _scheduleTokenRefresh() {
+  try {
+    var token = localStorage.getItem('token');
+    if (!token) return;
+    var parts = token.split('.');
+    if (parts.length !== 3) return;
+    var payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    if (!payload.exp) return;
+    var msUntilExpiry = (payload.exp * 1000) - Date.now();
+    var msUntilRefresh = msUntilExpiry - 5 * 60 * 1000; // 5 min before expiry
+    if (msUntilRefresh <= 0) return; // already expired or < 5 min remaining
+    setTimeout(async function _doRefresh() {
+      try {
+        var r = await fetch('/api/refresh', {
+          method: 'POST',
+          headers: window.authHeaders()
+        });
+        if (r.ok) {
+          var d = await r.json();
+          if (d.token) {
+            localStorage.setItem('token', d.token);
+            console.info('[AuraReader] JWT refreshed silently.');
+            _scheduleTokenRefresh(); // reschedule for the new token
+          }
+        }
+      } catch (e) {
+        console.warn('[AuraReader] JWT refresh failed:', e.message);
+      }
+    }, msUntilRefresh);
+  } catch (e) {
+    // Non-fatal — ignore malformed tokens
+  }
+})();
+
+// Fix 9: localStorage quota guard
+// Wraps safeStorage.setItem to warn when the browser storage is over 80% full
+// and skips the write (with a user-visible toast) when it is completely full.
+(function _patchStorageQuotaGuard() {
+  var _origSet = window.safeStorage && window.safeStorage.setItem;
+  if (!_origSet) return;
+  var WARN_THRESHOLD = 0.80; // warn at 80% of 5 MB
+  var QUOTA_BYTES = 5 * 1024 * 1024;
+  window.safeStorage.setItem = function(key, val) {
+    try {
+      // Estimate used storage
+      var used = 0;
+      for (var k in localStorage) {
+        if (Object.prototype.hasOwnProperty.call(localStorage, k)) {
+          used += (localStorage[k].length + k.length) * 2; // UTF-16
+        }
+      }
+      var valBytes = ((val || '').length + key.length) * 2;
+      if (used + valBytes > QUOTA_BYTES) {
+        console.warn('[AuraReader] localStorage quota full — skipping write for key:', key);
+        if (window.showToast) window.showToast('⚠\uFE0F Storage nearly full. Some settings may not be saved.');
+        return;
+      }
+      if ((used + valBytes) / QUOTA_BYTES > WARN_THRESHOLD) {
+        console.warn('[AuraReader] localStorage is ' + Math.round((used+valBytes)/QUOTA_BYTES*100) + '% full.');
+      }
+    } catch (_) {}
+    _origSet.call(window.safeStorage, key, val);
+  };
+})();
+
+
 window.addEventListener('AI_EXPLAIN', (e) => {
   const data = e.detail;
   if (window.switchTab && window.togglePanel) {

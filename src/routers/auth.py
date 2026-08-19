@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
-from src.database import UserRepository, HistoryRepository, create_jwt
+from src.database import UserRepository, HistoryRepository, create_jwt, verify_jwt
 from src.dependencies import resolve_user
 
 router = APIRouter(prefix="/api", tags=["auth"])
@@ -24,6 +24,14 @@ async def api_login(req: AuthRequest):
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     token = create_jwt({"user_id": user["id"], "username": user["username"]})
     return {"token": token, "username": user["username"]}
+
+# Fix 8: Token refresh endpoint — allows the client to silently renew a JWT
+# before it expires, preventing the user from being logged out unexpectedly.
+@router.post("/refresh")
+async def api_refresh_token(user_data: dict = Depends(resolve_user)):
+    """Issues a fresh 24-hour JWT for the currently authenticated user."""
+    token = create_jwt({"user_id": user_data["user_id"], "username": user_data["username"]})
+    return {"token": token, "username": user_data["username"]}
 
 @router.get("/history")
 async def api_get_history(user_data: dict = Depends(resolve_user)):

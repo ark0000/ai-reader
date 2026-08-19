@@ -37,18 +37,25 @@ node_modules/
 
 # Application specifics
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+.snapshots/
+test_results.json
 chroma_db/
 temp/
 src/temp/
 src/chroma_db/
 src/database.db
+src/database.db-shm
+src/database.db-wal
 *.pdf
 *.jpg
 *.png
 *.log
 debug_log.txt
+
 
 # IDEs
 .idea/

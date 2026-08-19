@@ -1,7 +1,8 @@
 import logging
+import os
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from src.dependencies import resolve_user
 from src.llm_adapter import ProviderFactory
 from src.task_queue import task_queue
@@ -23,10 +24,15 @@ class ChatMessage(BaseModel):
 class ChatRequestWithConnection(BaseModel):
     connection_id: int
     messages: List[dict]
-    temperature: float = 0.7
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     rag_enabled: bool = False
     file_id: Optional[str] = None
-    top_k: int = 3
+    # Fix 4: top_k validated server-side — range [1, 20]
+    top_k: int = Field(default=3, ge=1, le=20)
+
+# Fix 9: max characters of RAG context injected into a prompt.
+# Prevents filling the model's context window with raw document text.
+RAG_CONTEXT_CHAR_BUDGET = int(os.environ.get("AURA_RAG_CONTEXT_CHARS", "12000"))
 
 async def _prepare_messages_with_rag(req: ChatRequestWithConnection) -> List[dict]:
     messages = req.messages.copy()
@@ -64,6 +70,10 @@ async def _prepare_messages_with_rag(req: ChatRequestWithConnection) -> List[dic
                 if context:
                     logger.info(f"Found {len(context)} context chunks. Injecting into user prompt.")
                     context_str = "\n\n".join(context)
+                    # Fix 9: Clamp injected context to character budget
+                    if len(context_str) > RAG_CONTEXT_CHAR_BUDGET:
+                        context_str = context_str[:RAG_CONTEXT_CHAR_BUDGET] + "\n[...context truncated for length...]"
+                        logger.warning(f"RAG context truncated to {RAG_CONTEXT_CHAR_BUDGET} chars for {file_id}")
                     enhanced_user_msg = (
                         f"Context from document:\n{context_str}\n\n"
                         f"Question: {user_msg}\n\n"

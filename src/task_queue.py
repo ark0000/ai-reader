@@ -1,14 +1,20 @@
 import asyncio
 import logging
+import os
 import time
 from typing import Dict, Any, Callable, Optional
+
 
 logger = logging.getLogger(__name__)
 
 class DocumentTaskQueue:
+    # Maximum number of tasks that can wait in the queue at once.
+    # Prevents unbounded memory growth under heavy load.
+    MAX_QUEUE_DEPTH = int(os.environ.get("AURA_MAX_QUEUE_DEPTH", "50"))
+
     def __init__(self, concurrency: int = 1):
         self.concurrency = concurrency
-        self.queue: asyncio.Queue = asyncio.Queue()
+        self.queue: asyncio.Queue = asyncio.Queue(maxsize=self.MAX_QUEUE_DEPTH)
         self.tasks: Dict[str, Dict[str, Any]] = {}  # task_id -> task_meta
         self.workers = []
         self.running = False
@@ -29,8 +35,13 @@ class DocumentTaskQueue:
             self.tasks.pop(tid, None)
 
     def add_task(self, task_id: str, user_id: int, fn: Callable, *args, **kwargs):
-        """Adds a conversion task to the queue."""
+        """Adds a conversion task to the queue. Raises QueueFull if the queue is at capacity."""
         self._prune_old_tasks()
+        if self.queue.full():
+            raise RuntimeError(
+                f"Server is busy — conversion queue is full ({self.MAX_QUEUE_DEPTH} tasks). "
+                "Please try again in a few minutes."
+            )
         self.tasks[task_id] = {
             "status": "pending",
             "user_id": user_id,

@@ -13,6 +13,12 @@ from src.config import settings
 
 logger = logging.getLogger(__name__)
 
+# ── Per-user row caps (configurable via env) ─────────────────────────────
+MAX_HISTORY_ROWS = int(os.environ.get("AURA_MAX_HISTORY_ROWS", "1000"))
+MAX_THEME_ROWS = int(os.environ.get("AURA_MAX_THEME_ROWS", "100"))
+MAX_CONNECTION_ROWS = int(os.environ.get("AURA_MAX_CONNECTION_ROWS", "50"))
+
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 SECRET_KEY = settings.jwt_secret_key
 _ENCRYPTION_KEY = hashlib.sha256(SECRET_KEY.encode()).digest()
@@ -226,6 +232,16 @@ class HistoryRepository:
     def add_entry(user_id: int, filename: str, pages_count: int):
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            # Fix 5a: prune oldest entries when cap is reached
+            cursor.execute("SELECT COUNT(*) FROM history WHERE user_id = ?", (user_id,))
+            if cursor.fetchone()[0] >= MAX_HISTORY_ROWS:
+                cursor.execute(
+                    "DELETE FROM history WHERE user_id = ? AND id IN "
+                    "(SELECT id FROM history WHERE user_id = ? ORDER BY created_at ASC LIMIT ?)",
+                    (user_id, user_id, max(1, cursor.execute(
+                        "SELECT COUNT(*) FROM history WHERE user_id = ?", (user_id,)
+                    ).fetchone()[0] - MAX_HISTORY_ROWS + 1))
+                )
             cursor.execute(
                 "INSERT INTO history (user_id, filename, pages_count, created_at) VALUES (?, ?, ?, ?)",
                 (user_id, filename, pages_count, time.time())
@@ -243,6 +259,10 @@ class ThemeRepository:
     def add_theme(user_id: int, name: str, bg_color: str, text_color: str, sat_factor: float, brightness_factor: float):
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            # Fix 5b: enforce theme cap per user
+            cursor.execute("SELECT COUNT(*) FROM themes WHERE user_id = ?", (user_id,))
+            if cursor.fetchone()[0] >= MAX_THEME_ROWS:
+                raise ValueError(f"Theme limit reached ({MAX_THEME_ROWS} max). Please delete an existing theme first.")
             cursor.execute(
                 "INSERT INTO themes (user_id, name, bg_color, text_color, sat_factor, brightness_factor) VALUES (?, ?, ?, ?, ?, ?)",
                 (user_id, name, bg_color, text_color, sat_factor, brightness_factor)
@@ -267,6 +287,10 @@ class ConnectionRepository:
     def create(user_id: int, provider_id: str, name: str, base_url: str, model: str, api_key: str, is_active: bool) -> int:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            # Fix 5c: enforce connection cap per user
+            cursor.execute("SELECT COUNT(*) FROM connections WHERE user_id = ?", (user_id,))
+            if cursor.fetchone()[0] >= MAX_CONNECTION_ROWS:
+                raise ValueError(f"Connection limit reached ({MAX_CONNECTION_ROWS} max). Please delete an existing connection first.")
             if is_active:
                 cursor.execute("UPDATE connections SET is_active = 0 WHERE user_id = ?", (user_id,))
             cursor.execute(
