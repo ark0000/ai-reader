@@ -415,6 +415,11 @@ class DatabaseManager {
     const db = await this.init();
     return db.transaction(storeName, mode).objectStore(storeName);
   }
+
+  // Alias so both getDB() and init() work
+  async getDB() {
+    return this.init();
+  }
 }
 
 class StorageRepository {
@@ -743,7 +748,10 @@ class ProfileMigrationManager {
         if (this.storageRepo && this.storageRepo.migrateNamespace) {
           await this.storageRepo.migrateNamespace(oldUsername, newUsername);
         }
-        if (window.renderLibrary) window.renderLibrary();
+        const libModal = document.getElementById('library-modal');
+        if (libModal && libModal.style.display !== 'none' && window.openLibraryModal) {
+          window.openLibraryModal();
+        }
       }
       
       this.lastUsername = newUsername;

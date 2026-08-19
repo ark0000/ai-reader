@@ -45,6 +45,8 @@ describe('User Profile & Authentication System', () => {
 
     window.toggleSettings = jest.fn();
     window.showToast = jest.fn();
+    window.openLibraryModal = jest.fn();
+    // Keep backward compat mock (not used by production code any more)
     window.renderLibrary = jest.fn();
   });
 
@@ -91,7 +93,9 @@ describe('User Profile & Authentication System', () => {
 
     // Verify migration was triggered
     expect(window.storageRepository.migrateNamespace).toHaveBeenCalledWith('guest', 'alex');
-    expect(window.renderLibrary).toHaveBeenCalled();
+    // Library modal is hidden in tests (display:none), so openLibraryModal should NOT be called
+    // If modal were open, openLibraryModal would be called to refresh the view
+    expect(window.openLibraryModal).not.toHaveBeenCalled();
   });
 
   test('AuraProfile Web Component renders avatar and username', () => {

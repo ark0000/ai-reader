@@ -104,10 +104,13 @@ window.toggleSettings = function(e) {
     // Sync username and logout button
     var unameInput = document.getElementById('username-input');
     var logoutBtn = document.getElementById('logout-btn');
+    var loginBtn = document.getElementById('login-profile-btn');
     if (unameInput) {
         var currentUname = window.safeStorage.getItem('username') || '';
         unameInput.value = currentUname;
-        if (logoutBtn) logoutBtn.style.display = currentUname.trim() ? 'inline-block' : 'none';
+        var hasUname = currentUname.trim() !== '';
+        if (logoutBtn) logoutBtn.style.display = hasUname ? 'inline-block' : 'none';
+        if (loginBtn) loginBtn.style.display = hasUname ? 'none' : 'inline-block';
     }
     
     // Filter settings by file extension
@@ -384,13 +387,9 @@ window.openLibraryModal = async function() {
           if (confirm('Are you sure you want to delete this document from your library? This cannot be undone.')) {
             try {
               console.log('[Library] Deleting document:', f.id);
+              // deleteDocument() atomically removes documents, documents_meta, and annotations in one transaction
               await window.storageRepository.deleteDocument(f.id);
               console.log('[Library] Delete successful, refreshing...');
-              // Also delete associated annotations
-              try {
-                const annStore = await window.dbManager.getTransaction('annotations', 'readwrite');
-                annStore.delete(f.id);
-              } catch(annErr) { /* annotations may not exist, that's fine */ }
               window.openLibraryModal();
             } catch (err) {
               console.error('[Library] Delete failed:', err);
@@ -448,19 +447,22 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn && savedUser && savedUser !== 'guest') {
-      logoutBtn.style.display = 'inline-block';
-    }
+    const loginBtn = document.getElementById('login-profile-btn');
+    const isLoggedInit = savedUser && savedUser !== 'guest' && savedUser.trim() !== '';
+    if (logoutBtn) logoutBtn.style.display = isLoggedInit ? 'inline-block' : 'none';
+    if (loginBtn) loginBtn.style.display = isLoggedInit ? 'none' : 'inline-block';
 
     // Isolate UI side effects using EventBus
     if (window.appEventBus) {
       window.appEventBus.on('SettingsChanged:username', (val) => {
         if (userInput) userInput.value = val;
         window.currentUsername = val || 'guest';
-        if (logoutBtn) logoutBtn.style.display = val && val.trim() ? 'inline-block' : 'none';
+        const isLogged = val && val.trim() !== '';
+        if (logoutBtn) logoutBtn.style.display = isLogged ? 'inline-block' : 'none';
+        if (loginBtn) loginBtn.style.display = isLogged ? 'none' : 'inline-block';
         const libModal = document.getElementById('library-modal');
-        if (window.renderLibrary && libModal && libModal.style.display !== 'none') {
-          window.renderLibrary();
+        if (libModal && libModal.style.display !== 'none' && window.openLibraryModal) {
+          window.openLibraryModal();
         }
       });
     }
@@ -480,7 +482,9 @@ window.saveUsernameProfile = function(customName = null) {
   window.currentUsername = newName || 'guest';
   
   const logoutBtn = document.getElementById('logout-btn');
+  const loginBtn = document.getElementById('login-profile-btn');
   if (logoutBtn) logoutBtn.style.display = newName ? 'inline-block' : 'none';
+  if (loginBtn) loginBtn.style.display = newName ? 'none' : 'inline-block';
   if (userInput) userInput.value = newName;
   
   const toastMsg = newName ? `Logged in as "${newName}"` : 'Switched to Guest profile';
