@@ -107,8 +107,8 @@ describe('User Profile & Authentication System', () => {
     expect(window.openLibraryModal).not.toHaveBeenCalled();
   });
 
-  test('ProfileMigrationManager does NOT migrate twice for same username', async () => {
-    window.safeStorage.setItem('aura-profile-migrated-to-alex', 'true');
+  test('ProfileMigrationManager does NOT migrate when username is unchanged', async () => {
+    window.profileMigrationManager.lastUsername = 'alex';
     window.appEventBus.emit('SettingsChanged:username', 'alex');
     await new Promise((r) => setTimeout(r, 20));
     expect(window.storageRepository.migrateNamespace).not.toHaveBeenCalled();

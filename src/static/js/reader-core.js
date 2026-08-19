@@ -532,7 +532,6 @@ class StorageRepository {
   }
 
   async loadDocument(id) {
-    // FIX: Complete MIME type map — previously EPUB/MD got 'text/plain' which broke handlers.
     const MIME_MAP = {
       pdf:  'application/pdf',
       epub: 'application/epub+zip',
@@ -552,7 +551,33 @@ class StorageRepository {
             }
             resolve(req.result);
           } else {
-            resolve(null);
+            // Fallback: If exact ID not found, check if it exists under guest_ or un-prefixed ID
+            const fallbackKeys = [];
+            if (typeof id === 'string' && id.includes('_')) {
+              const suffix = id.substring(id.indexOf('_') + 1);
+              fallbackKeys.push('guest_' + suffix, suffix);
+            }
+            if (fallbackKeys.length > 0) {
+              const tryFallback = (idx) => {
+                if (idx >= fallbackKeys.length) return resolve(null);
+                const fbReq = docStore.get(fallbackKeys[idx]);
+                fbReq.onsuccess = () => {
+                  if (fbReq.result && fbReq.result.fileBlob) {
+                    if (fbReq.result.fileBlob instanceof ArrayBuffer) {
+                      const mime = MIME_MAP[fbReq.result.ext] || 'application/octet-stream';
+                      fbReq.result.fileBlob = new Blob([fbReq.result.fileBlob], { type: mime });
+                    }
+                    resolve(fbReq.result);
+                  } else {
+                    tryFallback(idx + 1);
+                  }
+                };
+                fbReq.onerror = () => tryFallback(idx + 1);
+              };
+              tryFallback(0);
+            } else {
+              resolve(null);
+            }
           }
         };
         req.onerror = () => reject(req.error);
@@ -577,7 +602,26 @@ class StorageRepository {
       const store = await this.dbManager.getTransaction('annotations', 'readonly');
       return new Promise((resolve, reject) => {
         const req = store.get(id);
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          if (req.result) resolve(req.result);
+          else {
+            if (typeof id === 'string' && id.includes('_')) {
+              const suffix = id.substring(id.indexOf('_') + 1);
+              const fbReq = store.get('guest_' + suffix);
+              fbReq.onsuccess = () => {
+                if (fbReq.result) resolve(fbReq.result);
+                else {
+                  const fbReq2 = store.get(suffix);
+                  fbReq2.onsuccess = () => resolve(fbReq2.result || null);
+                  fbReq2.onerror = () => resolve(null);
+                }
+              };
+              fbReq.onerror = () => resolve(null);
+            } else {
+              resolve(null);
+            }
+          }
+        };
         req.onerror = () => reject(req.error);
       });
     } catch (e) {
@@ -593,41 +637,56 @@ class StorageRepository {
       const stores = ['documents', 'documents_meta', 'annotations'];
       const availableStores = stores.filter(s => db.objectStoreNames.contains(s));
 
-      const tx = db.transaction(availableStores, 'readwrite');
-
       for (const storeName of availableStores) {
-        const store = tx.objectStore(storeName);
-        const req = store.openCursor();
+        // Step 1: Read all items safely in readonly mode first
+        const readTx = db.transaction([storeName], 'readonly');
+        const readStore = readTx.objectStore(storeName);
+        const allItems = await new Promise((resolve, reject) => {
+          const req = readStore.getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
 
-        req.onsuccess = (e) => {
-          const cursor = e.target.result;
-          if (cursor) {
-            const key = String(cursor.key);
-            if (key.startsWith(fromPrefix + '_')) {
-              const suffix = key.substring((fromPrefix + '_').length);
-              const newKey = toPrefix + '_' + suffix;
-              // FIX: Deduplication guard — don't overwrite an existing target-namespace doc.
-              const checkReq = store.getKey(newKey);
-              checkReq.onsuccess = () => {
-                if (!checkReq.result) {
-                  // Target key doesn't exist — safe to migrate
-                  const val = cursor.value;
-                  val.id = newKey;
-                  store.put(val);
-                }
-                // Always remove the source key
-                store.delete(cursor.key);
-              };
-            }
-            cursor.continue();
+        // Step 2: Calculate items needing namespace migration
+        const itemsToMigrate = [];
+        const existingKeys = new Set(allItems.map(item => String(item.id)));
+
+        for (const item of allItems) {
+          const key = String(item.id);
+          let suffix = null;
+          if (key.startsWith(fromPrefix + '_')) {
+            suffix = key.substring((fromPrefix + '_').length);
+          } else if (fromPrefix === 'guest' && !key.includes('_')) {
+            // Also adopt legacy un-prefixed keys (e.g. "my_doc.pdf")
+            suffix = key;
           }
-        };
-      }
 
-      await new Promise((resolve) => {
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
-      });
+          if (suffix) {
+            const newKey = toPrefix + '_' + suffix;
+            itemsToMigrate.push({ oldKey: key, newKey, item });
+          }
+        }
+
+        if (itemsToMigrate.length === 0) continue;
+
+        // Step 3: Atomic write & delete in readwrite mode
+        const writeTx = db.transaction([storeName], 'readwrite');
+        const writeStore = writeTx.objectStore(storeName);
+
+        for (const { oldKey, newKey, item } of itemsToMigrate) {
+          if (!existingKeys.has(newKey)) {
+            const updated = Object.assign({}, item, { id: newKey });
+            writeStore.put(updated);
+            existingKeys.add(newKey);
+          }
+          writeStore.delete(oldKey);
+        }
+
+        await new Promise((resolve, reject) => {
+          writeTx.oncomplete = () => resolve();
+          writeTx.onerror = (e) => reject(e.target.error);
+        });
+      }
       console.log(`[StorageRepository] Successfully migrated namespace from '${fromPrefix}' to '${toPrefix}'`);
     } catch(e) {
       console.warn('[StorageRepository] Migration error:', e);
@@ -639,22 +698,35 @@ class StorageRepository {
       const store = await this.dbManager.getTransaction('documents_meta', 'readonly');
       const metaItems = await new Promise((resolve, reject) => {
         const req = store.getAll();
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => resolve(req.result || []);
         req.onerror = () => reject(req.error);
       });
 
-      const prefix = username + '_';
+      const user = (username && username.trim()) ? username.trim() : 'guest';
+      const prefix = user + '_';
+      const userLower = user.toLowerCase();
+
+      // Filter for items belonging to current user (with case-insensitive fallback)
       let filtered = metaItems
-        .filter(item => item.id.startsWith(prefix))
+        .filter(item => {
+          const id = String(item.id);
+          return id.startsWith(prefix) || id.toLowerCase().startsWith(userLower + '_');
+        })
         .sort((a, b) => b.timestamp - a.timestamp);
 
-      // Auto-adoption fallback: if no documents exist for active named user, auto-adopt guest files
-      if (filtered.length === 0 && username !== 'guest') {
-        const guestItems = metaItems.filter(item => item.id.startsWith('guest_'));
-        if (guestItems.length > 0) {
-          this.migrateNamespace('guest', username).catch(() => {});
-          guestItems.forEach(item => {
-            const migrated = Object.assign({}, item, { id: item.id.replace(/^guest_/, username + '_') });
+      // Auto-adoption fallback: if no documents exist for active named user, check for guest_ or legacy un-prefixed files
+      if (filtered.length === 0 && user !== 'guest') {
+        const adoptableItems = metaItems.filter(item => {
+          const id = String(item.id);
+          return id.startsWith('guest_') || !id.includes('_');
+        });
+
+        if (adoptableItems.length > 0) {
+          await this.migrateNamespace('guest', user);
+          adoptableItems.forEach(item => {
+            const rawId = String(item.id);
+            const cleanSuffix = rawId.startsWith('guest_') ? rawId.substring(6) : rawId;
+            const migrated = Object.assign({}, item, { id: user + '_' + cleanSuffix });
             filtered.push(migrated);
           });
         }
@@ -664,7 +736,7 @@ class StorageRepository {
       const annStore = await this.dbManager.getTransaction('annotations', 'readonly');
       const allNotes = await new Promise((resolve, reject) => {
         const req = annStore.getAll();
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => resolve(req.result || []);
         req.onerror = () => reject(req.error);
       });
       const noteMap = {};
@@ -763,18 +835,9 @@ class ProfileMigrationManager {
       const oldUsername = this.lastUsername || 'guest';
 
       if (oldUsername !== newUsername && newUsername !== 'guest') {
-        // FIX: One-time migration guard per username — prevents re-migrating on every login.
-        const migrationKey = `aura-profile-migrated-to-${newUsername}`;
-        const alreadyMigrated = window.safeStorage && window.safeStorage.getItem(migrationKey) === 'true';
-
-        if (!alreadyMigrated) {
-          console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
-          if (this.storageRepo && this.storageRepo.migrateNamespace) {
-            await this.storageRepo.migrateNamespace(oldUsername, newUsername);
-          }
-          if (window.safeStorage) window.safeStorage.setItem(migrationKey, 'true');
-        } else {
-          console.log(`[ProfileMigration] Skipping migration to '${newUsername}' — already performed.`);
+        console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
+        if (this.storageRepo && this.storageRepo.migrateNamespace) {
+          await this.storageRepo.migrateNamespace(oldUsername, newUsername);
         }
 
         const libModal = document.getElementById('library-modal');
