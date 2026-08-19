@@ -642,7 +642,8 @@
       </select>
     </div>
 
-    <div class="toolbar-group">
+    <div class="toolbar-group" style="align-items: center; display: flex;">
+      <aura-profile id="top-profile-badge" style="margin-right: 4px;"></aura-profile>
       <button class="settings-btn-global" onclick="if(window.toggleSettings) window.toggleSettings(event)"
         title="Preferences">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -886,9 +887,12 @@
                 <span class="settings-label">Profile Name</span>
                 <span class="settings-help">Used to separate your library documents from other users.</span>
               </div>
-              <div style="display:flex; width:100%; gap:8px;">
-                <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" oninput="if(window.settingsRepo) window.settingsRepo.set('username', this.value);">
-                <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444;" onclick="if(window.settingsRepo) window.settingsRepo.set('username', '');">Log out</button>
+              <div style="display:flex; width:100%; gap:8px; align-items:center;">
+                <input type="text" id="username-input" class="tb-sel" placeholder="Enter username..." style="flex:1; padding:6px 10px; background:var(--bg-body);" 
+                  onkeydown="if(event.key==='Enter'){ event.preventDefault(); window.saveUsernameProfile(); }"
+                  onchange="window.saveUsernameProfile();">
+                <button id="login-profile-btn" class="tb-btn" style="padding:6px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; font-weight:600;" onclick="window.saveUsernameProfile()">Log in</button>
+                <button id="logout-btn" class="tb-btn" style="display:none; color:#ef4444; border:1px solid var(--border); border-radius:6px; padding:6px 10px;" onclick="if(document.getElementById('username-input')) document.getElementById('username-input').value=''; window.saveUsernameProfile();">Log out</button>
               </div>
             </div>
             <div class="settings-row">
@@ -1584,6 +1588,7 @@
 <script src="/static/js/notes-repository.js?v=2032"></script>
 <script src="/static/js/external-editor.js?v=2035"></script>
 <script src="/static/js/diagram-engine.js?v=12000"></script>
+<script src="/static/js/components/AuraProfile.js?v=1"></script>
 
   <script>
     // Heartbeat to keep desktop backend alive. If closed, backend shuts down automatically.

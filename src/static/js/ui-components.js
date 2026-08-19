@@ -463,6 +463,30 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+window.saveUsernameProfile = function(customName = null) {
+  const userInput = document.getElementById('username-input');
+  const newName = customName !== null ? customName.trim() : (userInput ? userInput.value.trim() : '');
+  
+  if (window.settingsRepo) {
+    window.settingsRepo.set('username', newName);
+  }
+  if (window.safeStorage) {
+    window.safeStorage.setItem('username', newName);
+  }
+  window.currentUsername = newName || 'guest';
+  
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) logoutBtn.style.display = newName ? 'inline-block' : 'none';
+  if (userInput) userInput.value = newName;
+  
+  const toastMsg = newName ? `Logged in as "${newName}"` : 'Switched to Guest profile';
+  if (typeof showToast === 'function') {
+    showToast(`👤 ${toastMsg}`);
+  } else {
+    console.log(`[Profile] ${toastMsg}`);
+  }
+};
+
 window.triggerManualSave = function(btnElement) {
   if (!window.currentFileName || !window.storageRepository) return;
   var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';

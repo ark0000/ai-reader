@@ -697,9 +697,9 @@ class ProfileMigrationManager {
       const newUsername = newVal && newVal.trim() ? newVal.trim() : 'guest';
       const oldUsername = this.lastUsername || 'guest';
       
-      if (oldUsername === 'guest' && newUsername !== 'guest') {
-        console.log(`[ProfileMigration] Automatically migrating guest items to '${newUsername}'...`);
-        await this.storageRepo.migrateNamespace('guest', newUsername);
+      if (oldUsername !== newUsername && newUsername !== 'guest') {
+        console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
+        await this.storageRepo.migrateNamespace(oldUsername, newUsername);
         if (window.renderLibrary) window.renderLibrary();
       }
       

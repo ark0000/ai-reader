@@ -72,12 +72,16 @@ class AuraProfile extends HTMLElement {
   }
 
   updateProfile() {
-    let uname = 'arun';
+    let uname = 'guest';
     if (window.settingsRepo) {
       uname = window.settingsRepo.getUsername();
+    } else if (window.currentUsername) {
+      uname = window.currentUsername;
+    } else if (window.safeStorage) {
+      uname = window.safeStorage.getItem('username') || 'guest';
     }
     this.usernameText.textContent = uname;
-    this.avatar.textContent = uname.charAt(0).toUpperCase();
+    this.avatar.textContent = (uname.charAt(0) || 'G').toUpperCase();
   }
 
   triggerComboEffect() {
