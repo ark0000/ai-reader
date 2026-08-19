@@ -453,7 +453,11 @@ window.addEventListener('DOMContentLoaded', () => {
       window.appEventBus.on('SettingsChanged:username', (val) => {
         if (userInput) userInput.value = val;
         window.currentUsername = val || 'guest';
-        if (logoutBtn) logoutBtn.style.display = val.trim() ? 'inline-block' : 'none';
+        if (logoutBtn) logoutBtn.style.display = val && val.trim() ? 'inline-block' : 'none';
+        const libModal = document.getElementById('library-modal');
+        if (window.renderLibrary && libModal && libModal.style.display !== 'none') {
+          window.renderLibrary();
+        }
       });
     }
   }

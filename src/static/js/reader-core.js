@@ -570,6 +570,46 @@ class StorageRepository {
     }
   }
 
+  async migrateNamespace(fromPrefix, toPrefix) {
+    if (!fromPrefix || !toPrefix || fromPrefix === toPrefix) return;
+    try {
+      const db = await this.dbManager.getDB();
+      const stores = ['documents', 'documents_meta', 'annotations'];
+      const availableStores = stores.filter(s => db.objectStoreNames.contains(s));
+      
+      const tx = db.transaction(availableStores, 'readwrite');
+      
+      for (const storeName of availableStores) {
+        const store = tx.objectStore(storeName);
+        const req = store.openCursor();
+        
+        req.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            const key = String(cursor.key);
+            if (key.startsWith(fromPrefix + '_')) {
+              const suffix = key.substring((fromPrefix + '_').length);
+              const newKey = toPrefix + '_' + suffix;
+              const val = cursor.value;
+              val.id = newKey;
+              store.put(val);
+              store.delete(cursor.key);
+            }
+            cursor.continue();
+          }
+        };
+      }
+      
+      await new Promise((resolve) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+      console.log(`[StorageRepository] Successfully migrated namespace from '${fromPrefix}' to '${toPrefix}'`);
+    } catch(e) {
+      console.warn('[StorageRepository] Migration error:', e);
+    }
+  }
+
   async getLibraryMeta(username) {
     try {
       const store = await this.dbManager.getTransaction('documents_meta', 'readonly');
@@ -580,9 +620,21 @@ class StorageRepository {
       });
 
       const prefix = username + '_';
-      const filtered = metaItems
+      let filtered = metaItems
         .filter(item => item.id.startsWith(prefix))
         .sort((a, b) => b.timestamp - a.timestamp);
+
+      // Auto-adoption fallback: if no documents exist for active named user, auto-adopt guest files
+      if (filtered.length === 0 && username !== 'guest') {
+        const guestItems = metaItems.filter(item => item.id.startsWith('guest_'));
+        if (guestItems.length > 0) {
+          this.migrateNamespace('guest', username).catch(() => {});
+          guestItems.forEach(item => {
+            const migrated = Object.assign({}, item, { id: item.id.replace(/^guest_/, username + '_') });
+            filtered.push(migrated);
+          });
+        }
+      }
 
       // Enrich with note counts from annotations store
       const annStore = await this.dbManager.getTransaction('annotations', 'readonly');
@@ -628,6 +680,34 @@ class EventBus {
   }
 }
 window.appEventBus = new EventBus();
+
+// --- Profile Migration Manager ---
+class ProfileMigrationManager {
+  constructor(storageRepo, settingsRepo, eventBus) {
+    this.storageRepo = storageRepo;
+    this.settingsRepo = settingsRepo;
+    this.eventBus = eventBus;
+    this.lastUsername = this.settingsRepo.getUsername();
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    if (!this.eventBus) return;
+    this.eventBus.on('SettingsChanged:username', async (newVal) => {
+      const newUsername = newVal && newVal.trim() ? newVal.trim() : 'guest';
+      const oldUsername = this.lastUsername || 'guest';
+      
+      if (oldUsername === 'guest' && newUsername !== 'guest') {
+        console.log(`[ProfileMigration] Automatically migrating guest items to '${newUsername}'...`);
+        await this.storageRepo.migrateNamespace('guest', newUsername);
+        if (window.renderLibrary) window.renderLibrary();
+      }
+      
+      this.lastUsername = newUsername;
+    });
+  }
+}
+window.profileMigrationManager = new ProfileMigrationManager(window.storageRepository, window.settingsRepo, window.appEventBus);
 
 // --- Settings Repository ---
 class SettingsRepository {
@@ -695,11 +775,8 @@ window.triggerLibrarySave = function(file, fileName, ext, force = false) {
   // Always update the core context when a file is opened
   window.documentContext.setDocument(file, fileName, ext);
 
-  // If this is an auto-save attempt (force=false), we enforce preferences
-  if (!force) {
-    if (window.settingsRepo.isTrue('aura-manual-save')) return;
-    if (!window.settingsRepo.isTrue('aura-reading-state')) return;
-  }
+  // If manual save mode is explicitly enabled, don't auto-save unless force=true
+  if (!force && window.settingsRepo.isTrue('aura-manual-save')) return;
 
   const uname = window.settingsRepo.getUsername();
   const scrollState = window.pendingScrollState || (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState ? window.getActiveHandler().getScrollState() : null);
@@ -707,11 +784,10 @@ window.triggerLibrarySave = function(file, fileName, ext, force = false) {
 };
 
 window.triggerStateSave = function() {
-  if (!window.settingsRepo.isTrue('aura-reading-state')) return;
   const uname = window.settingsRepo.getUsername();
   if (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
     const state = window.getActiveHandler().getScrollState();
-    if (state) {
+    if (state && window.currentFileName) {
       window.storageRepository.saveScrollState(uname + '_' + window.currentFileName, state);
     }
   }
@@ -768,12 +844,9 @@ window.appEventBus.on('SettingsChanged:aura-manual-save', (val) => {
 // have finished executing and the file-upload event listener from pdf-handler.js is registered.
 window.addEventListener('load', async () => {
   window.currentUsername = window.settingsRepo.getUsername();
-  const isDocSaveEnabled = window.settingsRepo.isTrue('aura-reading-state') || window.settingsRepo.isTrue('aura-manual-save');
-
-  if (!isDocSaveEnabled) return;
 
   const library = await window.storageRepository.getLibraryMeta(window.currentUsername);
-  console.log('[AutoRestore] library length:', library.length);
+  console.log('[AutoRestore] library length for ' + window.currentUsername + ':', library.length);
   if (library.length === 0) return;
 
   const docData = await window.storageRepository.loadDocument(library[0].id);

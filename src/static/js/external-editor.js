@@ -48,6 +48,123 @@ function initQuillEditor() {
 }
 
 /**
+ * SmartMarkdownNormalizer
+ * 
+ * Adapter that pre-processes copied text from ChatGPT/Web/Notion into standard GFM Markdown:
+ * 1. TSV / Tabbed tables -> Markdown Pipe Tables (| Header | Header |\n| --- | --- |)
+ * 2. Unicode bullet glyphs (•, ●, ▪, ◦, ⁃, –) -> Standard Markdown list items (- )
+ * 3. Unfenced Mermaid diagrams -> ```mermaid ... ```
+ * 4. Section headings and emphasis normalization
+ */
+class SmartMarkdownNormalizer {
+  static normalize(text) {
+    if (!text || typeof text !== 'string') return '';
+
+    let lines = text.split(/\r?\n/);
+    let normalizedLines = [];
+    let tsvRows = [];
+
+    const flushTsvTable = () => {
+      if (tsvRows.length === 0) return;
+      if (tsvRows.length === 1 && tsvRows[0].length === 1) {
+        normalizedLines.push(tsvRows[0][0]);
+      } else {
+        // Filter empty elements
+        const maxCols = Math.max(...tsvRows.map(r => r.length));
+        if (maxCols >= 2) {
+          // Header row
+          const header = tsvRows[0];
+          while (header.length < maxCols) header.push(' ');
+          normalizedLines.push('\n| ' + header.map(c => c.trim().replace(/\|/g, '\\|') || ' ').join(' | ') + ' |');
+          
+          // Separator row
+          normalizedLines.push('| ' + Array(maxCols).fill('---').join(' | ') + ' |');
+
+          // Data rows
+          for (let i = 1; i < tsvRows.length; i++) {
+            const row = tsvRows[i];
+            while (row.length < maxCols) row.push(' ');
+            normalizedLines.push('| ' + row.map(c => c.trim().replace(/\|/g, '\\|') || ' ').join(' | ') + ' |');
+          }
+          normalizedLines.push('');
+        } else {
+          tsvRows.forEach(r => normalizedLines.push(r.join(' ')));
+        }
+      }
+      tsvRows = [];
+    };
+
+    let inMermaid = false;
+    let mermaidLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+
+      // Detect mermaid start
+      if (/^\s*mermaid\s*$/i.test(line) || (!inMermaid && /^\s*(graph|flowchart|sequenceDiagram|classDiagram|erDiagram|stateDiagram|journey)\s+[A-Za-z0-9]+/i.test(line))) {
+        flushTsvTable();
+        inMermaid = true;
+        mermaidLines = ['\n```mermaid'];
+        if (!/^\s*mermaid\s*$/i.test(line)) mermaidLines.push(line);
+        continue;
+      }
+
+      if (inMermaid) {
+        // Check if mermaid block ended
+        if (/^#{1,6}\s|^\d+\.\s+[A-Z]|^Table\t|^[📋⚡📚🗺️📌]/.test(line)) {
+          mermaidLines.push('```\n');
+          normalizedLines.push(...mermaidLines);
+          inMermaid = false;
+          mermaidLines = [];
+          // fall through to process current line
+        } else {
+          mermaidLines.push(line);
+          continue;
+        }
+      }
+
+      // Check TSV table lines
+      if (line.includes('\t')) {
+        const cells = line.split('\t').map(c => c.trim());
+        if (cells.some(Boolean)) {
+          tsvRows.push(cells);
+          continue;
+        }
+      } else {
+        if (tsvRows.length > 0) {
+          flushTsvTable();
+        }
+      }
+
+      // 1. Normalize Unicode Bullets to Markdown bullets
+      line = line.replace(/^([ \t]*)[•●▪◦⁃–][ \t]+/g, '$1- ');
+      line = line.replace(/(\n|\r|^)[ \t]*•[ \t]+/g, '$1- ');
+
+      // 2. Normalize numbered main section headings (e.g., "1. Multi-Tenant Base & Platform Infrastructure")
+      if (/^\d+\.\s+[A-Z][^.\n]+$/.test(line.trim())) {
+        line = `\n### ${line.trim()}\n`;
+      }
+
+      // 3. Normalize single-word / phrase table labels or emoji headings
+      if (/^[📋⚡📚🗺️📌]/.test(line.trim())) {
+        line = `\n## ${line.trim()}\n`;
+      }
+
+      normalizedLines.push(line);
+    }
+
+    if (inMermaid) {
+      mermaidLines.push('```\n');
+      normalizedLines.push(...mermaidLines);
+    }
+    flushTsvTable();
+
+    return normalizedLines.join('\n');
+  }
+}
+window.SmartMarkdownNormalizer = SmartMarkdownNormalizer;
+
+/**
  * MarkdownIntelligenceEngine
  * 
  * Provides intelligent Markdown capabilities to Quill Rich Text Editor:
@@ -88,10 +205,11 @@ class MarkdownIntelligenceEngine {
       this._handleTextChange();
     });
 
-    // 2. Intercept paste on editor root for smart Markdown recognition
-    this.quill.root.addEventListener('paste', (e) => {
+    // 2. Intercept paste on container in CAPTURE phase so it intercepts before Quill clipboard
+    const container = document.getElementById('quill-editor') || this.quill.root;
+    container.addEventListener('paste', (e) => {
       this._handlePaste(e);
-    });
+    }, true);
   }
 
   _handleTextChange() {
@@ -126,25 +244,29 @@ class MarkdownIntelligenceEngine {
     const clipboardData = e.clipboardData || window.clipboardData;
     if (!clipboardData) return;
 
-    // If clipboard explicitly provides HTML, allow Quill's native rich paste unless it's just wrapped plain text
-    const htmlData = clipboardData.getData('text/html');
     const textData = clipboardData.getData('text/plain');
     if (!textData || textData.trim().length < 3) return;
 
-    // Detect if content is structured Markdown
+    // Detect if content is structured Markdown or table/list formatted text
     if (this.detectMarkdown(textData)) {
       e.preventDefault();
+      e.stopPropagation();
+      
+      const normalized = SmartMarkdownNormalizer.normalize(textData);
       
       let html = '';
       if (typeof marked !== 'undefined' && marked.parse) {
         try {
-          html = marked.parse(textData);
+          if (marked.use) {
+            marked.use({ gfm: true, breaks: true });
+          }
+          html = marked.parse(normalized);
         } catch (err) {
           console.warn('Marked parse fallback:', err);
-          html = textData.replace(/\n/g, '<br>');
+          html = normalized.replace(/\n/g, '<br>');
         }
       } else {
-        html = textData.replace(/\n/g, '<br>');
+        html = normalized.replace(/\n/g, '<br>');
       }
 
       const range = this.quill.getSelection() || { index: this.quill.getLength(), length: 0 };
@@ -165,17 +287,19 @@ class MarkdownIntelligenceEngine {
     let score = 0;
     // Header pattern
     if (/^#{1,6}\s+.+$/m.test(text)) score += 3;
-    // Code block
-    if (/^```[\s\S]*?```$/m.test(text)) score += 4;
-    // List items
-    if (/^(\s*[-*+]|\s*\d+\.)\s+.+$/m.test(text)) score += 2;
+    // Code block / Mermaid
+    if (/^```[\s\S]*?```$/m.test(text) || /\b(mermaid|graph LR|graph TD|subgraph)\b/i.test(text)) score += 4;
+    // List items & Unicode bullets
+    if (/^(\s*[-*+]|\s*\d+\.|\s*[•●▪◦⁃–])\s+.+$/m.test(text)) score += 2;
+    // Tab-separated tables
+    if (/\t[^\n]+\t/m.test(text) || /^Table\t/m.test(text)) score += 3;
     // Blockquotes
     if (/^>\s+.+$/m.test(text)) score += 2;
     // Links / Images
     if (/!?\[[^\]]+\]\([^)]+\)/.test(text)) score += 2;
-    // Bold / Italic / Inline Code
+    // Bold / Italic / Inline Code / Strikethrough
     if (/(\*\*|__)[^\n]+(\*\*|__)|`[^`\n]+`|~~[^\n]+~~/.test(text)) score += 2;
-    // Tables
+    // Markdown Tables
     if (/\|.+\|[\r\n]+\|[-:| ]+\|/.test(text)) score += 3;
 
     return score >= 2;
@@ -195,8 +319,16 @@ class MarkdownIntelligenceEngine {
     }
 
     try {
-      const html = marked.parse(rawText);
-      this.quill.root.innerHTML = html;
+      const normalized = SmartMarkdownNormalizer.normalize(rawText);
+      if (marked.use) marked.use({ gfm: true, breaks: true });
+      const html = marked.parse(normalized);
+      
+      if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
+        this.quill.setText('');
+        this.quill.clipboard.dangerouslyPasteHTML(0, html, 'user');
+      } else {
+        this.quill.root.innerHTML = html;
+      }
       this._showToast('✨ Converted Markdown to Rich Text');
     } catch(err) {
       console.error('Markdown conversion error:', err);
