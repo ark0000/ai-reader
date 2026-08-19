@@ -342,4 +342,57 @@ describe('Notes Full Editor — Robustness Tests', () => {
     });
   });
 
+  // ── Regression Fixes R1-R4 ────────────────────────────────────────────────
+  describe('Regression Fixes R1-R4', () => {
+    test('R1: syncBeforeSave skips destructive update if marked is undefined', () => {
+      window.editorModeController.mode = 'markdown';
+      document.getElementById('markdown-source-editor').value = '# Untouched Note';
+      const originalMarked = window.marked;
+      delete window.marked;
+
+      window.quillEditor.clipboard.dangerouslyPasteHTML.mockClear();
+      window.editorModeController.syncBeforeSave();
+
+      expect(window.quillEditor.clipboard.dangerouslyPasteHTML).not.toHaveBeenCalled();
+      window.marked = originalMarked;
+    });
+
+    test('R2: editSessionNoteInFullEditor sets overlay and loads session note without openExternalNotes duplication', async () => {
+      const overlay = document.getElementById('external-notes-overlay');
+      overlay.style.display = 'none';
+
+      window.notes = [{ id: 'sess-100', txt: '<p>Session note content</p>', isHl: false }];
+      await window.editSessionNoteInFullEditor('sess-100');
+
+      expect(overlay.style.display).toBe('flex');
+      expect(document.getElementById('external-note-title').value).toBe('Highlight Note ');
+      expect(window.quillEditor.clipboard.dangerouslyPasteHTML).toHaveBeenCalledWith(
+        0, '<p>Session note content</p>', 'api'
+      );
+    });
+
+    test('R3: createNewExternalNote calls setText("") on quillEditor', () => {
+      window.quillEditor.setText = jest.fn();
+      window._createNewExternalNote();
+      expect(window.quillEditor.setText).toHaveBeenCalledWith('');
+    });
+
+    test('R4: Auto-save text-change listener ignores non-user events (source !== "user")', () => {
+      jest.useFakeTimers();
+      const saveSpy = jest.fn();
+      window._saveExternalNote = saveSpy;
+
+      // Emit text-change with source = 'api'
+      window.quillEditor.emit('text-change', {}, {}, 'api');
+      jest.advanceTimersByTime(6000);
+      expect(saveSpy).not.toHaveBeenCalled();
+
+      // Emit text-change with source = 'user'
+      window.quillEditor.emit('text-change', {}, {}, 'user');
+      // The timeout calls saveExternalNote
+      jest.useRealTimers();
+    });
+  });
+
 });
+

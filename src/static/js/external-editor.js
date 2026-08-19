@@ -61,7 +61,9 @@ function initQuillEditor() {
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
     // Auto-save logic
-    window.quillEditor.on('text-change', function() {
+    window.quillEditor.on('text-change', function(delta, oldDelta, source) {
+      // FIX R4: Ignore programmatic/API text changes to prevent phantom auto-save loops
+      if (source !== 'user') return;
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(saveExternalNote, 5000); // Auto-save every 5 seconds
     });
@@ -626,16 +628,14 @@ class EditorModeController {
           html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
             return `<div class="ql-custom-table-container">${match}</div>`;
           });
-        } else {
-          html = normalized.replace(/\n/g, '<br>');
-        }
-        // FIX Bug 7: Use dangerouslyPasteHTML to go through Quill's Delta model,
-        // not .root.innerHTML which bypasses undo history and change detection.
-        if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-          window.quillEditor.setText('');
-          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
-        } else {
-          window.quillEditor.root.innerHTML = html;
+          // FIX Bug 7 & R1: Use dangerouslyPasteHTML to go through Quill's Delta model.
+          // Skip destructive raw-text replacement if marked parser is unavailable.
+          if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+            window.quillEditor.setText('');
+            window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+          } else {
+            window.quillEditor.root.innerHTML = html;
+          }
         }
       }
     }
@@ -663,7 +663,8 @@ function createNewExternalNote() {
   currentExternalNoteId = null;
   currentSessionNoteId = null;
   document.getElementById('external-note-title').value = '';
-  if (window.quillEditor) window.quillEditor.root.innerHTML = '';
+  // FIX R3: Reset Delta model properly using setText('') instead of .root.innerHTML = ''
+  if (window.quillEditor) window.quillEditor.setText('');
   const rawEditor = document.getElementById('markdown-source-editor');
   if (rawEditor) rawEditor.value = '';
   if (window.editorModeController && window.editorModeController.mode === 'markdown') {
@@ -950,14 +951,16 @@ window.editSessionNoteInFullEditor = async function(id) {
   currentSessionNoteId = note.id;
   currentExternalNoteId = null; // Clear global context
 
-  openExternalNotes();
+  // FIX R2: Direct overlay display without redundant openExternalNotes() call
+  const overlay = document.getElementById('external-notes-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (typeof updateMarkdownUI === 'function') updateMarkdownUI();
 
   // Set the title visually (session notes don't formally use titles, but this looks better)
   const titleEl = document.getElementById('external-note-title');
   if (titleEl) titleEl.value = 'Highlight Note ' + (note.isHl ? '(Annotated)' : '');
 
-  // FIX Bug 4: Use ensureQuillEditor() instead of a raw 100ms setTimeout.
-  // Raw timeout silently loses content on slow devices or when Quill hasn't loaded yet.
+  // FIX Bug 4 & R2: Use ensureQuillEditor() without multiple competing inits
   const editor = await ensureQuillEditor();
   if (editor) {
     const html = note.txt || '';
