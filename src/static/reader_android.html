@@ -1589,6 +1589,7 @@
         <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:6px 12px; border-radius:6px; width:300px; outline:none; font-family:var(--font-ui);">
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
+        <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
@@ -1611,8 +1612,9 @@
       </div>
       
       <!-- Editor Area -->
-      <div style="flex:1; display:flex; flex-direction:column; background:var(--bg-body);">
+      <div style="flex:1; display:flex; flex-direction:column; background:var(--bg-body); position:relative;">
         <div id="quill-editor" style="flex:1; height:100%; border:none; color:var(--text-1);"></div>
+        <textarea id="markdown-source-editor" placeholder="Write or paste Markdown here (supports pipe tables | col 1 | col 2 |, mermaid, etc.)..." style="display:none; flex:1; width:100%; height:100%; box-sizing:border-box; padding:20px; background:var(--bg-body); color:var(--text-1); border:none; outline:none; font-family:var(--font-mono, monospace); font-size:14px; line-height:1.6; resize:none; white-space:pre-wrap;"></textarea>
       </div>
     </div>
   </div>

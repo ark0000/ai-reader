@@ -509,6 +509,131 @@ async function loadExternalNotesList() {
   }
 }
 
+/**
+ * EditorModeController
+ * 
+ * Manages Dual-Mode editing for the Full Notes Editor:
+ * - 'visual': Quill Rich Text Editor with tables, colors, formatting
+ * - 'markdown': Raw Markdown Source Editor for easy table typing and fast copy-pasting
+ */
+class EditorModeController {
+  constructor() {
+    this.mode = 'visual'; // 'visual' | 'markdown'
+  }
+
+  toggleMode() {
+    if (this.mode === 'visual') {
+      this.switchToMarkdown();
+    } else {
+      this.switchToVisual();
+    }
+  }
+
+  switchToMarkdown() {
+    const rawEditor = document.getElementById('markdown-source-editor');
+    const visualEditor = document.getElementById('quill-editor');
+    const qlToolbar = document.querySelector('.ql-toolbar');
+    const toggleBtn = document.getElementById('mode-toggle-btn');
+    if (!rawEditor || !visualEditor || !window.quillEditor) return;
+
+    // Convert current Quill HTML to Markdown
+    const html = window.quillEditor.root.innerHTML;
+    const md = htmlToMarkdown(html);
+    rawEditor.value = md;
+
+    visualEditor.style.display = 'none';
+    if (qlToolbar) qlToolbar.style.display = 'none';
+    rawEditor.style.display = 'block';
+    rawEditor.focus();
+
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '👁️ Visual View';
+      toggleBtn.style.background = 'var(--accent)';
+      toggleBtn.style.color = '#fff';
+    }
+    this.mode = 'markdown';
+  }
+
+  switchToVisual() {
+    const rawEditor = document.getElementById('markdown-source-editor');
+    const visualEditor = document.getElementById('quill-editor');
+    const qlToolbar = document.querySelector('.ql-toolbar');
+    const toggleBtn = document.getElementById('mode-toggle-btn');
+    if (!rawEditor || !visualEditor || !window.quillEditor) return;
+
+    // Convert raw Markdown to HTML
+    const md = rawEditor.value;
+    const normalized = SmartMarkdownNormalizer.normalize(md);
+    let html = '';
+    if (typeof marked !== 'undefined' && marked.parse) {
+      if (marked.use) marked.use({ gfm: true, breaks: true });
+      html = marked.parse(normalized);
+      html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
+        return `<div class="ql-custom-table-container">${match}</div>`;
+      });
+    } else {
+      html = normalized.replace(/\n/g, '<br>');
+    }
+
+    if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+      window.quillEditor.setText('');
+      window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'user');
+    } else {
+      window.quillEditor.root.innerHTML = html;
+    }
+
+    rawEditor.style.display = 'none';
+    if (qlToolbar) qlToolbar.style.display = 'block';
+    visualEditor.style.display = 'block';
+    window.quillEditor.focus();
+
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '📝 Markdown Source';
+      toggleBtn.style.background = 'rgba(255,255,255,0.05)';
+      toggleBtn.style.color = 'var(--text-1)';
+    }
+    this.mode = 'visual';
+  }
+
+  syncBeforeSave() {
+    if (this.mode === 'markdown') {
+      const rawEditor = document.getElementById('markdown-source-editor');
+      if (rawEditor && window.quillEditor) {
+        const md = rawEditor.value;
+        const normalized = SmartMarkdownNormalizer.normalize(md);
+        let html = '';
+        if (typeof marked !== 'undefined' && marked.parse) {
+          if (marked.use) marked.use({ gfm: true, breaks: true });
+          html = marked.parse(normalized);
+          html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
+            return `<div class="ql-custom-table-container">${match}</div>`;
+          });
+        } else {
+          html = normalized.replace(/\n/g, '<br>');
+        }
+        window.quillEditor.root.innerHTML = html;
+      }
+    }
+  }
+}
+window.editorModeController = new EditorModeController();
+window.toggleEditorMode = function() {
+  window.editorModeController.toggleMode();
+};
+
+function createNewExternalNote() {
+  currentExternalNoteId = null;
+  currentSessionNoteId = null;
+  document.getElementById('external-note-title').value = '';
+  if (window.quillEditor) window.quillEditor.root.innerHTML = '';
+  const rawEditor = document.getElementById('markdown-source-editor');
+  if (rawEditor) rawEditor.value = '';
+  if (window.editorModeController && window.editorModeController.mode === 'markdown') {
+    window.editorModeController.switchToVisual();
+  }
+  loadExternalNotesList();
+}
+
 async function loadExternalNote(id) {
   const parsedId = isNaN(Number(id)) ? id : Number(id);
   if (!window.notesRepo) return;
@@ -521,6 +646,10 @@ async function loadExternalNote(id) {
       if (window.quillEditor) {
         window.quillEditor.root.innerHTML = note.content || '';
       }
+      const rawEditor = document.getElementById('markdown-source-editor');
+      if (rawEditor) {
+        rawEditor.value = htmlToMarkdown(note.content || '');
+      }
       loadExternalNotesList(); // Refresh list to update selection highlight
     }
   } catch(e) {
@@ -530,6 +659,7 @@ async function loadExternalNote(id) {
 
 async function saveExternalNote(silent = false) {
   if (!window.quillEditor) return;
+  if (window.editorModeController) window.editorModeController.syncBeforeSave();
   
   const title = document.getElementById('external-note-title').value.trim();
   const content = window.quillEditor.root.innerHTML;
@@ -638,8 +768,10 @@ function htmlToMarkdown(htmlOrNode) {
       case 'em':
       case 'i': return `*${childrenText}*`;
       case 's':
-      case 'strike': return `~~${childrenText}~~`;
+      case 'strike':
+      case 'del': return `~~${childrenText}~~`;
       case 'u': return `<u>${childrenText}</u>`;
+      case 'img': return `![${node.getAttribute('alt') || 'image'}](${node.getAttribute('src') || ''})`;
       case 'code':
         return node.parentElement && node.parentElement.tagName.toLowerCase() === 'pre'
           ? childrenText
@@ -709,11 +841,14 @@ window.convertCurrentNoteFromMarkdown = convertCurrentNoteFromMarkdown;
 
 function exportExternalNoteTXT() {
   if (!window.quillEditor) return;
-  const rawText = window.quillEditor.getText().trim();
-  if (!rawText) { alert("Note is empty."); return; }
+  if (window.editorModeController) window.editorModeController.syncBeforeSave();
+  const content = window.quillEditor.root.innerHTML;
+  if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
   
   const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
-  const blob = new Blob([rawText], { type: 'text/plain' });
+  const plainText = htmlToMarkdown(content);
+  
+  const blob = new Blob([plainText], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = title + '.txt';
