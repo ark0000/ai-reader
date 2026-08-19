@@ -93,18 +93,13 @@ class SmartMarkdownNormalizer {
       if (tsvRows.length === 1 && tsvRows[0].length === 1) {
         normalizedLines.push(tsvRows[0][0]);
       } else {
-        // Filter empty elements
         const maxCols = Math.max(...tsvRows.map(r => r.length));
         if (maxCols >= 2) {
-          // Header row
           const header = tsvRows[0];
           while (header.length < maxCols) header.push(' ');
           normalizedLines.push('\n| ' + header.map(c => c.trim().replace(/\|/g, '\\|') || ' ').join(' | ') + ' |');
-          
-          // Separator row
           normalizedLines.push('| ' + Array(maxCols).fill('---').join(' | ') + ' |');
 
-          // Data rows
           for (let i = 1; i < tsvRows.length; i++) {
             const row = tsvRows[i];
             while (row.length < maxCols) row.push(' ');
@@ -118,36 +113,51 @@ class SmartMarkdownNormalizer {
       tsvRows = [];
     };
 
-    let inMermaid = false;
-    let mermaidLines = [];
+    let inFencedCode = false;
+    let inBareMermaid = false;
 
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
 
-      // Detect mermaid start
-      if (/^\s*mermaid\s*$/i.test(line) || (!inMermaid && /^\s*(graph|flowchart|sequenceDiagram|classDiagram|erDiagram|stateDiagram|journey)\s+[A-Za-z0-9]+/i.test(line))) {
+      // 1. Check for standard Markdown fenced code blocks (``` or ~~~)
+      if (/^\s*(`{3,}|~{3,})/.test(line)) {
         flushTsvTable();
-        inMermaid = true;
-        mermaidLines = ['\n```mermaid'];
-        if (!/^\s*mermaid\s*$/i.test(line)) mermaidLines.push(line);
+        if (inBareMermaid) {
+          normalizedLines.push('```');
+          inBareMermaid = false;
+        }
+        inFencedCode = !inFencedCode;
+        normalizedLines.push(line);
         continue;
       }
 
-      if (inMermaid) {
-        // Check if mermaid block ended
-        if (/^#{1,6}\s|^\d+\.\s+[A-Z]|^Table\t|^[📋⚡📚🗺️📌]/.test(line)) {
-          mermaidLines.push('```\n');
-          normalizedLines.push(...mermaidLines);
-          inMermaid = false;
-          mermaidLines = [];
-          // fall through to process current line
+      // If inside an existing code block, preserve lines exactly as-is without touching
+      if (inFencedCode) {
+        normalizedLines.push(line);
+        continue;
+      }
+
+      // 2. Check for bare unfenced mermaid (e.g. "mermaid" without ```)
+      if (!inBareMermaid && /^\s*mermaid\s*$/i.test(line)) {
+        flushTsvTable();
+        inBareMermaid = true;
+        normalizedLines.push('```mermaid');
+        continue;
+      }
+
+      if (inBareMermaid) {
+        // Check if bare mermaid ended (heading, horizontal rule, blank line followed by non-diagram, or table)
+        if (/^(#{1,6}\s+|---|\*\*\*|___|\|.+\||[📋⚡📚🗺️📌])/.test(line.trim())) {
+          normalizedLines.push('```\n');
+          inBareMermaid = false;
+          // Process current line as normal
         } else {
-          mermaidLines.push(line);
+          normalizedLines.push(line);
           continue;
         }
       }
 
-      // Check TSV table lines
+      // 3. Check for TSV table rows
       if (line.includes('\t')) {
         const cells = line.split('\t').map(c => c.trim());
         if (cells.some(Boolean)) {
@@ -160,26 +170,15 @@ class SmartMarkdownNormalizer {
         }
       }
 
-      // 1. Normalize Unicode Bullets to Markdown bullets
+      // 4. Normalize Unicode bullet glyphs
       line = line.replace(/^([ \t]*)[•●▪◦⁃–][ \t]+/g, '$1- ');
       line = line.replace(/(\n|\r|^)[ \t]*•[ \t]+/g, '$1- ');
-
-      // 2. Normalize numbered main section headings (e.g., "1. Multi-Tenant Base & Platform Infrastructure")
-      if (/^\d+\.\s+[A-Z][^.\n]+$/.test(line.trim())) {
-        line = `\n### ${line.trim()}\n`;
-      }
-
-      // 3. Normalize single-word / phrase table labels or emoji headings
-      if (/^[📋⚡📚🗺️📌]/.test(line.trim())) {
-        line = `\n## ${line.trim()}\n`;
-      }
 
       normalizedLines.push(line);
     }
 
-    if (inMermaid) {
-      mermaidLines.push('```\n');
-      normalizedLines.push(...mermaidLines);
+    if (inBareMermaid) {
+      normalizedLines.push('```\n');
     }
     flushTsvTable();
 
