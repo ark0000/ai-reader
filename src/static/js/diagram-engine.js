@@ -616,10 +616,7 @@
             '<button id="dgb-btn-run"    class="dgb-tb-btn dgb-run-btn">&#9654; Run</button>' +
             '<button id="dgb-btn-clear"  class="dgb-tb-btn">&#10005; Clear</button>' +
             '<button id="dgb-btn-sample" class="dgb-tb-btn">&#128203; Sample</button>' +
-            '<label id="dgb-toggle-canvas" style="color: #a0a0a0; font-size: 13px; margin-left: 15px; cursor: pointer; display: flex; align-items: center; gap: 5px;">' +
-              '<input type="checkbox" id="dgb-cb-canvas">' +
-              'Canvas Render' +
-            '</label>' +
+            '<button id="dgb-btn-toggle-code" class="dgb-tb-btn" style="margin-left: 15px;" title="Toggle Code Editor">&#9998; Code</button>' +
             '<span   id="dgb-status"></span>' +
             '<span   id="dgb-shortcut-tip">Ctrl+Enter to run &nbsp;|&nbsp; F=fit &nbsp;|&nbsp; +/- zoom &nbsp;|&nbsp; dbl-click to fit</span>' +
           '</div>' +
@@ -722,10 +719,14 @@
         this._setStatus('Typing...', '');
         this._debouncer.run(() => this._run());
       });
-      document.getElementById('dgb-cb-canvas').addEventListener('change', (e) => {
-        const isCanvas = e.target.checked;
-        this._engine.setStrategy(RendererFactory.create(isCanvas ? 'canvas' : 'dom'));
-        this._run();
+      document.getElementById('dgb-btn-toggle-code').addEventListener('click', (e) => {
+        const pane = document.getElementById('dgb-editor-pane');
+        const resizer = document.getElementById('dgb-resizer');
+        const isHidden = pane.style.display === 'none';
+        pane.style.display = isHidden ? 'flex' : 'none';
+        resizer.style.display = isHidden ? 'block' : 'none';
+        e.target.style.opacity = isHidden ? '1' : '0.5';
+        setTimeout(() => this._pz.fitToView(), 50);
       });
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && this._isOpen) {
