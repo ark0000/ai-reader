@@ -195,17 +195,11 @@ class TestFix5DBRowCaps:
 
 class TestFix6ChromaEviction:
     def test_eviction_method_exists(self):
-        import subprocess, sys
-        result = subprocess.run(
-            [sys.executable, "-c",
-             "from src.rag.providers.local_chroma import LocalChromaRAGProvider, MAX_COLLECTIONS; "
-             "p = LocalChromaRAGProvider(); "
-             "assert hasattr(p, '_evict_old_collections'), 'Missing _evict_old_collections'; "
-             "assert MAX_COLLECTIONS > 0; print('OK', MAX_COLLECTIONS)"],
-            capture_output=True, text=True, timeout=15
-        )
-        assert result.returncode == 0, f"ChromaDB eviction check failed: {result.stderr}"
-        assert "OK" in result.stdout
+        from src.rag.providers.local_chroma import LocalChromaRAGProvider, MAX_COLLECTIONS
+        p = LocalChromaRAGProvider()
+        assert hasattr(p, '_evict_old_collections'), "Missing _evict_old_collections"
+        assert MAX_COLLECTIONS > 0, "MAX_COLLECTIONS must be positive"
+
 
 
 # ── Fix 7: rag_indexer deprecated ────────────────────────────────────────────
@@ -365,16 +359,17 @@ class TestSnapshotRollback:
         assert data["id"].startswith("snap_")
         assert data["files_count"] > 0
         assert data["size_bytes"] > 0
-        return data["id"]
 
     def test_snapshot_appears_in_list(self, session):
-        # Create a snapshot
-        snap_id = self.test_create_manual_snapshot(session)
-        time.sleep(0.5)
-        r = session.get(f"{BASE}/api/updater/snapshots", timeout=TIMEOUT)
+        r = session.post(f"{BASE}/api/updater/snapshots/create?reason=pytest_list_check", timeout=60)
         assert r.status_code == 200
-        ids = [s["id"] for s in r.json()["snapshots"]]
+        snap_id = r.json()["id"]
+        time.sleep(0.5)
+        r2 = session.get(f"{BASE}/api/updater/snapshots", timeout=TIMEOUT)
+        assert r2.status_code == 200
+        ids = [s["id"] for s in r2.json()["snapshots"]]
         assert snap_id in ids, f"Snapshot {snap_id} not found in list: {ids}"
+
 
     def test_max_5_snapshots_retained(self, session):
         """Create 6 snapshots — verify at most 5 are retained."""
