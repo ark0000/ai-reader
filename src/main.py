@@ -4,6 +4,7 @@ import logging
 import httpx
 import asyncio
 import signal
+from typing import Optional, List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -83,11 +84,73 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+def simulate_ocr(filename: str):
+    fname = filename.lower()
+    tags = []
+    ext = fname.split(".")[-1] if "." in fname else ""
+    if ext:
+        tags.append(ext)
+    if "invoice" in fname:
+        tags.extend(["invoice", "billing"])
+    if "receipt" in fname:
+        tags.extend(["receipt", "finance"])
+    if not tags:
+        tags = ["document", "ocr-processed"]
+    else:
+        tags.append("ocr-processed")
+    import random
+    word_count = random.randint(50, 1500)
+    return list(dict.fromkeys(tags)), word_count
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "document-processor"}
+
+_http_client = httpx.AsyncClient(timeout=60.0)
+
+def search_document(task_id: str, query: str):
+    provider = RAGManager.get_provider("default")
+    if provider:
+        return provider.query_document(task_id, query)
+    return []
+
+from pydantic import BaseModel
+class LocalChatRequest(BaseModel):
+    local_endpoint: str
+    prompt: str
+    rag_enabled: bool = False
+    task_id: Optional[str] = None
+
+@app.post("/api/local_chat")
+async def api_local_chat(req: LocalChatRequest):
+    messages = []
+    if req.rag_enabled and req.task_id:
+        chunks = search_document(req.task_id, req.prompt)
+        if chunks:
+            context = "\n".join(chunks)
+            messages.append({"role": "system", "content": f"Context information:\n{context}"})
+    messages.append({"role": "system", "content": "You are a helpful assistant."})
+    messages.append({"role": "user", "content": req.prompt})
+
+    payload = {"messages": messages}
+    try:
+        resp = await _http_client.post(req.local_endpoint, json=payload)
+        if not resp.is_success:
+            raise HTTPException(status_code=502, detail=f"{resp.status_code} - {resp.text}")
+        data = resp.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return {"response": content}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
 @app.post("/api/heartbeat")
 async def receive_heartbeat():
     global last_heartbeat
     last_heartbeat = time.time()
     return {"status": "ok"}
+
 
 
 

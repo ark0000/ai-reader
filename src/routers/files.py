@@ -29,12 +29,48 @@ task_user_mapping = {}
 
 class PubSubMessage(BaseModel):
     data: str
-    messageId: str
-    publishTime: str
+    messageId: Optional[str] = None
+    message_id: Optional[str] = None
+    publishTime: Optional[str] = None
+    publish_time: Optional[str] = None
 
 class PubSubEnvelope(BaseModel):
     message: PubSubMessage
-    subscription: str
+    subscription: Optional[str] = None
+
+@router.post("/pubsub", status_code=status.HTTP_200_OK)
+async def process_pubsub_message(envelope: PubSubEnvelope):
+    import base64
+    import json
+    if not envelope.message.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Pub/Sub message: empty data field"
+        )
+    try:
+        raw_json = base64.b64decode(envelope.message.data).decode("utf-8")
+        payload = json.loads(raw_json)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Pub/Sub message: payload must be valid base64-encoded JSON"
+        )
+
+    filename = payload.get("name") or payload.get("filename")
+    if not filename:
+        return {"status": "skipped", "reason": "no_filename"}
+
+    from src.main import simulate_ocr
+    tags, word_count = simulate_ocr(filename)
+    return {
+        "status": "success",
+        "inserted_data": {
+            "filename": filename,
+            "tags": tags,
+            "word_count": word_count,
+            "processed_at": time.time()
+        }
+    }
 
 class IndexTextRequest(BaseModel):
     file_id: str
@@ -298,6 +334,66 @@ async def get_task_status(task_id: str, user_data: dict = Depends(resolve_user))
         raise HTTPException(status_code=404, detail="Task not found")
     return status_data
 
+@router.get("/api/preview/render")
+async def render_preview(
+    task_id: str,
+    page_num: int = 1,
+    color_mode: str = "comfort",
+    brightness: float = 1.0,
+    smart_invert: bool = True,
+    preview_type: str = "dark",
+    custom_bg_r: Optional[int] = None,
+    custom_bg_g: Optional[int] = None,
+    custom_bg_b: Optional[int] = None,
+    custom_text_r: Optional[int] = None,
+    custom_text_g: Optional[int] = None,
+    custom_text_b: Optional[int] = None,
+    custom_sat: Optional[float] = None,
+    user_data: dict = Depends(resolve_user)
+):
+    from fastapi.responses import Response
+    from src.pdf_converter import render_single_page_to_bytes
+    from src.storage import LOCAL_TEMP_DIR
+
+    input_filename = f"{task_id}_input.pdf"
+    local_path = os.path.join(LOCAL_TEMP_DIR, input_filename)
+
+    content_bytes = None
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, "rb") as f:
+                content_bytes = f.read()
+        except Exception:
+            pass
+
+    if not content_bytes:
+        try:
+            content_bytes = storage_client.get_file_content_bytes(input_filename)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Input file not found for preview.")
+
+    custom_bg_rgb = (custom_bg_r, custom_bg_g, custom_bg_b) if custom_bg_r is not None else None
+    custom_text_rgb = (custom_text_r, custom_text_g, custom_text_b) if custom_text_r is not None else None
+
+    try:
+        jpeg_bytes = render_single_page_to_bytes(
+            input_path=content_bytes,
+            page_num=page_num,
+            dpi=100,
+            smart_invert=smart_invert,
+            brightness_factor=brightness,
+            color_mode=color_mode,
+            custom_bg_rgb=custom_bg_rgb,
+            custom_text_rgb=custom_text_rgb,
+            custom_sat_factor=custom_sat,
+            preview_type=preview_type
+        )
+        return Response(content=jpeg_bytes, media_type="image/jpeg")
+    except Exception as e:
+        logger.error(f"Error rendering preview: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/api/download/{task_id}")
 async def download_file(task_id: str, user_data: dict = Depends(resolve_user)):
     status_data = task_queue.get_status(task_id)
@@ -357,11 +453,3 @@ async def download_file_attachment(task_id: str, user_data: dict = Depends(resol
         filename="dark_mode_document.pdf"
     )
 
-@router.post("/pubsub", status_code=status.HTTP_200_OK)
-async def process_pubsub_message(envelope: PubSubEnvelope):
-    if not envelope.message.data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Pub/Sub message: empty data field"
-        )
-    return {"status": "ok"}

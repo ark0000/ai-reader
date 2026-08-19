@@ -400,3 +400,18 @@ class ConnectionRepository:
             else:
                 d['api_key'] = None
             return d
+
+# ----------------- Backward-Compatible Helper Wrappers -----------------
+
+def register_user(username: str, password: str) -> Optional[int]:
+    return UserRepository.register(username, password)
+
+def authenticate_user(username: str, password: str) -> Optional[dict]:
+    return UserRepository.authenticate(username, password)
+
+def get_user_history(user_id: int) -> List[dict]:
+    return HistoryRepository.get_user_history(user_id)
+
+def add_history_entry(user_id: int, filename: str, pages_count: int):
+    return HistoryRepository.add_entry(user_id, filename, pages_count)
+

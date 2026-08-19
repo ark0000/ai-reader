@@ -17,15 +17,18 @@ from src.database import init_db, register_user, authenticate_user, verify_jwt, 
 
 class TestPDFConverter(unittest.TestCase):
     def setUp(self):
-        from src.database import DB_PATH
-        if os.path.exists(DB_PATH):
-            try:
-                os.remove(DB_PATH)
-            except Exception:
-                pass
+        init_db()  # Initialize local DB tables
+        from src.database import get_db_connection
+        try:
+            with get_db_connection() as conn:
+                conn.execute("DELETE FROM history")
+                conn.execute("DELETE FROM users WHERE username != 'guest'")
+                conn.commit()
+        except Exception:
+            pass
         self.client = TestClient(app)
         self.temp_dir = tempfile.mkdtemp()
-        init_db()  # Initialize local DB tables
+
         
     def tearDown(self):
         shutil.rmtree(self.temp_dir)

@@ -60,9 +60,9 @@ describe('Theme Engine', () => {
     expect(rootStyle.getPropertyValue('--bg-body')).toBe('#064E3B');
     expect(rootStyle.getPropertyValue('--text-1')).toBe('#ECFDF5');
     
-    // Test dynamic variables (color-mix)
+    // Test panel background
     const panelBg = rootStyle.getPropertyValue('--bg-panel');
-    expect(panelBg).toContain('color-mix(in srgb, #0A5E48 50%, transparent)');
+    expect(panelBg).toBe('#0A5E48');
   });
 
   test('Surprise Mix generates custom colors', () => {

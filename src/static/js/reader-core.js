@@ -714,8 +714,8 @@ class StorageRepository {
         })
         .sort((a, b) => b.timestamp - a.timestamp);
 
-      // Auto-adoption fallback: if no documents exist for active named user, check for guest_ or legacy un-prefixed files
-      if (filtered.length === 0 && user !== 'guest') {
+      // Auto-adoption fallback: always check for guest_ or legacy un-prefixed files for named users
+      if (user !== 'guest') {
         const adoptableItems = metaItems.filter(item => {
           const id = String(item.id);
           return id.startsWith('guest_') || !id.includes('_');

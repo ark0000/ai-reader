@@ -10,6 +10,7 @@ class AuthRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
 
 @router.post("/register")
+@router.post("/auth/register")
 async def api_register(req: AuthRequest):
     user_id = UserRepository.register(req.username, req.password)
     if user_id is None:
@@ -18,6 +19,7 @@ async def api_register(req: AuthRequest):
     return {"token": token, "username": req.username}
 
 @router.post("/login")
+@router.post("/auth/login")
 async def api_login(req: AuthRequest):
     user = UserRepository.authenticate(req.username, req.password)
     if not user:

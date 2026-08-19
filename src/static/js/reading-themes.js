@@ -406,6 +406,10 @@ window.ReadingThemes = {
     `;
   },
 
+  applyCuratedTheme: function(id) {
+    return this.applyTheme(id);
+  },
+
   setupSurpriseMixer: function() {
     const btn = document.getElementById('btn-surprise-mix');
     if (!btn) return;
@@ -459,6 +463,11 @@ window.ReadingThemes = {
     if (glassToggle) glassToggle.onchange = applyFromPickers;
   }
 };
+
+// Register on the unified ReadingExperience Facade
+if (window.ReadingExperience) {
+  window.ReadingExperience.Theme = window.ReadingThemes;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   window.ReadingThemes.init();

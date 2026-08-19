@@ -261,14 +261,14 @@ class MarkdownIntelligenceEngine {
     const [line, offset] = this.quill.getLine(range.index);
     if (!line) return;
 
-    const lineText = line.domNode ? (line.domNode.textContent || '') : '';
-    const textUpToCursor = lineText.substring(0, offset);
+    const lineIndex = this.quill.getIndex(line);
+    const textUpToCursor = this.quill.getText(lineIndex, offset);
 
     // Check line-level shortcut (e.g. user just typed "# ", "- ", "> ")
     for (const strategy of this.lineStrategies) {
       if (strategy.pattern.test(textUpToCursor)) {
         const pLen = typeof strategy.prefixLen === 'function' ? strategy.prefixLen(textUpToCursor) : strategy.prefixLen;
-        const lineIndex = this.quill.getIndex(line);
+        // lineIndex is already declared above
 
         // Delete trigger characters from the line
         this.quill.deleteText(lineIndex, pLen, 'user');
