@@ -32,13 +32,13 @@ window.ReadingThemes = {
       recommendedFor: "General reading, evening, novels",
       icon: "📜",
       cssVars: {
-        "--bg-body": "#F4ECD8",
-        "--bg-pane": "#EAE0C5",
-        "--bg-toolbar": "#E9DFCD",
-        "--text-1": "#2A2218",
-        "--text-2": "#54402A",
-        "--accent": "#B88E5E",
-        "--border": "#DBCFB6",
+        "--bg-body": "#FDF6E3", // Solarized-inspired warm ivory
+        "--bg-pane": "#F4EAD5",
+        "--bg-toolbar": "#EFE3C8",
+        "--text-1": "#241811",  // Extremely high contrast deep brown
+        "--text-2": "#5C4A3D",  // Highly readable secondary brown
+        "--accent": "#B58900",  // Solarized yellow/gold accent
+        "--border": "#E5D5B5",
         "--reader-font": "'Source Serif 4', Georgia, serif",
         "--reader-size": "18px",
         "--reader-lh": "1.6"
@@ -50,13 +50,13 @@ window.ReadingThemes = {
       recommendedFor: "Morning reading and alertness",
       icon: "☀️",
       cssVars: {
-        "--bg-body": "#F8F9F5",
-        "--bg-pane": "#F3F3F0",
-        "--bg-toolbar": "#EBEBE7",
-        "--text-1": "#1A1A1C",
-        "--text-2": "#5F6368",
-        "--accent": "#1A73E8",
-        "--border": "#DADCE0",
+        "--bg-body": "#F9FAFB", // Tailwind Gray 50 (softest white)
+        "--bg-pane": "#F3F4F6", // Tailwind Gray 100
+        "--bg-toolbar": "#E5E7EB", 
+        "--text-1": "#111827",  // Tailwind Gray 900 (crisp near-black)
+        "--text-2": "#4B5563",  // Tailwind Gray 600
+        "--accent": "#2563EB",  // Tailwind Blue 600
+        "--border": "#D1D5DB",
         "--reader-font": "'Roboto', 'Noto Sans', sans-serif",
         "--reader-size": "16px",
         "--reader-lh": "1.5"
@@ -68,13 +68,13 @@ window.ReadingThemes = {
       recommendedFor: "Revision, textbooks, technical PDFs",
       icon: "📝",
       cssVars: {
-        "--bg-body": "#FCFCFD",
-        "--bg-pane": "#F3F4F6",
+        "--bg-body": "#FFFFFF", // Pure white for absolute contrast
+        "--bg-pane": "#F8F9FA", // Google's Material standard grey
         "--bg-toolbar": "#F1F3F4",
-        "--text-1": "#000000",
-        "--text-2": "#4B5563",
-        "--accent": "#2563EB",
-        "--border": "#E5E7EB",
+        "--text-1": "#000000",  // Pure black text (maximum WCAG contrast)
+        "--text-2": "#3C4043",  // Dark Material grey
+        "--accent": "#1A73E8",  // Google Blue
+        "--border": "#E8EAED",
         "--reader-font": "Arial, Helvetica, Inter, sans-serif",
         "--reader-size": "16px",
         "--reader-lh": "1.45"
@@ -158,13 +158,13 @@ window.ReadingThemes = {
       recommendedFor: "Calm reading and casual browsing",
       icon: "🌿",
       cssVars: {
-        "--bg-body": "#F0F4EC",
-        "--bg-pane": "#E5EBE0",
-        "--bg-toolbar": "#DDE3D6",
-        "--text-1": "#1A2E20",
-        "--text-2": "#3B5242",
-        "--accent": "#4CAF50",
-        "--border": "#C7D4BF",
+        "--bg-body": "#EAF4EC", // "Bean Green" / Eye-care green
+        "--bg-pane": "#DDF0E1",
+        "--bg-toolbar": "#CEE8D3",
+        "--text-1": "#0A2B15",  // Extremely dark forest green (near black)
+        "--text-2": "#285936",  // Highly readable secondary green
+        "--accent": "#15803D",  // Deep rich green accent
+        "--border": "#B5D9BE",
         "--reader-font": "'Nunito Sans', Lato, sans-serif",
         "--reader-size": "17px",
         "--reader-lh": "1.55"
