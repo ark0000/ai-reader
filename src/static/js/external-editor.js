@@ -219,6 +219,16 @@ class MarkdownIntelligenceEngine {
     ];
   }
 
+  isEnabled() {
+    if (window.settingsRepo) {
+      return !window.settingsRepo.isTrue('aura-disable-editor-markdown');
+    }
+    if (window.safeStorage) {
+      return window.safeStorage.getItem('aura-disable-editor-markdown') !== 'true';
+    }
+    return true;
+  }
+
   _bindEvents() {
     if (!this.quill) return;
 
@@ -233,9 +243,16 @@ class MarkdownIntelligenceEngine {
     container.addEventListener('paste', (e) => {
       this._handlePaste(e);
     }, true);
+
+    if (window.appEventBus) {
+      window.appEventBus.on('SettingsChanged:aura-disable-editor-markdown', () => {
+        if (typeof updateMarkdownUI === 'function') updateMarkdownUI();
+      });
+    }
   }
 
   _handleTextChange() {
+    if (!this.isEnabled()) return;
     const range = this.quill.getSelection();
     if (!range) return;
 
@@ -264,6 +281,7 @@ class MarkdownIntelligenceEngine {
   }
 
   _handlePaste(e) {
+    if (!this.isEnabled()) return; // Native Quill paste executes cleanly without interception
     const clipboardData = e.clipboardData || window.clipboardData;
     if (!clipboardData) return;
 
@@ -411,6 +429,7 @@ function openExternalNotes() {
   const overlay = document.getElementById('external-notes-overlay');
   if (overlay) {
     overlay.style.display = 'flex';
+    if (typeof updateMarkdownUI === 'function') updateMarkdownUI();
     if (!window.quillEditor) {
       // Need a small timeout to ensure the container is fully rendered before Quill mounts
       setTimeout(initQuillEditor, 100);
@@ -422,6 +441,7 @@ function openExternalNotes() {
 window.openExternalEditorWithContent = async function(title, htmlContent) {
   const overlay = document.getElementById('external-notes-overlay');
   if (overlay) overlay.style.display = 'flex';
+  if (typeof updateMarkdownUI === 'function') updateMarkdownUI();
   
   const editor = await ensureQuillEditor();
   if (!editor) {
@@ -521,6 +541,10 @@ class EditorModeController {
   }
 
   toggleMode() {
+    if (window.mdIntelligence && !window.mdIntelligence.isEnabled()) {
+      alert("Markdown features are currently disabled in Settings.");
+      return;
+    }
     if (this.mode === 'visual') {
       this.switchToMarkdown();
     } else {
@@ -619,6 +643,19 @@ window.editorModeController = new EditorModeController();
 window.toggleEditorMode = function() {
   window.editorModeController.toggleMode();
 };
+
+function updateMarkdownUI() {
+  const isEnabled = window.mdIntelligence ? window.mdIntelligence.isEnabled() : true;
+  const toggleBtn = document.getElementById('mode-toggle-btn');
+  const convertBtn = document.getElementById('md-convert-btn');
+  if (toggleBtn) toggleBtn.style.display = isEnabled ? 'inline-block' : 'none';
+  if (convertBtn) convertBtn.style.display = isEnabled ? 'inline-block' : 'none';
+  
+  if (!isEnabled && window.editorModeController && window.editorModeController.mode === 'markdown') {
+    window.editorModeController.switchToVisual();
+  }
+}
+window.updateMarkdownUI = updateMarkdownUI;
 
 function createNewExternalNote() {
   currentExternalNoteId = null;

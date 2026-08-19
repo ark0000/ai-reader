@@ -897,6 +897,16 @@
             </div>
             <div class="settings-row">
               <div class="settings-label-container">
+                <span class="settings-label">Disable Markdown in Notes Editor</span>
+                <span class="settings-help">Restores standard rich text editor behavior without markdown shortcuts or paste interception.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="disable-editor-md-cb" role="switch" onchange="if(window.settingsRepo) window.settingsRepo.set('aura-disable-editor-markdown', this.checked ? 'true' : 'false'); window.safeStorage.setItem('aura-disable-editor-markdown', this.checked ? 'true' : 'false'); if(window.updateMarkdownUI) window.updateMarkdownUI();">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div class="settings-label-container">
                 <span class="settings-label">Save Documents Manually</span>
                 <span class="settings-help">Adds a save button instead of auto-saving everything.</span>
               </div>
@@ -1555,7 +1565,7 @@
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
         <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
-        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+        <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
