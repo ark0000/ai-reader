@@ -13,8 +13,24 @@ class DocumentTaskQueue:
         self.workers = []
         self.running = False
         
+    def _prune_old_tasks(self, max_tasks: int = 200, ttl_seconds: int = 3600):
+        """Prunes old completed or failed tasks to prevent memory growth."""
+        if len(self.tasks) <= max_tasks:
+            return
+        now = time.time()
+        to_delete = []
+        for tid, t in self.tasks.items():
+            if t.get("status") in ("completed", "failed"):
+                if t.get("completed_at") and (now - t["completed_at"] > ttl_seconds):
+                    to_delete.append(tid)
+                elif len(self.tasks) - len(to_delete) > max_tasks:
+                    to_delete.append(tid)
+        for tid in to_delete:
+            self.tasks.pop(tid, None)
+
     def add_task(self, task_id: str, user_id: int, fn: Callable, *args, **kwargs):
         """Adds a conversion task to the queue."""
+        self._prune_old_tasks()
         self.tasks[task_id] = {
             "status": "pending",
             "user_id": user_id,

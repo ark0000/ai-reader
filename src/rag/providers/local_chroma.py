@@ -47,25 +47,32 @@ class LocalChromaRAGProvider(IRAGProvider):
             i += chunk_size - overlap
         return chunks
 
+    @staticmethod
+    def _to_collection_name(file_id: str) -> str:
+        """Sanitizes any arbitrary file_id into a valid ChromaDB collection name."""
+        import hashlib
+        return "doc_" + hashlib.sha256(file_id.encode("utf-8")).hexdigest()[:32]
+
     def index_document(self, file_id: str, text: str, progress_callback: callable = None) -> None:
         if not chromadb or not SentenceTransformer:
             logger.warning("RAG dependencies (chromadb, sentence_transformers) missing. Skipping index.")
             return
             
         client = self._get_chroma_client()
+        col_name = self._to_collection_name(file_id)
         try:
-            client.delete_collection(name=file_id)
+            client.delete_collection(name=col_name)
         except Exception:
             pass
             
-        collection = client.create_collection(name=file_id)
+        collection = client.create_collection(name=col_name)
         model = self._get_embedding_model()
         
         chunks = self._chunk_text(text)
         if not chunks:
             return
             
-        logger.info(f"Embedding {len(chunks)} chunks for {file_id}...")
+        logger.info(f"Embedding {len(chunks)} chunks for {file_id} ({col_name})...")
         total_chunks = len(chunks)
         batch_size = 32
         all_embeddings = []
@@ -93,8 +100,9 @@ class LocalChromaRAGProvider(IRAGProvider):
             return []
             
         client = self._get_chroma_client()
+        col_name = self._to_collection_name(file_id)
         try:
-            collection = client.get_collection(name=file_id)
+            collection = client.get_collection(name=col_name)
         except Exception:
             return [] # Collection not found
             

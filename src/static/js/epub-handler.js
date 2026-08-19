@@ -200,6 +200,37 @@ class EpubDocumentHandler {
       });
     }
 
+    // Set deterministic file ID and trigger background RAG indexing
+    var docName = file.name || window.currentFileName || 'document.epub';
+    var fSize = file.size || buf.byteLength;
+    window.currentFileId = 'doc_' + btoa(encodeURIComponent(docName + '_' + fSize)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+
+    book.ready.then(async function() {
+      try {
+        var spineItems = book.spine.spineItems;
+        var fullEpubText = [];
+        for (var sIdx = 0; sIdx < spineItems.length; sIdx++) {
+          var item = spineItems[sIdx];
+          if (item && item.load) {
+            var doc = await item.load(book.load.bind(book));
+            if (doc && doc.body) {
+              fullEpubText.push(doc.body.innerText || doc.body.textContent || '');
+            }
+          }
+        }
+        var combinedText = fullEpubText.join('\n\n').trim();
+        if (combinedText) {
+          fetch('/api/rag/index_text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_id: window.currentFileId, text: combinedText })
+          }).catch(e => console.error("EPUB RAG Index error:", e));
+        }
+      } catch(err) {
+        console.warn("[EpubRAG] Error extracting text for RAG:", err);
+      }
+    });
+
     if (window.triggerLibrarySave) {
         window.triggerLibrarySave(file, file.name, 'epub');
     }

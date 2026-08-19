@@ -24,13 +24,13 @@ last_heartbeat = time.time()
 
 async def desktop_watchdog():
     global last_heartbeat
-    # Give a generous 60-second grace period on startup before checking
-    last_heartbeat = time.time() + 45
+    # Give a generous 90-second grace period on startup before checking
+    last_heartbeat = time.time() + 90
     while True:
         await asyncio.sleep(5)
         if os.environ.get("AURA_DESKTOP_MODE") == "1":
-            if time.time() - last_heartbeat > 15:
-                logger.warning("No heartbeat received from browser. Shutting down desktop server.")
+            if time.time() - last_heartbeat > 90:
+                logger.warning("No heartbeat received from browser for 90s. Shutting down desktop server.")
                 os.kill(os.getpid(), signal.SIGTERM)
 
 async def periodic_temp_cleanup():

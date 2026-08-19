@@ -637,7 +637,9 @@ window.loadPdf = async function (buf, isConverted, skipReloadBuf) {
         if (window.pdfParts.length > 0) {
           var fullText = window.pdfParts.join('\n\n');
           if (!window.currentFileId) {
-            window.currentFileId = 'local_' + Math.random().toString(36).substr(2, 9);
+            var docName = window.currentFileName || 'document.pdf';
+            var fSize = (file && file.size) ? file.size : fullText.length;
+            window.currentFileId = 'doc_' + btoa(encodeURIComponent(docName + '_' + fSize)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
           }
           try {
             fetch('/api/rag/index_text', {

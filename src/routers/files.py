@@ -68,7 +68,7 @@ async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read upload: {str(e)}")
         
-    input_filename = f"{task_id}_input.pdf"
+    input_filename = f"{task_id}_input.{ext}"
     try:
         storage_client.save_file(content_bytes, input_filename)
     except Exception as e:

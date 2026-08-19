@@ -513,6 +513,21 @@ class MarkdownDocumentHandler {
     var txt = await file.text();
     window.docText = txt;
     
+    // Set deterministic file ID and trigger RAG index
+    var docName = file.name || window.currentFileName || 'document.md';
+    var fSize = file.size || txt.length;
+    window.currentFileId = 'doc_' + btoa(encodeURIComponent(docName + '_' + fSize)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+    
+    if (txt.trim()) {
+      try {
+        fetch('/api/rag/index_text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: window.currentFileId, text: txt })
+        }).catch(e => console.error("MD RAG Index error:", e));
+      } catch(e) {}
+    }
+    
     // Fallback if marked is missing
     if (typeof marked === 'undefined') {
        window.contentEl.innerHTML = '<div class="md-content" style="font-size: var(--reader-size, 16px);"><pre style="white-space:pre-wrap"></pre></div>';
