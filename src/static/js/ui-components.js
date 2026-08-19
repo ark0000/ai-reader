@@ -106,7 +106,10 @@ window.toggleSettings = function(e) {
     var logoutBtn = document.getElementById('logout-btn');
     var loginBtn = document.getElementById('login-profile-btn');
     if (unameInput) {
-        var currentUname = window.safeStorage.getItem('username') || '';
+        // FIX: Read in-memory source of truth first; fall back to storage only if not set.
+        var currentUname = (window.currentUsername && window.currentUsername !== 'guest')
+            ? window.currentUsername
+            : (window.safeStorage.getItem('username') || '');
         unameInput.value = currentUname;
         var hasUname = currentUname.trim() !== '';
         if (logoutBtn) logoutBtn.style.display = hasUname ? 'inline-block' : 'none';
@@ -297,116 +300,146 @@ document.addEventListener('keydown', function(e) {
 window.openLibraryModal = async function() {
   const modal = document.getElementById('library-modal');
   if (!modal) return;
-  
+
   const username = window.currentUsername || 'guest';
   const display = document.getElementById('library-username-display');
   if (display) display.textContent = username;
-  
+
   const listContainer = document.getElementById('library-list');
+  if (!listContainer) return;
   listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-2);">Loading library...</div>';
   modal.style.display = 'flex';
-  
-  if (window.storageRepository) {
-    const files = await window.storageRepository.getLibraryMeta(username);
-    if (files.length === 0) {
-      if (username === 'guest' || !username) {
-        listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-2); line-height: 1.5;">' +
-          'Your library is currently empty.<br><br>' +
-          '<strong>Tip:</strong> Open Settings ⚙️ and enter a User Profile name to save and restore your documents!' +
-          '</div>';
-      } else {
-        listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-2);">No documents saved under profile "<strong>' + username + '</strong>".</div>';
-      }
+
+  // FIX: Guard against storageRepository not being ready yet (race at startup).
+  if (!window.storageRepository) {
+    listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-2);">Storage is not ready yet. Please try again in a moment.</div>';
+    return;
+  }
+
+  let files = [];
+  try {
+    files = await window.storageRepository.getLibraryMeta(username);
+  } catch (err) {
+    console.error('[Library] Failed to load library meta:', err);
+    listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;">Failed to load library. Please refresh the page.</div>';
+    return;
+  }
+
+  if (files.length === 0) {
+    if (username === 'guest' || !username) {
+      listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-2); line-height: 1.5;">' +
+        'Your library is currently empty.<br><br>' +
+        '<strong>Tip:</strong> Open Settings ⚙️ and enter a User Profile name to save and restore your documents!' +
+        '</div>';
     } else {
-      listContainer.innerHTML = '';
-      files.forEach(f => {
-        const item = document.createElement('div');
-        item.style = 'display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border-color); cursor:pointer; border-radius:4px;';
-        item.className = 'library-item';
-        
-        item.onmouseover = () => item.style.background = 'var(--bg-elevated)';
-        item.onmouseout = () => item.style.background = 'transparent';
-        
-        const dateStr = new Date(f.timestamp).toLocaleString();
-        
-        const nameEl = document.createElement('strong');
-        nameEl.style = 'white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;';
-        nameEl.textContent = f.fileName;
+      listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-2);">No documents saved under profile "<strong>' + username + '</strong>".</div>';
+    }
+    return;
+  }
 
-        const dateEl = document.createElement('span');
-        dateEl.style = 'font-size:11px; color:var(--text-2);';
-        dateEl.innerHTML = 'Saved: ' + dateStr + (f.noteCount > 0 ? ' &nbsp;&bull;&nbsp; <span style="color:var(--accent);">📝 ' + f.noteCount + ' notes</span>' : '');
+  listContainer.innerHTML = '';
+  files.forEach(f => {
+    const item = document.createElement('div');
+    item.style = 'display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border-color); cursor:pointer; border-radius:4px;';
+    item.className = 'library-item';
 
-        const infoDiv = document.createElement('div');
-        infoDiv.style = 'display:flex; flex-direction:column; overflow:hidden; padding-right:12px; flex:1;';
-        infoDiv.appendChild(nameEl);
-        infoDiv.appendChild(dateEl);
+    item.onmouseover = () => item.style.background = 'var(--bg-elevated)';
+    item.onmouseout = () => item.style.background = 'transparent';
 
-        const actionDiv = document.createElement('div');
-        actionDiv.style = 'display:flex; gap:8px;';
+    const dateStr = new Date(f.timestamp).toLocaleString();
 
-        const openBtn = document.createElement('button');
-        openBtn.className = 'tb-btn';
-        openBtn.style = 'padding:4px 12px; font-size:12px; white-space:nowrap;';
-        openBtn.textContent = 'Open';
+    const nameEl = document.createElement('strong');
+    nameEl.style = 'white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;';
+    nameEl.textContent = f.fileName;
 
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'tb-btn';
-        deleteBtn.style = 'padding:4px 12px; font-size:12px; white-space:nowrap; background: rgba(220,53,69,0.1); color: var(--text-1);';
-        deleteBtn.textContent = 'Delete';
+    const dateEl = document.createElement('span');
+    dateEl.style = 'font-size:11px; color:var(--text-2);';
+    dateEl.innerHTML = 'Saved: ' + dateStr + (f.noteCount > 0 ? ' &nbsp;&bull;&nbsp; <span style="color:var(--accent);">📝 ' + f.noteCount + ' notes</span>' : '');
 
-        // --- Open button handler (dedicated, not on parent row) ---
-        openBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          listContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent);">Opening document...</div>';
-          const docData = await window.storageRepository.loadDocument(f.id);
-          if (docData && docData.fileBlob) {
-            if (f.scrollState) window.pendingScrollState = f.scrollState;
-            const mockFile = new File([docData.fileBlob], docData.fileName, { type: docData.fileBlob.type });
-            const fileInput = document.getElementById('file-upload');
-            if (fileInput) {
-              const dataTransfer = new DataTransfer();
-              dataTransfer.items.add(mockFile);
-              fileInput.files = dataTransfer.files;
-              fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          } else {
-             alert('This document was too large to be fully cached by your browser, or its data was cleared. Please manually upload the file again to resume from your saved position.');
-             window.openLibraryModal();
-             return;
+    const infoDiv = document.createElement('div');
+    infoDiv.style = 'display:flex; flex-direction:column; overflow:hidden; padding-right:12px; flex:1;';
+    infoDiv.appendChild(nameEl);
+    infoDiv.appendChild(dateEl);
+
+    const actionDiv = document.createElement('div');
+    actionDiv.style = 'display:flex; gap:8px;';
+
+    const openBtn = document.createElement('button');
+    openBtn.className = 'tb-btn';
+    openBtn.style = 'padding:4px 12px; font-size:12px; white-space:nowrap;';
+    openBtn.textContent = 'Open';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'tb-btn';
+    deleteBtn.style = 'padding:4px 12px; font-size:12px; white-space:nowrap; background: rgba(220,53,69,0.1); color: var(--text-1);';
+    deleteBtn.textContent = 'Delete';
+
+    // --- Open button handler ---
+    openBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      openBtn.disabled = true;
+      openBtn.textContent = 'Opening...';
+      try {
+        const docData = await window.storageRepository.loadDocument(f.id);
+        if (docData && docData.fileBlob) {
+          if (f.scrollState) window.pendingScrollState = f.scrollState;
+          const mockFile = new File([docData.fileBlob], docData.fileName, { type: docData.fileBlob.type });
+          const fileInput = document.getElementById('file-upload');
+          if (fileInput) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(mockFile);
+            fileInput.files = dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
           }
           modal.style.display = 'none';
-        });
+        } else {
+          // FIX: Show inline error without destroying list — previously called openLibraryModal() again
+          openBtn.textContent = 'Open';
+          openBtn.disabled = false;
+          const errMsg = document.createElement('div');
+          errMsg.style = 'font-size:11px; color:#ef4444; margin-top:4px;';
+          errMsg.textContent = 'File not cached — please upload it manually.';
+          infoDiv.appendChild(errMsg);
+          setTimeout(() => errMsg.remove(), 5000);
+        }
+      } catch (err) {
+        console.error('[Library] Failed to open document:', err);
+        openBtn.textContent = 'Open';
+        openBtn.disabled = false;
+      }
+    });
 
-        // --- Delete button handler (isolated, no bubbling to parent) ---
-        deleteBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          e.preventDefault();
-          if (confirm('Are you sure you want to delete this document from your library? This cannot be undone.')) {
-            try {
-              console.log('[Library] Deleting document:', f.id);
-              // deleteDocument() atomically removes documents, documents_meta, and annotations in one transaction
-              await window.storageRepository.deleteDocument(f.id);
-              console.log('[Library] Delete successful, refreshing...');
-              window.openLibraryModal();
-            } catch (err) {
-              console.error('[Library] Delete failed:', err);
-              alert('Failed to delete document. See console for details.');
-            }
-          }
-        });
+    // --- Delete button handler ---
+    deleteBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      if (confirm('Are you sure you want to delete this document from your library? This cannot be undone.')) {
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = 'Deleting...';
+        try {
+          console.log('[Library] Deleting document:', f.id);
+          // deleteDocument() atomically removes documents, documents_meta, and annotations
+          await window.storageRepository.deleteDocument(f.id);
+          console.log('[Library] Delete successful, refreshing...');
+          window.openLibraryModal();
+        } catch (err) {
+          console.error('[Library] Delete failed:', err);
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.disabled = false;
+          alert('Failed to delete document. See console for details.');
+        }
+      }
+    });
 
-        actionDiv.appendChild(openBtn);
-        actionDiv.appendChild(deleteBtn);
+    actionDiv.appendChild(openBtn);
+    actionDiv.appendChild(deleteBtn);
 
-        item.appendChild(infoDiv);
-        item.appendChild(actionDiv);
-        listContainer.appendChild(item);
-      });
-    }
-  }
+    item.appendChild(infoDiv);
+    item.appendChild(actionDiv);
+    listContainer.appendChild(item);
+  });
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -471,8 +504,39 @@ window.addEventListener('DOMContentLoaded', () => {
 
 window.saveUsernameProfile = function(customName = null) {
   const userInput = document.getElementById('username-input');
-  const newName = customName !== null ? customName.trim() : (userInput ? userInput.value.trim() : '');
-  
+  const rawName = customName !== null ? customName.trim() : (userInput ? userInput.value.trim() : '');
+
+  // FIX: Input validation — block reserved names, disallowed chars, excessive length.
+  if (rawName) {
+    const RESERVED = ['guest'];
+    const VALID_RE = /^[a-zA-Z0-9_-]+$/;
+    const MAX_LEN = 32;
+
+    if (RESERVED.includes(rawName.toLowerCase())) {
+      const msg = '"guest" is a reserved profile name. Please choose a different username.';
+      if (typeof showToast === 'function') showToast('⚠️ ' + msg);
+      else alert(msg);
+      if (userInput) userInput.value = window.currentUsername && window.currentUsername !== 'guest' ? window.currentUsername : '';
+      return;
+    }
+    if (!VALID_RE.test(rawName)) {
+      const msg = 'Username can only contain letters, numbers, _ and -.';
+      if (typeof showToast === 'function') showToast('⚠️ ' + msg);
+      else alert(msg);
+      if (userInput) userInput.value = window.currentUsername && window.currentUsername !== 'guest' ? window.currentUsername : '';
+      return;
+    }
+    if (rawName.length > MAX_LEN) {
+      const msg = `Username must be ${MAX_LEN} characters or fewer.`;
+      if (typeof showToast === 'function') showToast('⚠️ ' + msg);
+      else alert(msg);
+      if (userInput) userInput.value = rawName.substring(0, MAX_LEN);
+      return;
+    }
+  }
+
+  const newName = rawName;
+
   if (window.settingsRepo) {
     window.settingsRepo.set('username', newName);
   }
@@ -480,13 +544,13 @@ window.saveUsernameProfile = function(customName = null) {
     window.safeStorage.setItem('username', newName);
   }
   window.currentUsername = newName || 'guest';
-  
+
   const logoutBtn = document.getElementById('logout-btn');
   const loginBtn = document.getElementById('login-profile-btn');
   if (logoutBtn) logoutBtn.style.display = newName ? 'inline-block' : 'none';
   if (loginBtn) loginBtn.style.display = newName ? 'none' : 'inline-block';
   if (userInput) userInput.value = newName;
-  
+
   const toastMsg = newName ? `Logged in as "${newName}"` : 'Switched to Guest profile';
   if (typeof showToast === 'function') {
     showToast(`👤 ${toastMsg}`);

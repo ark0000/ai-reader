@@ -80,8 +80,28 @@ class AuraProfile extends HTMLElement {
     } else if (window.safeStorage) {
       uname = window.safeStorage.getItem('username') || 'guest';
     }
-    this.usernameText.textContent = uname;
-    this.avatar.textContent = (uname.charAt(0) || 'G').toUpperCase();
+
+    const isGuest = !uname || uname === 'guest';
+    const displayName = isGuest ? 'Guest' : uname;
+
+    this.usernameText.textContent = displayName;
+    this.avatar.textContent = (displayName.charAt(0) || 'G').toUpperCase();
+
+    // FIX: Update title attribute so tooltip reflects the real state clearly.
+    const container = this.shadowRoot.getElementById('profile-container');
+    if (container) {
+      container.title = isGuest
+        ? 'Guest profile \u2014 open Settings to log in'
+        : `Active profile: ${displayName}`;
+    }
+
+    // FIX: Distinct visual cue for guest vs named user (dim avatar for guest).
+    if (this.avatar) {
+      this.avatar.style.opacity = isGuest ? '0.5' : '1';
+      this.avatar.style.background = isGuest
+        ? 'linear-gradient(135deg, #718096, #4a5568)'
+        : 'linear-gradient(135deg, #ff6b6b, #4ecdc4)';
+    }
   }
 
   triggerComboEffect() {

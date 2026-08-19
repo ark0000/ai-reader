@@ -461,33 +461,36 @@ class StorageRepository {
   }
 
   async saveScrollState(id, scrollState) {
+    // FIX: Use a single atomic transaction covering both stores
+    // Previously used two separate transactions that could diverge on page-unload.
     try {
-      // Update only the scroll state in both stores without re-saving the blob
-      const putPromisified = (store, data) => new Promise((resolve, reject) => {
-        const req = store.put(data);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = (e) => reject(e.target.error);
-      });
-      
-      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
-      const getMeta = metaStore.get(id);
-      getMeta.onsuccess = async () => {
-        if (getMeta.result) {
-          getMeta.result.scrollState = scrollState;
-          await putPromisified(metaStore, getMeta.result);
-        }
-      };
+      const db = await this.dbManager.getDB();
+      const stores = ['documents_meta'];
+      if (db.objectStoreNames.contains('documents')) stores.push('documents');
 
-      const docStore = await this.dbManager.getTransaction('documents', 'readwrite');
-      const getDoc = docStore.get(id);
-      getDoc.onsuccess = async () => {
-        if (getDoc.result) {
-          getDoc.result.scrollState = scrollState;
-          await putPromisified(docStore, getDoc.result);
-        }
-      };
+      const tx = db.transaction(stores, 'readwrite');
+
+      const getAndUpdate = (storeName) => new Promise((resolve) => {
+        const store = tx.objectStore(storeName);
+        const req = store.get(id);
+        req.onsuccess = () => {
+          if (req.result) {
+            req.result.scrollState = scrollState;
+            store.put(req.result);
+          }
+          resolve();
+        };
+        req.onerror = () => resolve(); // non-fatal
+      });
+
+      await Promise.all(stores.map(s => getAndUpdate(s)));
+
+      await new Promise((resolve) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
     } catch (e) {
-      console.warn("Failed to save scroll state", e);
+      console.warn('[StorageRepository] Failed to save scroll state:', e);
     }
   }
 
@@ -529,6 +532,14 @@ class StorageRepository {
   }
 
   async loadDocument(id) {
+    // FIX: Complete MIME type map — previously EPUB/MD got 'text/plain' which broke handlers.
+    const MIME_MAP = {
+      pdf:  'application/pdf',
+      epub: 'application/epub+zip',
+      md:   'text/markdown',
+      txt:  'text/plain',
+      html: 'text/html',
+    };
     try {
       const docStore = await this.dbManager.getTransaction('documents', 'readonly');
       return await new Promise((resolve, reject) => {
@@ -536,8 +547,8 @@ class StorageRepository {
         req.onsuccess = () => {
           if (req.result && req.result.fileBlob) {
             if (req.result.fileBlob instanceof ArrayBuffer) {
-              const mimeType = req.result.ext === 'pdf' ? 'application/pdf' : 'text/plain';
-              req.result.fileBlob = new Blob([req.result.fileBlob], { type: mimeType });
+              const mime = MIME_MAP[req.result.ext] || 'application/octet-stream';
+              req.result.fileBlob = new Blob([req.result.fileBlob], { type: mime });
             }
             resolve(req.result);
           } else {
@@ -547,7 +558,7 @@ class StorageRepository {
         req.onerror = () => reject(req.error);
       });
     } catch (e) {
-      console.warn("Failed to load document from IndexedDB", e);
+      console.warn('[StorageRepository] Failed to load document from IndexedDB:', e);
       return null;
     }
   }
@@ -581,13 +592,13 @@ class StorageRepository {
       const db = await this.dbManager.getDB();
       const stores = ['documents', 'documents_meta', 'annotations'];
       const availableStores = stores.filter(s => db.objectStoreNames.contains(s));
-      
+
       const tx = db.transaction(availableStores, 'readwrite');
-      
+
       for (const storeName of availableStores) {
         const store = tx.objectStore(storeName);
         const req = store.openCursor();
-        
+
         req.onsuccess = (e) => {
           const cursor = e.target.result;
           if (cursor) {
@@ -595,16 +606,24 @@ class StorageRepository {
             if (key.startsWith(fromPrefix + '_')) {
               const suffix = key.substring((fromPrefix + '_').length);
               const newKey = toPrefix + '_' + suffix;
-              const val = cursor.value;
-              val.id = newKey;
-              store.put(val);
-              store.delete(cursor.key);
+              // FIX: Deduplication guard — don't overwrite an existing target-namespace doc.
+              const checkReq = store.getKey(newKey);
+              checkReq.onsuccess = () => {
+                if (!checkReq.result) {
+                  // Target key doesn't exist — safe to migrate
+                  const val = cursor.value;
+                  val.id = newKey;
+                  store.put(val);
+                }
+                // Always remove the source key
+                store.delete(cursor.key);
+              };
             }
             cursor.continue();
           }
         };
       }
-      
+
       await new Promise((resolve) => {
         tx.oncomplete = () => resolve();
         tx.onerror = () => resolve();
@@ -742,18 +761,28 @@ class ProfileMigrationManager {
     this.eventBus.on('SettingsChanged:username', async (newVal) => {
       const newUsername = newVal && newVal.trim() ? newVal.trim() : 'guest';
       const oldUsername = this.lastUsername || 'guest';
-      
+
       if (oldUsername !== newUsername && newUsername !== 'guest') {
-        console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
-        if (this.storageRepo && this.storageRepo.migrateNamespace) {
-          await this.storageRepo.migrateNamespace(oldUsername, newUsername);
+        // FIX: One-time migration guard per username — prevents re-migrating on every login.
+        const migrationKey = `aura-profile-migrated-to-${newUsername}`;
+        const alreadyMigrated = window.safeStorage && window.safeStorage.getItem(migrationKey) === 'true';
+
+        if (!alreadyMigrated) {
+          console.log(`[ProfileMigration] Migrating namespace from '${oldUsername}' to '${newUsername}'...`);
+          if (this.storageRepo && this.storageRepo.migrateNamespace) {
+            await this.storageRepo.migrateNamespace(oldUsername, newUsername);
+          }
+          if (window.safeStorage) window.safeStorage.setItem(migrationKey, 'true');
+        } else {
+          console.log(`[ProfileMigration] Skipping migration to '${newUsername}' — already performed.`);
         }
+
         const libModal = document.getElementById('library-modal');
         if (libModal && libModal.style.display !== 'none' && window.openLibraryModal) {
           window.openLibraryModal();
         }
       }
-      
+
       this.lastUsername = newUsername;
     });
   }
