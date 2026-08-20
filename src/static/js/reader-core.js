@@ -667,8 +667,9 @@ class StorageRepository {
     }
   }
 
-  async saveNotes(id, notes, pdfHighlights) {
-    if (window._isDocumentLoading) return;
+  async saveNotes(id, notes, pdfHighlights, force = false) {
+    // Guard: skip auto-saves during document hydration, but always allow force-saves (e.g. manual save button)
+    if (!force && window._isDocumentLoading) return;
     try {
       const store = await this.dbManager.getTransaction('annotations', 'readwrite');
       store.put({ id, notes: JSON.parse(JSON.stringify(notes)), pdfHighlights: JSON.parse(JSON.stringify(pdfHighlights || [])), timestamp: Date.now() });
@@ -1010,7 +1011,8 @@ window.manualSaveDocument = function() {
   const uname = window.settingsRepo.getUsername();
   const key = uname + '_' + doc.name;
   if (window.storageRepository && window.notes) {
-      window.storageRepository.saveNotes(key, window.notes, window.pdfHighlights);
+      // force=true bypasses the _isDocumentLoading guard so manual save always works
+      window.storageRepository.saveNotes(key, window.notes, window.pdfHighlights, true);
   }
   
   // 3. Explicitly force save the reading state/scroll position right now
@@ -1035,8 +1037,9 @@ window.appEventBus.on('SettingsChanged:aura-manual-save', (val) => {
 });
 
 // Auto-restore logic on load
-// IMPORTANT: We use 'load' (not DOMContentLoaded) to ensure all <script> tags
-// have finished executing and the file-upload event listener from pdf-handler.js is registered.
+// Strategy: listen for 'load' to guarantee all <script> tags (including pdf-handler.js)
+// have registered their DOMContentLoaded listeners. Then wait an additional tick
+// so the 'change' event listener on #file-upload is guaranteed to be attached.
 window.addEventListener('load', async () => {
   window.currentUsername = window.settingsRepo.getUsername();
 
@@ -1044,26 +1047,38 @@ window.addEventListener('load', async () => {
   console.log('[AutoRestore] library length for ' + window.currentUsername + ':', library.length);
   if (library.length === 0) return;
 
-  const docData = await window.storageRepository.loadDocument(library[0].id);
+  const latest = library[0];
+  const docData = await window.storageRepository.loadDocument(latest.id);
   console.log('[AutoRestore] docData exists:', !!docData, 'fileBlob exists:', docData ? !!docData.fileBlob : false);
+
   if (!docData || !docData.fileBlob) {
-      console.warn('[AutoRestore] Document missing or too large, cannot auto-restore blob.');
-      if (library[0].scrollState) window.pendingScrollState = library[0].scrollState;
-      return;
+    console.warn('[AutoRestore] Document blob missing (metadata-only cache). Restoring scroll state only.');
+    // Still restore scroll state so opening the file manually lands at the right position
+    if (latest.scrollState) window.pendingScrollState = latest.scrollState;
+    return;
   }
 
-  console.log('[StorageRepository] Restoring saved document:', docData.fileName);
+  console.log('[AutoRestore] Restoring saved document:', docData.fileName);
 
-  // Small delay to ensure all DOMContentLoaded handlers from other scripts have run
-  setTimeout(() => {
-    if (library[0].scrollState) window.pendingScrollState = library[0].scrollState;
+  // FIX: Use requestAnimationFrame after load to guarantee the pdf-handler
+  // DOMContentLoaded block has fully executed and #file-upload listener is wired.
+  // Previously, a flat 300ms timeout could race if the browser was busy.
+  const _dispatchRestore = () => {
+    if (latest.scrollState) window.pendingScrollState = latest.scrollState;
     const mockFile = new File([docData.fileBlob], docData.fileName, { type: docData.fileBlob.type });
     const fileInput = document.getElementById('file-upload');
-    if (fileInput) {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(mockFile);
-      fileInput.files = dataTransfer.files;
-      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    if (!fileInput) {
+      console.warn('[AutoRestore] #file-upload not found — cannot auto-restore.');
+      return;
     }
-  }, 300);
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(mockFile);
+    fileInput.files = dataTransfer.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log('[AutoRestore] Dispatched file change event for:', docData.fileName);
+  };
+
+  // Use double-rAF to guarantee paint cycle + all synchronous event-listener
+  // registrations (DOMContentLoaded handlers) have completed before we dispatch.
+  requestAnimationFrame(() => requestAnimationFrame(_dispatchRestore));
 });
