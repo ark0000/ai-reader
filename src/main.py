@@ -14,6 +14,7 @@ from src.database import init_db
 from src.task_queue import task_queue
 from src.config import settings
 from src.routers import auth, chat, connections, files, themes, tts, updater
+from src.routers import admin as admin_router
 from src.rag.manager import RAGManager
 from src.rag.providers.local_chroma import LocalChromaRAGProvider
 
@@ -208,6 +209,17 @@ app.include_router(files.router)
 app.include_router(themes.router)
 app.include_router(tts.router)
 app.include_router(updater.router)
+app.include_router(admin_router.router)
+
+@app.get("/admin", response_class=HTMLResponse)
+async def get_admin_panel():
+    if settings.debug_console != "1":
+        raise HTTPException(status_code=403, detail="Admin panel requires DEBUG_CONSOLE=1")
+    admin_html = os.path.join(os.path.dirname(__file__), "static", "admin.html")
+    if os.path.exists(admin_html):
+        with open(admin_html, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="admin.html not found")
 
 # Static Files (mount last to avoid overriding routes)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

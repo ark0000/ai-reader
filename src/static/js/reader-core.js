@@ -1078,7 +1078,89 @@ window.addEventListener('load', async () => {
     console.log('[AutoRestore] Dispatched file change event for:', docData.fileName);
   };
 
+
   // Use double-rAF to guarantee paint cycle + all synchronous event-listener
   // registrations (DOMContentLoaded handlers) have completed before we dispatch.
   requestAnimationFrame(() => requestAnimationFrame(_dispatchRestore));
 });
+
+// ── Admin Dev-Mode Activity Ping ──────────────────────────────────────────────
+// Only sends data when the server is running with DEBUG_CONSOLE=1.
+// The server endpoint returns { status: "noop" } silently in production.
+// Interval: every 30 seconds while the tab is visible.
+(function _initAdminPing() {
+  var _pingTimer = null;
+
+  function _getPage() {
+    // PDF: current page number
+    if (window.pdfCurrentPage) return window.pdfCurrentPage;
+    // MD/TXT: encode scrollTop as page-equivalent
+    var ce = document.getElementById('content-area') || document.getElementById('reader-content');
+    if (ce && ce.scrollTop) return Math.round(ce.scrollTop / 100);
+    return null;
+  }
+
+  function _sendAdminPing() {
+    try {
+      var username = (window.settingsRepo && window.settingsRepo.getUsername())
+                     || window.currentUsername || 'guest';
+      var userId   = 1; // client-side user_id approximation
+      var file     = window.currentFileName || null;
+      var ext      = file ? (file.split('.').pop() || null) : null;
+      var notes    = (window.notes && window.notes.length) || 0;
+      var page     = _getPage();
+
+      var payload = JSON.stringify({
+        username:     username,
+        user_id:      userId,
+        current_file: file,
+        file_ext:     ext,
+        note_count:   notes,
+        page:         page
+      });
+
+      // Use sendBeacon if available (non-blocking, survives tab close)
+      if (navigator.sendBeacon) {
+        var blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon('/api/admin/activity', blob);
+      } else {
+        fetch('/api/admin/activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(function() {}); // silent fail — non-critical
+      }
+    } catch (e) {
+      // Never let admin ping break the reader
+    }
+  }
+
+  function _startPing() {
+    if (_pingTimer) return;
+    _sendAdminPing(); // immediate first ping
+    _pingTimer = setInterval(_sendAdminPing, 30000); // every 30 s
+  }
+
+  function _stopPing() {
+    if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
+  }
+
+  // Pause when tab is hidden to avoid unnecessary traffic
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) { _stopPing(); } else { _startPing(); }
+  });
+
+  // Send a final ping on tab close (works even without sendBeacon)
+  window.addEventListener('beforeunload', _sendAdminPing);
+
+  // Start after load
+  window.addEventListener('load', _startPing);
+
+  // Re-ping immediately when file changes (so admin panel sees new doc instantly)
+  window.addEventListener('aura-file-opened', _sendAdminPing);
+  window.addEventListener('aura-notes-changed', _sendAdminPing);
+
+  // Expose for test access
+  window._adminPingSend = _sendAdminPing;
+})();
