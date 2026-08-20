@@ -219,6 +219,7 @@ window.renderNotes = function(){
   }
 
   var notesList = document.getElementById('notes-list');
+  if (!notesList) return;
   notesList.innerHTML = window.notes.length ? '' : '<div class="msg msg-s">No notes yet.</div>';
   var hIdx=1;
   window.notes.forEach(function(n){
