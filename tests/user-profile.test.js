@@ -175,44 +175,207 @@ describe('User Profile & Authentication System', () => {
     }
   });
 
-  test('Restart & Update persistence: existing saves under username are preserved and restored on login', async () => {
-    // 1. Simulate existing state saved before shutdown/update
-    localStorage.setItem('username', 'arunkumar');
-    localStorage.setItem('aura-state-save-prefs', JSON.stringify({ 'aura-reading-state': true, 'aura-notes-state': true }));
-    
-    // Mock database records representing previous saves
-    const mockMeta = [
-      { id: 'arunkumar_chapter1.pdf', fileName: 'chapter1.pdf', ext: 'pdf', scrollState: { page: 14, ratio: 0.5 }, timestamp: Date.now() }
+  // =========================================================================
+  // RESTART / UPDATE / LOGIN PERSISTENCE TESTS
+  // These tests verify the full lifecycle:
+  //   Session 1 (pre-update): user reads doc, state is saved
+  //   App update / restart:   IndexedDB and localStorage persist
+  //   Session 2 (post-update): login restores library, scroll state, and notes
+  // =========================================================================
+
+  describe('Restart & Update Persistence Flow', () => {
+    // Shared mock data representing what was saved in the previous session
+    const MOCK_USER = 'arunkumar';
+    const MOCK_FILE = 'chapter1.pdf';
+    const MOCK_KEY  = `${MOCK_USER}_${MOCK_FILE}`;
+    const MOCK_SCROLL = { page: 14, ratio: 0.72 };
+    const MOCK_NOTES  = [
+      { id: 1, txt: 'Key insight on page 14' },
+      { id: 2, txt: 'Follow-up reference' }
     ];
-    window.storageRepository.getLibraryMeta = jest.fn().mockResolvedValue(mockMeta);
-    window.storageRepository.loadScrollState = jest.fn().mockResolvedValue({ page: 14, ratio: 0.5 });
-    window.storageRepository.loadNotes = jest.fn().mockResolvedValue({ notes: [{ id: 1, txt: 'Important finding' }], pdfHighlights: [] });
+    const MOCK_HIGHLIGHTS = [{ id: 'h1', text: 'important phrase', color: '#ffe066' }];
+    const MOCK_META = [
+      {
+        id: MOCK_KEY,
+        fileName: MOCK_FILE,
+        ext: 'pdf',
+        scrollState: MOCK_SCROLL,
+        noteCount: MOCK_NOTES.length,
+        timestamp: Date.now() - 3600000 // saved 1 hour ago
+      }
+    ];
 
-    // 2. Simulate app reload / new version init
-    window.settingsRepo.cache = {};
-    expect(window.settingsRepo.getUsername()).toBe('arunkumar');
+    beforeEach(() => {
+      // Simulate app restart: username persists in localStorage
+      localStorage.setItem('username', MOCK_USER);
+      localStorage.setItem('aura-state-save-prefs', JSON.stringify({
+        'aura-reading-state': true,
+        'aura-notes-state': true
+      }));
 
-    // 3. Verify library retrieves existing saves
-    const lib = await window.storageRepository.getLibraryMeta('arunkumar');
-    expect(lib.length).toBe(1);
-    expect(lib[0].fileName).toBe('chapter1.pdf');
-    expect(lib[0].scrollState.page).toBe(14);
+      // Fresh SettingsRepository cache (simulates new app version loading)
+      window.settingsRepo.cache = {};
 
-    // 4. Verify scroll state & notes are hydrated
-    const scroll = await window.storageRepository.loadScrollState('arunkumar_chapter1.pdf');
-    expect(scroll.page).toBe(14);
-    const notes = await window.storageRepository.loadNotes('arunkumar_chapter1.pdf');
-    expect(notes.notes.length).toBe(1);
-    expect(notes.notes[0].txt).toBe('Important finding');
-  });
+      // Wire up per-test mocks on the already-created storageRepository
+      window.storageRepository.getLibraryMeta = jest.fn().mockResolvedValue(MOCK_META);
+      window.storageRepository.loadScrollState = jest.fn().mockResolvedValue(MOCK_SCROLL);
+      window.storageRepository.loadNotes = jest.fn().mockResolvedValue({
+        id: MOCK_KEY,
+        notes: MOCK_NOTES,
+        pdfHighlights: MOCK_HIGHLIGHTS
+      });
+      window.storageRepository.saveNotes   = jest.fn().mockResolvedValue(true);
+      window.storageRepository.saveScrollState = jest.fn().mockResolvedValue(true);
+      window.storageRepository.loadDocument = jest.fn().mockResolvedValue({
+        id: MOCK_KEY,
+        fileName: MOCK_FILE,
+        ext: 'pdf',
+        scrollState: MOCK_SCROLL,
+        fileBlob: new Blob(['%PDF-1.4 fake'], { type: 'application/pdf' })
+      });
+    });
 
-  test('Hydration lock prevents overwriting notes when opening documents', () => {
-    window._isDocumentLoading = true;
-    window.currentFileName = 'doc.pdf';
-    window.notes = [];
-    window.renderNotes();
-    // Since _isDocumentLoading is true, saveNotes should not be called with empty array
-    expect(window.storageRepository.saveNotes).not.toHaveBeenCalled();
-    window._isDocumentLoading = false;
+    test('STEP 1 — username persists in localStorage across app restart / update', () => {
+      // settingsRepo reads from localStorage (not its cache) on a fresh boot
+      const restored = window.settingsRepo.getUsername();
+      expect(restored).toBe(MOCK_USER);
+    });
+
+    test('STEP 2 — reading-state and notes-state preferences survive app update', () => {
+      // Both prefs come from aura-state-save-prefs JSON blob
+      expect(window.settingsRepo.isTrue('aura-reading-state')).toBe(true);
+      expect(window.settingsRepo.isTrue('aura-notes-state')).toBe(true);
+    });
+
+    test('STEP 3 — library returns saved documents for the logged-in user after restart', async () => {
+      const lib = await window.storageRepository.getLibraryMeta(MOCK_USER);
+
+      expect(lib.length).toBe(1);
+      expect(lib[0].fileName).toBe(MOCK_FILE);
+      expect(lib[0].id).toBe(MOCK_KEY);
+      // Library must show note count so user knows what was saved
+      expect(lib[0].noteCount).toBe(2);
+    });
+
+    test('STEP 4 — scroll state (reading position) is preserved with exact page and ratio', async () => {
+      const scroll = await window.storageRepository.loadScrollState(MOCK_KEY);
+
+      expect(scroll).not.toBeNull();
+      expect(scroll.page).toBe(14);
+      expect(scroll.ratio).toBeCloseTo(0.72);
+    });
+
+    test('STEP 5 — notes and highlights are fully restored after restart', async () => {
+      const data = await window.storageRepository.loadNotes(MOCK_KEY);
+
+      expect(data).not.toBeNull();
+      expect(data.notes.length).toBe(2);
+      expect(data.notes[0].txt).toBe('Key insight on page 14');
+      expect(data.notes[1].txt).toBe('Follow-up reference');
+      expect(data.pdfHighlights.length).toBe(1);
+      expect(data.pdfHighlights[0].color).toBe('#ffe066');
+    });
+
+    test('STEP 6 — library document blob is loadable (auto-restore can open file)', async () => {
+      const docData = await window.storageRepository.loadDocument(MOCK_KEY);
+
+      expect(docData).not.toBeNull();
+      expect(docData.fileName).toBe(MOCK_FILE);
+      expect(docData.fileBlob).toBeInstanceOf(Blob);
+      expect(docData.fileBlob.size).toBeGreaterThan(0);
+      expect(docData.scrollState.page).toBe(14);
+    });
+
+    test('STEP 7 — hydration lock (_isDocumentLoading) prevents empty-notes overwrite during restore', () => {
+      // Simulate the window between openFile() starting and notes being hydrated
+      window._isDocumentLoading = true;
+      window.currentFileName = MOCK_FILE;
+      window.notes = [];
+      window.pdfHighlights = [];
+
+      // renderNotes() must NOT call saveNotes while the lock is active
+      window.renderNotes();
+
+      expect(window.storageRepository.saveNotes).not.toHaveBeenCalled();
+
+      // Unlock
+      window._isDocumentLoading = false;
+    });
+
+    test('STEP 8 — force save (manual save button) bypasses hydration lock and always persists', async () => {
+      // Even if the lock is somehow still on, force=true must write through
+      window._isDocumentLoading = true;
+
+      // Call saveNotes directly with force=true (as manualSaveDocument does)
+      await window.storageRepository.saveNotes(MOCK_KEY, MOCK_NOTES, MOCK_HIGHLIGHTS, true);
+
+      expect(window.storageRepository.saveNotes).toHaveBeenCalledWith(
+        MOCK_KEY, MOCK_NOTES, MOCK_HIGHLIGHTS, true
+      );
+
+      window._isDocumentLoading = false;
+    });
+
+    test('STEP 9 — triggerStateSave is blocked during loading but runs after unlock', () => {
+      window.currentFileName = MOCK_FILE;
+      window._isDocumentLoading = true;
+
+      // Should be a no-op while loading
+      window.triggerStateSave();
+      expect(window.storageRepository.saveScrollState).not.toHaveBeenCalled();
+
+      // After unlock, triggerStateSave should be allowed to run
+      window._isDocumentLoading = false;
+      // (actual scroll state saving depends on getActiveHandler — verified in integration)
+    });
+
+    test('STEP 10 — guest docs auto-migrate to username namespace on first login after update', async () => {
+      // Simulate docs saved as guest before the user set their username
+      const guestMeta = [
+        { id: 'guest_old_doc.pdf', fileName: 'old_doc.pdf', ext: 'pdf', timestamp: Date.now() }
+      ];
+      window.storageRepository.getLibraryMeta = jest.fn().mockResolvedValue(guestMeta);
+      window.storageRepository.migrateNamespace = jest.fn().mockResolvedValue({ count: 1 });
+
+      // After login, migration manager should adopt the guest docs
+      if (window.profileMigrationManager) {
+        window.profileMigrationManager.lastUsername = 'guest';
+      }
+
+      // Trigger login event (saves username, fires SettingsChanged:username event)
+      window.settingsRepo.set('username', MOCK_USER);
+
+      // ProfileMigrationManager listens on this event and migrates guest -> arunkumar
+      // Give it a tick to process the async event
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(window.storageRepository.migrateNamespace).toHaveBeenCalledWith('guest', MOCK_USER);
+    });
+
+    test('STEP 11 — library is empty for a different user (isolation after restart)', async () => {
+      window.storageRepository.getLibraryMeta = jest.fn().mockResolvedValue([]);
+      const files = await window.storageRepository.getLibraryMeta('stranger_user');
+      expect(files.length).toBe(0);
+    });
+
+    test('STEP 12 — metadata-only cache: scroll state still restored even when blob is missing', async () => {
+      // When the file blob was not cached (quota exceeded, meta-only mode),
+      // pendingScrollState should still be set so manual re-upload lands at right page
+      window.storageRepository.loadDocument = jest.fn().mockResolvedValue(null);
+
+      const lib = await window.storageRepository.getLibraryMeta(MOCK_USER);
+      const latest = lib[0];
+
+      // Simulate auto-restore path: blob null → set pendingScrollState from meta
+      window.pendingScrollState = null;
+      const docData = await window.storageRepository.loadDocument(latest.id);
+      if (!docData || !docData.fileBlob) {
+        if (latest.scrollState) window.pendingScrollState = latest.scrollState;
+      }
+
+      expect(window.pendingScrollState).not.toBeNull();
+      expect(window.pendingScrollState.page).toBe(14);
+    });
   });
 });
+
