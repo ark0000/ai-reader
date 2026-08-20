@@ -308,6 +308,12 @@ class MarkdownIntelligenceEngine {
           html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
             return `<div class="ql-custom-table-container">${match}</div>`;
           });
+          // Strip light-mode inline styles that clash with dark theme
+          html = html
+            .replace(/\s*style="[^"]*background(?:-color)?:\s*(?:white|#fff|#ffffff)[^"]*"/gi, '')
+            .replace(/\s*style="[^"]*color:\s*(?:black|#000|#000000)[^"]*"/gi, '')
+            .replace(/background(?:-color)?:\s*(?:white|#fff|#ffffff)\s*;?/gi, '')
+            .replace(/color:\s*(?:black|#000|#000000)\s*;?/gi, '');
         } catch (err) {
           console.warn('Marked parse fallback:', err);
           html = normalized.replace(/\n/g, '<br>');

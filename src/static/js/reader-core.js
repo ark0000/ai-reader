@@ -119,8 +119,16 @@ window.toggleStateKey = function(key, save) {
 // --- LIFECYCLE ---
 document.addEventListener("DOMContentLoaded", function() {
   // Initialize save state checkboxes
-  const prefsRaw = localStorage.getItem('aura-state-save-prefs');
-  const prefs = prefsRaw ? JSON.parse(prefsRaw) : {};
+  let prefsRaw = localStorage.getItem('aura-state-save-prefs');
+  let prefs = {};
+  if (prefsRaw) {
+    prefs = JSON.parse(prefsRaw);
+  } else {
+    // Default ON for fresh installs
+    prefs['aura-reading-state'] = true;
+    prefs['aura-notes-state'] = true;
+    localStorage.setItem('aura-state-save-prefs', JSON.stringify(prefs));
+  }
   // Migrate old 'aura-pdf-reading-state' to 'aura-reading-state'
   if (prefs['aura-pdf-reading-state'] === true) {
     prefs['aura-reading-state'] = true;
@@ -721,9 +729,17 @@ class StorageRepository {
           return id.startsWith('guest_') || !id.includes('_');
         });
 
-        if (adoptableItems.length > 0) {
+        // Only adopt items that haven't already been migrated to the user's namespace
+        const unmigratedItems = adoptableItems.filter(item => {
+          const rawId = String(item.id);
+          const cleanSuffix = rawId.startsWith('guest_') ? rawId.substring(6) : rawId;
+          const targetId = user + '_' + cleanSuffix;
+          return !filtered.some(f => String(f.id) === targetId);
+        });
+
+        if (unmigratedItems.length > 0) {
           await this.migrateNamespace('guest', user);
-          adoptableItems.forEach(item => {
+          unmigratedItems.forEach(item => {
             const rawId = String(item.id);
             const cleanSuffix = rawId.startsWith('guest_') ? rawId.substring(6) : rawId;
             const migrated = Object.assign({}, item, { id: user + '_' + cleanSuffix });

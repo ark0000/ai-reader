@@ -622,6 +622,15 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             localStorage.setItem('token', data.token);
             localStorage.setItem('username', data.username);
+            
+            // Sync with reader's global profile state
+            if (window.saveUsernameProfile) {
+                window.saveUsernameProfile(data.username);
+            } else if (window.settingsRepo) {
+                window.settingsRepo.set('username', data.username);
+                window.currentUsername = data.username;
+            }
+            
             authModal.style.display = 'none';
             authSubmitBtn.disabled = false;
             updateAuthStateUI();

@@ -1060,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.contentEl) {
     window.contentEl.addEventListener('scroll', function () {
       if (!window.currentFileName || !window.storageRepository) return;
-      if (window.safeStorage.getItem('aura-pdf-reading-state') !== 'true') return;
+      if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
       if (window.safeStorage.getItem('aura-manual-save') !== 'false') return; // Skip if manual save is ON (default true)
       clearTimeout(_scrollSaveTimer);
       _scrollSaveTimer = setTimeout(function () {

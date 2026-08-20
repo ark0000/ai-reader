@@ -109,6 +109,77 @@
       margin: 14px 0;
       color: var(--text-2);
     }
+    /* Code Blocks & Inline Code - dark mode override */
+    .ql-snow .ql-editor pre.ql-syntax,
+    .ql-snow .ql-editor pre {
+      background: rgba(0, 0, 0, 0.35) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 6px !important;
+      color: #e2e8f0 !important;
+      padding: 14px 16px !important;
+      overflow-x: auto !important;
+      font-family: 'JetBrains Mono', 'Source Code Pro', monospace !important;
+      font-size: 13px !important;
+      line-height: 1.6 !important;
+      margin: 12px 0 !important;
+    }
+    .ql-snow .ql-editor code {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 4px !important;
+      padding: 1px 6px !important;
+      color: #81e6d9 !important;
+      font-family: 'JetBrains Mono', 'Source Code Pro', monospace !important;
+      font-size: 0.88em !important;
+    }
+    /* Editor container itself */
+    .ql-container, .ql-snow.ql-container {
+      background: transparent !important;
+    }
+    .ql-editor {
+      background: transparent !important;
+    }
+    /* Strip white backgrounds injected by marked.js / pasted HTML inline styles */
+    .ql-snow .ql-editor [style*="background-color: white"],
+    .ql-snow .ql-editor [style*="background-color:#fff"],
+    .ql-snow .ql-editor [style*="background-color: #fff"],
+    .ql-snow .ql-editor [style*="background-color:#ffffff"],
+    .ql-snow .ql-editor [style*="background-color: #ffffff"],
+    .ql-snow .ql-editor [style*="background: white"],
+    .ql-snow .ql-editor [style*="background:#fff"],
+    .ql-snow .ql-editor [style*="background: #fff"] {
+      background-color: transparent !important;
+      background: transparent !important;
+    }
+    /* Strip black text color that would be invisible on dark bg */
+    .ql-snow .ql-editor [style*="color: black"],
+    .ql-snow .ql-editor [style*="color:#000"],
+    .ql-snow .ql-editor [style*="color: #000"],
+    .ql-snow .ql-editor [style*="color:#000000"],
+    .ql-snow .ql-editor [style*="color: #000000"] {
+      color: var(--text-1) !important;
+    }
+    /* Heading styles */
+    .ql-snow .ql-editor h1,
+    .ql-snow .ql-editor h2,
+    .ql-snow .ql-editor h3,
+    .ql-snow .ql-editor h4,
+    .ql-snow .ql-editor h5,
+    .ql-snow .ql-editor h6 {
+      color: var(--text-1) !important;
+      background: transparent !important;
+      margin-top: 1.2em;
+      margin-bottom: 0.4em;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .ql-snow .ql-editor h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .ql-snow .ql-editor h2 { font-size: 1.45em; }
+    .ql-snow .ql-editor h3 { font-size: 1.2em; }
+    /* List styling */
+    .ql-snow .ql-editor li { color: var(--text-1) !important; }
+    /* Paragraph spacing */
+    .ql-snow .ql-editor p { margin: 0.4em 0; color: var(--text-1); }
   </style>
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Source+Code+Pro:wght@400;500&family=Lato:wght@300;400;700&family=Open+Sans:wght@300;400;600&family=Atkinson+Hyperlegible&family=Source+Serif+4:wght@400;700&family=IBM+Plex+Sans:wght@400;450;700&family=Source+Sans+3:wght@400;700&family=Lexend:wght@400;700&family=Nunito+Sans:wght@400;700&family=Alegreya+Sans:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Charis+SIL&display=swap"
