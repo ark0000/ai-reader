@@ -110,8 +110,8 @@ class AdminTracker:
         self._sessions: Dict[str, Dict[str, Any]] = {}   # key: username
         self._lock = threading.Lock()
         self._event_log: collections.deque = collections.deque(maxlen=1000)
-        from src.storage import LOCAL_TEMP_DIR
-        self._state_file = os.path.join(LOCAL_TEMP_DIR, "admin_state.json")
+        # ISOLATION FIX: Store outside of LOCAL_TEMP_DIR so periodic_temp_cleanup doesn't delete it
+        self._state_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".admin_state.json"))
 
     # ── State Persistence ─────────────────────────────────────────────────────
     def save_state(self):
@@ -152,10 +152,15 @@ class AdminTracker:
     # ── Public write ──────────────────────────────────────────────────────────
     def record_activity(self, *, username: str, user_id: int,
                         current_file: Optional[str], file_ext: Optional[str],
-                        note_count: int, library_count: int, page: Optional[int], ip: Optional[str]):
+                        note_count: int, library_count: int, page: Optional[int], ip: Optional[str],
+                        previous_username: Optional[str] = None):
         now = time.time()
         with self._lock:
-            existing = self._sessions.get(username, {})
+            if previous_username and previous_username in self._sessions and previous_username != username:
+                existing = self._sessions.pop(previous_username)
+            else:
+                existing = self._sessions.get(username, {})
+                
             prev_file = existing.get("current_file")
 
             session = {
@@ -233,6 +238,7 @@ class ActivityPing(BaseModel):
     note_count:   int = 0
     library_count: int = 0
     page:         Optional[int] = None
+    previous_username: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -255,7 +261,8 @@ async def post_activity(ping: ActivityPing, request: Request):
         note_count=ping.note_count,
         library_count=ping.library_count,
         page=ping.page,
-        ip=client_ip
+        ip=client_ip,
+        previous_username=ping.previous_username
     )
     return {"status": "ok", "tracked": True}
 

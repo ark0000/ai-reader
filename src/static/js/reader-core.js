@@ -1101,6 +1101,8 @@ window.addEventListener('load', async () => {
     return null;
   }
 
+  var _lastSentUsername = null;
+
   async function _sendAdminPing() {
     try {
       var username = (window.settingsRepo && window.settingsRepo.getUsername())
@@ -1120,6 +1122,9 @@ window.addEventListener('load', async () => {
       var notes    = (window.notes && window.notes.length) || 0;
       var page     = _getPage();
 
+      var prevUsername = (_lastSentUsername && _lastSentUsername !== username) ? _lastSentUsername : null;
+      _lastSentUsername = username;
+
       var payload = JSON.stringify({
         username:     username,
         user_id:      userId,
@@ -1127,7 +1132,8 @@ window.addEventListener('load', async () => {
         file_ext:     ext,
         note_count:   notes,
         library_count: _lastLibraryCount,
-        page:         page
+        page:         page,
+        previous_username: prevUsername
       });
 
       // Use sendBeacon if available (non-blocking, survives tab close)

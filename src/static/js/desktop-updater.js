@@ -133,18 +133,28 @@
     },
 
     showUpdateBadge: function(data) {
-      let badge = document.getElementById('topbar-update-badge');
-      if (!data.has_update) { if (badge) badge.remove(); return; }
-      if (!badge) {
-        badge = document.createElement('button');
-        badge.id = 'topbar-update-badge';
-        const topBar = document.getElementById('top-bar') || document.querySelector('.app-header');
-        if (topBar) { const group = topBar.querySelector('.toolbar-group:last-child') || topBar; group.prepend(badge); }
+      const profile = document.getElementById('top-profile-badge');
+      if (profile && profile.showUpdateMarker) {
+        if (!data.has_update) {
+          profile.showUpdateMarker(false);
+          return;
+        }
+        profile.showUpdateMarker(true, () => this.openUpdateModal(this.latestInfo || data));
+      } else {
+        // Fallback for browsers/environments where aura-profile is missing
+        let badge = document.getElementById('topbar-update-badge');
+        if (!data.has_update) { if (badge) badge.remove(); return; }
+        if (!badge) {
+          badge = document.createElement('button');
+          badge.id = 'topbar-update-badge';
+          const topBar = document.getElementById('top-bar') || document.querySelector('.app-header');
+          if (topBar) { const group = topBar.querySelector('.toolbar-group:last-child') || topBar; group.prepend(badge); }
+        }
+        badge.onclick = () => this.openUpdateModal(this.latestInfo || data);
+        badge.className = 'updater-badge-btn';
+        badge.style.cssText = 'background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(239,68,68,.2));border:1px solid rgba(245,158,11,.4);color:#fbbf24;animation:pulseGlow 2s infinite ease-in-out;';
+        badge.innerHTML = `<span>&#10024;</span> Update to ${data.latest_version}`;
       }
-      badge.onclick = () => this.openUpdateModal(this.latestInfo || data);
-      badge.className = 'updater-badge-btn';
-      badge.style.cssText = 'background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(239,68,68,.2));border:1px solid rgba(245,158,11,.4);color:#fbbf24;animation:pulseGlow 2s infinite ease-in-out;';
-      badge.innerHTML = `<span>&#10024;</span> Update to ${data.latest_version}`;
     },
 
     openUpdateModal: function(data) {

@@ -4,6 +4,8 @@ import logging
 import httpx
 import asyncio
 import signal
+import certifi
+import ssl
 from typing import Optional, List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
@@ -70,7 +72,8 @@ async def lifespan(app: FastAPI):
     
     try:
         limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
-        async with httpx.AsyncClient(timeout=60.0, limits=limits) as client:
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        async with httpx.AsyncClient(timeout=60.0, limits=limits, verify=ssl_context) as client:
             app.state.http_client = client
             yield
     except asyncio.CancelledError:

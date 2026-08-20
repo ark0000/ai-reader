@@ -45,9 +45,29 @@ class AuraProfile extends HTMLElement {
         .combo-active .username {
           color: #2ecc71;
         }
+        .update-marker {
+          display: none;
+          position: absolute;
+          top: -2px;
+          right: -2px;
+          width: 10px;
+          height: 10px;
+          background: #ef4444;
+          border-radius: 50%;
+          border: 2px solid var(--bg-toolbar, #1a202c);
+          animation: pulseMarker 2s infinite;
+        }
+        @keyframes pulseMarker {
+          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+          70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
       </style>
       <div class="profile-wrapper" id="profile-container" title="Active Profile Namespace">
-        <div class="avatar" id="avatar-circle">A</div>
+        <div style="position:relative;">
+          <div class="avatar" id="avatar-circle">A</div>
+          <div class="update-marker" id="update-marker" title="Update Available"></div>
+        </div>
         <span class="username" id="username-text">arun</span>
       </div>
     `;
@@ -115,6 +135,20 @@ class AuraProfile extends HTMLElement {
     setTimeout(() => {
       this.container.classList.remove('combo-active');
     }, 1000);
+  }
+
+  showUpdateMarker(hasUpdate, onClickCallback) {
+    const marker = this.shadowRoot.getElementById('update-marker');
+    if (marker) {
+      marker.style.display = hasUpdate ? 'block' : 'none';
+      if (hasUpdate && onClickCallback) {
+        // override container click to open updater
+        this.container.onclick = (e) => {
+          e.stopPropagation();
+          onClickCallback();
+        };
+      }
+    }
   }
 }
 

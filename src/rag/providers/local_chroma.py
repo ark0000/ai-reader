@@ -36,8 +36,13 @@ class LocalChromaRAGProvider(IRAGProvider):
 
     def _get_embedding_model(self):
         if self._embedding_model is None and SentenceTransformer is not None:
-            logger.info("Loading sentence-transformers model...")
-            self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            import os
+            os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+            os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+            try:
+                self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2', local_files_only=True)
+            except Exception:
+                self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
         return self._embedding_model
 
     def _chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:

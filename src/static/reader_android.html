@@ -1189,25 +1189,30 @@
             </div>
           </div>
 
-          <div class="developer-option" style="gap:12px;margin-top:16px;width:100%;">
-            <button onclick="if(window.exportUITrace) window.exportUITrace();"
-              style="flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;transition:opacity 0.2s;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Export UI Logs
-          </button>
-            <button onclick="window.open(window.location.origin + '/admin', '_blank');"
-              style="flex:1;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;transition:opacity 0.2s;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              </svg>
-              Open Admin
-            </button>
+          <!-- Developer Tools (Hidden by default) -->
+          <div class="settings-group">
+            <h3 class="settings-group-title">Developer Tools</h3>
+            
+            <div class="settings-row developer-option">
+              <div class="settings-label-container">
+                <span class="settings-label">Open Admin</span>
+                <span class="settings-help">Open the developer-mode admin dashboard.</span>
+              </div>
+              <button class="tb-btn" onclick="window.open('/admin', '_blank');" style="background:var(--bg-body); border:1px solid var(--border); padding:6px 12px; border-radius:6px; font-weight:500;">
+                Launch
+              </button>
+            </div>
+            
+            <div class="settings-row developer-option">
+              <div class="settings-label-container">
+                <span class="settings-label">Export UI Logs</span>
+                <span class="settings-help">Download diagnostic UI trace logs.</span>
+              </div>
+              <button class="tb-btn" onclick="if(window.exportUITrace) window.exportUITrace();" style="background:var(--bg-body); border:1px solid var(--border); padding:6px 12px; border-radius:6px; font-weight:500;">
+                Export
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
