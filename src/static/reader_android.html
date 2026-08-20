@@ -1189,8 +1189,8 @@
             </div>
           </div>
 
-          <div style="display:flex;gap:12px;margin-top:16px;">
-            <button class="developer-option" onclick="if(window.exportUITrace) window.exportUITrace();"
+          <div class="developer-option" style="gap:12px;margin-top:16px;width:100%;">
+            <button onclick="if(window.exportUITrace) window.exportUITrace();"
               style="flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;transition:opacity 0.2s;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round">
@@ -1200,7 +1200,7 @@
             </svg>
             Export UI Logs
           </button>
-            <button class="developer-option" onclick="window.open(window.location.origin + '/admin', '_blank');"
+            <button onclick="window.open(window.location.origin + '/admin', '_blank');"
               style="flex:1;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;transition:opacity 0.2s;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="3"></circle>
