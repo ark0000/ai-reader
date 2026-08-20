@@ -62,6 +62,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize RAG Provider: {e}")
         
+    admin_router._tracker.load_state()
+        
     await task_queue.start()
     cleanup_task = asyncio.create_task(periodic_temp_cleanup())
     watchdog_task = asyncio.create_task(desktop_watchdog())
@@ -76,6 +78,7 @@ async def lifespan(app: FastAPI):
     finally:
         cleanup_task.cancel()
         watchdog_task.cancel()
+        admin_router._tracker.save_state()
         await task_queue.stop()
 
 app = FastAPI(

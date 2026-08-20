@@ -1090,6 +1090,7 @@ window.addEventListener('load', async () => {
 // Interval: every 30 seconds while the tab is visible.
 (function _initAdminPing() {
   var _pingTimer = null;
+  var _lastLibraryCount = 0;
 
   function _getPage() {
     // PDF: current page number
@@ -1100,10 +1101,19 @@ window.addEventListener('load', async () => {
     return null;
   }
 
-  function _sendAdminPing() {
+  async function _sendAdminPing() {
     try {
       var username = (window.settingsRepo && window.settingsRepo.getUsername())
                      || window.currentUsername || 'guest';
+      
+      // Async fetch library size, fallback to cached count if it fails or during sync unload
+      if (window.storageRepository && window.storageRepository.getLibraryMeta) {
+          try {
+              var lib = await window.storageRepository.getLibraryMeta(username);
+              _lastLibraryCount = lib.length || 0;
+          } catch(e) {}
+      }
+
       var userId   = 1; // client-side user_id approximation
       var file     = window.currentFileName || null;
       var ext      = file ? (file.split('.').pop() || null) : null;
@@ -1116,6 +1126,7 @@ window.addEventListener('load', async () => {
         current_file: file,
         file_ext:     ext,
         note_count:   notes,
+        library_count: _lastLibraryCount,
         page:         page
       });
 

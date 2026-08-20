@@ -99,6 +99,7 @@ class AdminTracker:
         current_file : str | None      — filename currently open
         file_ext     : str | None      — file type (pdf/md/epub/txt)
         note_count   : int             — number of notes saved
+        library_count: int             — number of documents in local library
         page         : int | None      — current page (pdf) or scrollTop (others)
         last_seen    : float           — unix timestamp of last ping
         started_at   : float           — unix timestamp of first ping this session
@@ -109,11 +110,49 @@ class AdminTracker:
         self._sessions: Dict[str, Dict[str, Any]] = {}   # key: username
         self._lock = threading.Lock()
         self._event_log: collections.deque = collections.deque(maxlen=1000)
+        from src.storage import LOCAL_TEMP_DIR
+        self._state_file = os.path.join(LOCAL_TEMP_DIR, "admin_state.json")
+
+    # ── State Persistence ─────────────────────────────────────────────────────
+    def save_state(self):
+        """Serialize tracker state to JSON atomically."""
+        try:
+            import json
+            with self._lock:
+                data = {
+                    "sessions": self._sessions,
+                    "event_log": list(self._event_log)
+                }
+            
+            tmp_path = self._state_file + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp_path, self._state_file)
+            logger.info("AdminTracker: State saved to disk.")
+        except Exception as e:
+            logger.error(f"AdminTracker: Failed to save state: {e}")
+            
+    def load_state(self):
+        """Load tracker state from JSON."""
+        try:
+            import json
+            if os.path.exists(self._state_file):
+                with open(self._state_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                with self._lock:
+                    self._sessions = data.get("sessions", {})
+                    # Restore event_log
+                    self._event_log.clear()
+                    self._event_log.extend(data.get("event_log", []))
+                logger.info(f"AdminTracker: State loaded ({len(self._sessions)} sessions).")
+        except Exception as e:
+            logger.error(f"AdminTracker: Failed to load state: {e}")
 
     # ── Public write ──────────────────────────────────────────────────────────
     def record_activity(self, *, username: str, user_id: int,
                         current_file: Optional[str], file_ext: Optional[str],
-                        note_count: int, page: Optional[int], ip: Optional[str]):
+                        note_count: int, library_count: int, page: Optional[int], ip: Optional[str]):
         now = time.time()
         with self._lock:
             existing = self._sessions.get(username, {})
@@ -125,6 +164,7 @@ class AdminTracker:
                 "current_file": current_file,
                 "file_ext":     file_ext,
                 "note_count":   note_count,
+                "library_count": library_count,
                 "page":         page,
                 "last_seen":    now,
                 "started_at":   existing.get("started_at", now),
@@ -191,6 +231,7 @@ class ActivityPing(BaseModel):
     current_file: Optional[str] = None
     file_ext:     Optional[str] = None
     note_count:   int = 0
+    library_count: int = 0
     page:         Optional[int] = None
 
 
@@ -212,6 +253,7 @@ async def post_activity(ping: ActivityPing, request: Request):
         current_file=ping.current_file,
         file_ext=ping.file_ext,
         note_count=ping.note_count,
+        library_count=ping.library_count,
         page=ping.page,
         ip=client_ip
     )
@@ -310,6 +352,7 @@ async def get_all_users(_: None = Depends(require_dev_mode)):
         row["current_file"] = live_data.get("current_file")
         row["file_ext"]     = live_data.get("file_ext")
         row["note_count"]   = live_data.get("note_count", 0)
+        row["library_count"]= live_data.get("library_count", 0)
         row["current_page"] = live_data.get("page")
         row["last_seen"]    = live_data.get("last_seen")
         row["ip"]           = live_data.get("ip")

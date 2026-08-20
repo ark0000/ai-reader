@@ -337,10 +337,10 @@
             <thead>
               <tr>
                 <th>User</th><th>Document</th><th>Type</th>
-                <th>Notes</th><th>Page / Scroll</th><th>Last Seen</th><th>IP</th>
+                <th>Library</th><th>Notes</th><th>Page / Scroll</th><th>Last Seen</th><th>IP</th>
               </tr>
             </thead>
-            <tbody id="overview-tbody"><tr><td colspan="7" class="no-data">Loading…</td></tr></tbody>
+            <tbody id="overview-tbody"><tr><td colspan="8" class="no-data">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -356,10 +356,10 @@
             <thead>
               <tr>
                 <th>#</th><th>Username</th><th>Status</th><th>Current File</th>
-                <th>Notes</th><th>Docs Converted</th><th>Total Pages</th><th>Last Active</th>
+                <th>Library Docs</th><th>Notes</th><th>Docs Converted</th><th>Total Pages</th><th>Last Active</th>
               </tr>
             </thead>
-            <tbody id="users-tbody"><tr><td colspan="8" class="no-data">Loading…</td></tr></tbody>
+            <tbody id="users-tbody"><tr><td colspan="9" class="no-data">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -375,10 +375,10 @@
             <thead>
               <tr>
                 <th>User</th><th>IP</th><th>Document Open</th>
-                <th>Type</th><th>Notes</th><th>Page</th><th>Session Start</th><th>Idle</th>
+                <th>Type</th><th>Library</th><th>Notes</th><th>Page</th><th>Session Start</th><th>Idle</th>
               </tr>
             </thead>
-            <tbody id="sessions-tbody"><tr><td colspan="8" class="no-data">Loading…</td></tr></tbody>
+            <tbody id="sessions-tbody"><tr><td colspan="9" class="no-data">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -590,6 +590,7 @@ function renderOverview(d) {
       + '<td><strong>' + esc(s.username) + '</strong></td>'
       + '<td class="filename-cell" data-tip="' + esc(s.current_file||'') + '">' + esc(s.current_file||'—') + '</td>'
       + '<td>' + extPill(s.file_ext) + '</td>'
+      + '<td class="num-cell">' + (s.library_count||0) + '</td>'
       + '<td class="num-cell">' + s.note_count + '</td>'
       + '<td class="num-cell">' + fmt(s.page) + '</td>'
       + '<td class="muted-cell">' + ts(s.last_seen) + '</td>'
@@ -611,6 +612,7 @@ function renderSessions(d) {
       + '<td class="muted-cell">' + esc(s.ip||'—') + '</td>'
       + '<td class="filename-cell">' + esc(s.current_file||'—') + '</td>'
       + '<td>' + extPill(s.file_ext) + '</td>'
+      + '<td class="num-cell">' + (s.library_count||0) + '</td>'
       + '<td class="num-cell">' + s.note_count + '</td>'
       + '<td class="num-cell">' + fmt(s.page) + '</td>'
       + '<td class="muted-cell">' + ts(s.started_at) + '</td>'
@@ -635,6 +637,7 @@ function renderUsers(d) {
       + '<td><strong>' + esc(u.username) + '</strong></td>'
       + '<td>' + activePill(u.is_active) + '</td>'
       + '<td class="filename-cell">' + esc(u.current_file||'—') + '</td>'
+      + '<td class="num-cell">' + (u.library_count||0) + '</td>'
       + '<td class="num-cell">' + (u.note_count||0) + '</td>'
       + '<td class="num-cell">' + (u.total_documents||0) + '</td>'
       + '<td class="num-cell">' + (u.total_pages||0) + '</td>'
