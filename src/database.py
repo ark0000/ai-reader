@@ -123,7 +123,7 @@ def init_db():
     # Seed guest user if empty
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO users (id, username, hashed_password) VALUES (1, 'guest', 'none')")
+        cursor.execute("INSERT INTO users (id, username, hashed_password) VALUES (1, 'guest', '!locked')")
 
     conn.commit()
     conn.close()

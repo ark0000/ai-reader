@@ -48,8 +48,19 @@ class LocalStorage(BaseStorage):
 
     def save_file(self, file_bytes: bytes, filename: str) -> str:
         path = self._full_path(filename)
-        with open(path, "wb") as f:
-            f.write(file_bytes)
+        # B-09 FIX: atomic write — write to .tmp first, then os.replace() so a
+        # crash mid-write never leaves a corrupt/truncated file at the real path
+        tmp_path = path + ".tmp"
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(file_bytes)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+            raise
         logger.info(f"LocalStorage: Saved {filename}")
         return path
 

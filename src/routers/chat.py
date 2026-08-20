@@ -73,7 +73,7 @@ async def _prepare_messages_with_rag(req: ChatRequestWithConnection) -> List[dic
                     # Fix 9: Clamp injected context to character budget
                     if len(context_str) > RAG_CONTEXT_CHAR_BUDGET:
                         context_str = context_str[:RAG_CONTEXT_CHAR_BUDGET] + "\n[...context truncated for length...]"
-                        logger.warning(f"RAG context truncated to {RAG_CONTEXT_CHAR_BUDGET} chars for {file_id}")
+                        logger.warning(f"RAG context truncated to {RAG_CONTEXT_CHAR_BUDGET} chars for {req.file_id}")
                     enhanced_user_msg = (
                         f"Context from document:\n{context_str}\n\n"
                         f"Question: {user_msg}\n\n"

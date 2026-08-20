@@ -42,6 +42,8 @@ class DocumentTaskQueue:
                 f"Server is busy — conversion queue is full ({self.MAX_QUEUE_DEPTH} tasks). "
                 "Please try again in a few minutes."
             )
+        # B-07 FIX: enqueue FIRST — if put_nowait raises, we never write to self.tasks
+        self.queue.put_nowait((task_id, fn, args, kwargs))
         self.tasks[task_id] = {
             "status": "pending",
             "user_id": user_id,
@@ -53,9 +55,6 @@ class DocumentTaskQueue:
             "completed_at": None,
             "file_url": None
         }
-        
-        # Enqueue the task metadata and function pointer
-        self.queue.put_nowait((task_id, fn, args, kwargs))
         logger.info(f"TaskQueue: Enqueued task {task_id}.")
 
     def get_status(self, task_id: str) -> Optional[Dict[str, Any]]:
@@ -148,8 +147,11 @@ class DocumentTaskQueue:
                 await loop.run_in_executor(None, fn, *args, **kwargs)
                 
                 logger.info(f"Worker-{worker_id}: Successfully completed task {task_id}.")
-                self.tasks[task_id]["status"] = "completed"
-                self.tasks[task_id]["completed_at"] = time.time()
+                # B-02 FIX: only set completed if fn didn't already call set_completed()
+                # (run_full_conversion_job calls task_queue.set_completed() internally)
+                if self.tasks.get(task_id, {}).get("status") not in ("completed", "failed"):
+                    self.tasks[task_id]["status"] = "completed"
+                    self.tasks[task_id]["completed_at"] = time.time()
                 
             except Exception as e:
                 logger.error(f"Worker-{worker_id}: Exception in task {task_id}: {e}", exc_info=True)

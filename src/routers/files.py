@@ -96,8 +96,8 @@ async def api_index_text(req: IndexTextRequest, user_data: dict = Depends(resolv
 async def upload_pdf(file: UploadFile, user_data: dict = Depends(resolve_user)):
     ext = file.filename.lower().split('.')[-1]
     is_pdf = (ext == "pdf")
-    if ext not in ["pdf", "epub", "md"]:
-        raise HTTPException(status_code=400, detail="Only PDF, EPUB, and MD files are supported.")
+    if ext not in ["pdf", "epub", "md", "txt"]:
+        raise HTTPException(status_code=400, detail="Only PDF, EPUB, MD, and TXT files are supported.")
         
     user_id = user_data.get("user_id", 1)
     task_id = uuid.uuid4().hex
@@ -273,11 +273,13 @@ def run_full_conversion_job(
         task_queue.set_failed(task_id, str(e))
     finally:
         task_user_mapping.pop(task_id, None)
-        try:
-            if os.path.exists(local_input):
-                os.remove(local_input)
-        except Exception:
-            pass
+        # B-08 FIX: clean up BOTH temp files to prevent disk leak
+        for tmp_path in (local_input, local_output):
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
 
 @router.post("/api/convert/{task_id}")
 async def start_conversion(
