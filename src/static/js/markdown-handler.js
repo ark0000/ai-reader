@@ -648,7 +648,7 @@ class MarkdownDocumentHandler {
     window.contentEl.removeEventListener('scroll', this._onScroll);
     window.contentEl.addEventListener('scroll', this._onScroll);
     
-    if (window.pendingScrollState && window.pendingScrollState.type === 'md') {
+    if (window.pendingScrollState && (window.pendingScrollState.type === 'md' || window.pendingScrollState.scrollTop !== undefined)) {
        const targetScrollTop = window.pendingScrollState.scrollTop;
        [50, 300, 800, 1500, 3000].forEach(delay => {
            setTimeout(() => {
@@ -718,7 +718,7 @@ class TextDocumentHandler {
     window.contentEl.removeEventListener('scroll', this._onScroll);
     window.contentEl.addEventListener('scroll', this._onScroll);
     
-    if (window.pendingScrollState && window.pendingScrollState.type === 'txt') {
+    if (window.pendingScrollState && (window.pendingScrollState.type === 'txt' || window.pendingScrollState.scrollTop !== undefined)) {
        const targetScrollTop = window.pendingScrollState.scrollTop;
        [50, 300, 800].forEach(delay => {
            setTimeout(() => {

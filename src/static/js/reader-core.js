@@ -974,9 +974,14 @@ window.triggerLibrarySave = function(file, fileName, ext, force = false) {
 };
 
 window.triggerStateSave = function() {
+  if (window._isDocumentLoading) return;
+  if (!window.settingsRepo || !window.settingsRepo.isTrue('aura-reading-state')) return;
+  if (window.settingsRepo.isTrue('aura-manual-save')) return;
+
   const uname = window.settingsRepo.getUsername();
-  if (window.getActiveHandler && window.getActiveHandler() && window.getActiveHandler().getScrollState) {
-    const state = window.getActiveHandler().getScrollState();
+  const handler = window.getActiveHandler ? window.getActiveHandler() : null;
+  if (handler && handler.getScrollState) {
+    const state = handler.getScrollState();
     if (state && window.currentFileName) {
       window.storageRepository.saveScrollState(uname + '_' + window.currentFileName, state);
     }

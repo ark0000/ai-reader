@@ -186,11 +186,16 @@ class EpubDocumentHandler {
     window.currentEpubRendition = rendition;
     
     var reflowStart = performance.now();
-    if (window.pendingScrollState && window.pendingScrollState.type === 'epub' && window.pendingScrollState.cfi) {
-      rendition.display(window.pendingScrollState.cfi).then(function() {
+    var targetCfi = (window.pendingScrollState && (window.pendingScrollState.type === 'epub' || window.pendingScrollState.cfi)) ? window.pendingScrollState.cfi : null;
+    
+    if (targetCfi) {
+      rendition.display(targetCfi).then(function() {
           if(window.AuraPerf && window.AuraPerf.logEpubReflow) {
               window.AuraPerf.logEpubReflow(performance.now() - reflowStart);
           }
+          window.pendingScrollState = null;
+      }).catch(function() {
+          rendition.display();
       });
     } else {
       rendition.display().then(function() {
