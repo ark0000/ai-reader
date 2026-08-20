@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str | None = os.getenv("JWT_SECRET_KEY")
     
     # Debug
-    debug_console: str = os.getenv("DEBUG_CONSOLE", "0")
+    debug_console: str = os.getenv("DEBUG_CONSOLE", "1" if os.getenv("AURA_DESKTOP_MODE") == "1" else "0")
     
     class Config:
         env_file = ".env"
