@@ -443,9 +443,46 @@ class StorageRepository {
         req.onerror = (e) => reject(e.target.error);
       });
 
-      // 1. ALWAYS save metadata first! This ensures the file appears in the Library
+      // 1. Check if an existing record has scrollState that should be preserved
       const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
-      await putPromisified(metaStore, { id, fileName, ext, timestamp: Date.now(), scrollState: scrollState || null });
+      let effectiveScrollState = scrollState || null;
+      
+      // If incoming scroll state is null or default page 1, check if DB has existing reading progress
+      const isInitialPage1 = scrollState && scrollState.page === 1 && (!scrollState.ratio || scrollState.ratio === 0);
+      if (!effectiveScrollState || isInitialPage1) {
+        const existingMeta = await new Promise((res) => {
+          const req = metaStore.get(id);
+          req.onsuccess = () => res(req.result || null);
+          req.onerror = () => res(null);
+        });
+        if (existingMeta && existingMeta.scrollState) {
+          const hasAdvancedProgress = existingMeta.scrollState.page > 1 || 
+                                     (existingMeta.scrollState.ratio && existingMeta.scrollState.ratio > 0) ||
+                                     (existingMeta.scrollState.scrollTop && existingMeta.scrollState.scrollTop > 0) ||
+                                     existingMeta.scrollState.cfi;
+          if (hasAdvancedProgress || !effectiveScrollState) {
+            effectiveScrollState = existingMeta.scrollState;
+          }
+        } else if (!effectiveScrollState && typeof id === 'string' && id.includes('_')) {
+          // Fallback check for guest_ and un-prefixed records
+          const suffix = id.substring(id.indexOf('_') + 1);
+          const fbKeys = ['guest_' + suffix, suffix];
+          for (const fbKey of fbKeys) {
+            const fbMeta = await new Promise((res) => {
+              const req = metaStore.get(fbKey);
+              req.onsuccess = () => res(req.result || null);
+              req.onerror = () => res(null);
+            });
+            if (fbMeta && fbMeta.scrollState) {
+              effectiveScrollState = fbMeta.scrollState;
+              break;
+            }
+          }
+        }
+      }
+
+      // ALWAYS save metadata first! This ensures the file appears in the Library
+      await putPromisified(metaStore, { id, fileName, ext, timestamp: Date.now(), scrollState: effectiveScrollState });
 
       if (window.safeStorage && window.safeStorage.getItem('aura-meta-only-cache') === 'true') {
         console.log(`[StorageRepository] Metadata-only caching enabled. Skipping blob save for ${fileName}`);
@@ -460,11 +497,45 @@ class StorageRepository {
 
       // 3. Save full blob/buffer
       const store = await this.dbManager.getTransaction('documents', 'readwrite');
-      await putPromisified(store, { id, fileBlob: buffer, fileName, ext, timestamp: Date.now(), scrollState: scrollState || null });
+      await putPromisified(store, { id, fileBlob: buffer, fileName, ext, timestamp: Date.now(), scrollState: effectiveScrollState });
       
       console.log(`[StorageRepository] Successfully saved document ${fileName}`);
     } catch (e) {
       console.warn("Failed to save document blob to IndexedDB (file might be too large or quota exceeded)", e);
+    }
+  }
+
+  async loadScrollState(id) {
+    try {
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readonly');
+      return await new Promise((resolve) => {
+        const req = metaStore.get(id);
+        req.onsuccess = () => {
+          if (req.result && req.result.scrollState) {
+            resolve(req.result.scrollState);
+          } else {
+            if (typeof id === 'string' && id.includes('_')) {
+              const suffix = id.substring(id.indexOf('_') + 1);
+              const fbReq = metaStore.get('guest_' + suffix);
+              fbReq.onsuccess = () => {
+                if (fbReq.result && fbReq.result.scrollState) resolve(fbReq.result.scrollState);
+                else {
+                  const fbReq2 = metaStore.get(suffix);
+                  fbReq2.onsuccess = () => resolve(fbReq2.result && fbReq2.result.scrollState ? fbReq2.result.scrollState : null);
+                  fbReq2.onerror = () => resolve(null);
+                }
+              };
+              fbReq.onerror = () => resolve(null);
+            } else {
+              resolve(null);
+            }
+          }
+        };
+        req.onerror = () => resolve(null);
+      });
+    } catch (e) {
+      console.warn('[StorageRepository] Failed to load scroll state:', e);
+      return null;
     }
   }
 
@@ -597,6 +668,7 @@ class StorageRepository {
   }
 
   async saveNotes(id, notes, pdfHighlights) {
+    if (window._isDocumentLoading) return;
     try {
       const store = await this.dbManager.getTransaction('annotations', 'readwrite');
       store.put({ id, notes: JSON.parse(JSON.stringify(notes)), pdfHighlights: JSON.parse(JSON.stringify(pdfHighlights || [])), timestamp: Date.now() });

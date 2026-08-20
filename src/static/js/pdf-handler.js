@@ -1015,45 +1015,55 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (ext === 'epub' && window.AuraPerf.EpubTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.EpubTelemetryProfile());
       }
 
-      // Check for saved scroll state BEFORE loading to prevent overwriting it with page 1
+      window._isDocumentLoading = true;
+      var uname2 = window.settingsRepo ? window.settingsRepo.getUsername() : (window.currentUsername || 'guest');
+      var loadKey = uname2 + '_' + f.name;
+
+      // 1. Check for saved scroll state BEFORE loading to prevent overwriting it with page 1
       if (!window.pendingScrollState && window.storageRepository && window.settingsRepo && window.settingsRepo.isTrue('aura-reading-state')) {
-        var uname2 = window.settingsRepo.getUsername();
-        var loadKey = uname2 + '_' + f.name;
-        var docData = await window.storageRepository.loadDocument(loadKey);
-        if (docData && docData.scrollState) {
-          window.pendingScrollState = docData.scrollState;
+        try {
+          var savedScroll = window.storageRepository.loadScrollState ? await window.storageRepository.loadScrollState(loadKey) : null;
+          if (!savedScroll && window.storageRepository.loadDocument) {
+            var docData = await window.storageRepository.loadDocument(loadKey);
+            if (docData && docData.scrollState) savedScroll = docData.scrollState;
+          }
+          if (savedScroll) {
+            window.pendingScrollState = savedScroll;
+          }
+        } catch (e) {
+          console.warn("[OpenFile] Error loading scroll state:", e);
         }
       }
 
+      // 2. Pre-load notes & highlights BEFORE rendering so they are available immediately
+      if (window.storageRepository && window.storageRepository.loadNotes) {
+        try {
+          var noteData = await window.storageRepository.loadNotes(loadKey);
+          if (noteData) {
+            window.notes = noteData.notes || [];
+            window.pdfHighlights = noteData.pdfHighlights || [];
+            console.log("[OpenFile] Hydrated " + window.notes.length + " notes for key: " + loadKey);
+          } else {
+            window.notes = [];
+            window.pdfHighlights = [];
+          }
+        } catch (e) {
+          console.warn("[OpenFile] Error loading notes:", e);
+        }
+      }
+
+      // 3. Render the document via its strategy handler
       await handler.load(f);
 
-      // Save file to IndexedDB for persistence via central trigger
+      // 4. Save file to IndexedDB for persistence via central trigger
       if (window.triggerLibrarySave) {
         window.triggerLibrarySave(f, f.name, ext);
       }
 
-      // Always attempt to load notes if they exist in the database (e.g. from a manual save)
-      if (window.storageRepository) {
-        var uname2 = window.settingsRepo ? window.settingsRepo.getUsername() : (window.currentUsername || 'guest');
-        var loadKey = uname2 + '_' + f.name;
-        console.log("Loading notes for key: ", loadKey);
-        
-        window.storageRepository.loadNotes(loadKey).then(noteData => {
-          if (noteData) {
-            window.notes = noteData.notes || [];
-            window.pdfHighlights = noteData.pdfHighlights || [];
-            
-            console.log("Aura Diagnostics: Key searched: " + loadKey + " Notes found: " + window.notes.length);
-            
-            if (window.renderNotes) window.renderNotes();
-            if (window.redrawPdfHighlights) window.redrawPdfHighlights();
-          } else {
-            console.log("Aura Diagnostics: No notes found in database for key: " + loadKey);
-          }
-        }).catch(err => {
-            console.error("Aura Diagnostics Error: ", err);
-        });
-      }
+      // 5. Render notes & highlights into the UI
+      window._isDocumentLoading = false;
+      if (window.renderNotes) window.renderNotes();
+      if (window.redrawPdfHighlights) window.redrawPdfHighlights();
     };
 
     if (fileUpload) {
