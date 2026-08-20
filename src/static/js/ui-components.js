@@ -450,7 +450,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Advanced Library Settings
     if (document.getElementById('manual-save-cb')) {
-      const isManualSave = window.safeStorage.getItem('aura-manual-save') !== 'false';
+      const isManualSave = window.safeStorage.getItem('aura-manual-save') === 'true';
       document.getElementById('manual-save-cb').checked = isManualSave;
       if (isManualSave && document.getElementById('manual-save-btn')) {
         document.getElementById('manual-save-btn').style.display = 'inline-block';

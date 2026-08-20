@@ -1015,6 +1015,16 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (ext === 'epub' && window.AuraPerf.EpubTelemetryProfile) window.AuraPerf.setActiveProfile(new window.AuraPerf.EpubTelemetryProfile());
       }
 
+      // Check for saved scroll state BEFORE loading to prevent overwriting it with page 1
+      if (!window.pendingScrollState && window.storageRepository && window.settingsRepo && window.settingsRepo.isTrue('aura-reading-state')) {
+        var uname2 = window.settingsRepo.getUsername();
+        var loadKey = uname2 + '_' + f.name;
+        var docData = await window.storageRepository.loadDocument(loadKey);
+        if (docData && docData.scrollState) {
+          window.pendingScrollState = docData.scrollState;
+        }
+      }
+
       await handler.load(f);
 
       // Save file to IndexedDB for persistence via central trigger
@@ -1060,8 +1070,8 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.contentEl) {
     window.contentEl.addEventListener('scroll', function () {
       if (!window.currentFileName || !window.storageRepository) return;
-      if (window.safeStorage.getItem('aura-reading-state') !== 'true') return;
-      if (window.safeStorage.getItem('aura-manual-save') !== 'false') return; // Skip if manual save is ON (default true)
+      if (!window.settingsRepo || !window.settingsRepo.isTrue('aura-reading-state')) return;
+      if (window.settingsRepo.isTrue('aura-manual-save')) return; // Skip if manual save is ON (default true)
       clearTimeout(_scrollSaveTimer);
       _scrollSaveTimer = setTimeout(function () {
         var uname = window.currentUsername || window.safeStorage.getItem('username') || 'guest';
