@@ -5,8 +5,7 @@
  */
 
 class ReaderDragDropManager {
-  constructor(targetElement, openFileCallback) {
-    this.target = targetElement;
+  constructor(openFileCallback) {
     this.openFileCallback = openFileCallback;
     this.dragCounter = 0;
     
@@ -15,6 +14,39 @@ class ReaderDragDropManager {
   }
 
   initOverlay() {
+    // Inject styles to avoid caching issues with reader-engine.css
+    if (!document.getElementById('drag-drop-style')) {
+      const style = document.createElement('style');
+      style.id = 'drag-drop-style';
+      style.innerHTML = `
+        #drag-drop-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 242, 254, 0.1);
+          border: 4px dashed #00f2fe;
+          z-index: 99999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        }
+        #drag-drop-overlay.active {
+          opacity: 1;
+        }
+        #drag-drop-overlay .overlay-text {
+          font-size: 2rem;
+          font-weight: bold;
+          color: #00f2fe;
+          background: rgba(0, 0, 0, 0.7);
+          padding: 20px 40px;
+          border-radius: 12px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     this.overlay = document.createElement('div');
     this.overlay.id = 'drag-drop-overlay';
     
@@ -27,26 +59,19 @@ class ReaderDragDropManager {
   }
 
   bindEvents() {
-    // Prevent default behaviors for drag events
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      this.target.addEventListener(eventName, this.preventDefaults, false);
-    });
-
-    this.target.addEventListener('dragenter', this.handleDragEnter.bind(this), false);
-    this.target.addEventListener('dragover', this.handleDragOver.bind(this), false);
-    this.target.addEventListener('dragleave', this.handleDragLeave.bind(this), false);
-    this.target.addEventListener('drop', this.handleDrop.bind(this), false);
-  }
-
-  preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    const target = document.documentElement; // More reliable than document.body
+    
+    // Using capture phase to ensure we intercept events before child elements stop propagation
+    target.addEventListener('dragenter', this.handleDragEnter.bind(this), true);
+    target.addEventListener('dragover', this.handleDragOver.bind(this), true);
+    target.addEventListener('dragleave', this.handleDragLeave.bind(this), true);
+    target.addEventListener('drop', this.handleDrop.bind(this), true);
   }
 
   isValidDrag(e) {
     if (e.dataTransfer && e.dataTransfer.types) {
       for (let i = 0; i < e.dataTransfer.types.length; i++) {
-        if (e.dataTransfer.types[i] === 'Files') {
+        if (e.dataTransfer.types[i].toLowerCase() === 'files') {
           return true;
         }
       }
@@ -56,6 +81,7 @@ class ReaderDragDropManager {
 
   handleDragEnter(e) {
     if (this.isValidDrag(e)) {
+      e.preventDefault();
       this.dragCounter++;
       this.overlay.classList.add('active');
     }
@@ -63,20 +89,24 @@ class ReaderDragDropManager {
 
   handleDragOver(e) {
     if (this.isValidDrag(e)) {
+      e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
     }
   }
 
   handleDragLeave(e) {
     if (this.isValidDrag(e)) {
+      e.preventDefault();
       this.dragCounter--;
-      if (this.dragCounter === 0) {
+      if (this.dragCounter <= 0) {
+        this.dragCounter = 0;
         this.overlay.classList.remove('active');
       }
     }
   }
 
   async handleDrop(e) {
+    e.preventDefault();
     this.dragCounter = 0;
     this.overlay.classList.remove('active');
 
@@ -85,25 +115,25 @@ class ReaderDragDropManager {
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       const file = files[0];
-      if (this.openFileCallback) {
+      // Resolve callback dynamically in case it was bound late
+      const openFn = this.openFileCallback || window.openFile;
+      if (openFn) {
         try {
-          await this.openFileCallback(file);
+          await openFn(file);
         } catch (err) {
           console.error("Error opening dropped file:", err);
         }
+      } else {
+         console.error("No file opener function found.");
       }
     }
   }
 }
 
-// Auto-initialize if window.openFile is already available
+// Auto-initialize 
 document.addEventListener('DOMContentLoaded', () => {
-  // Wait a small tick in case window.openFile is defined later in DOMContentLoaded
+  // Give ample time for other scripts to define window.openFile
   setTimeout(() => {
-    if (typeof window.openFile === 'function') {
-      window.readerDragDrop = new ReaderDragDropManager(document.body, window.openFile);
-    } else {
-      console.warn("ReaderDragDropManager: window.openFile not found. Drag and drop will not work.");
-    }
-  }, 100);
+    window.readerDragDrop = new ReaderDragDropManager(window.openFile);
+  }, 500);
 });
