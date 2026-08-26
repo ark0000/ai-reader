@@ -367,3 +367,43 @@
 .rag-citation-badge:active {
   transform: translateY(0);
 }
+
+
+/* =========================================================================
+   RESPONSIVE AI PANEL MODIFIERS (BEM)
+   ========================================================================= */
+
+/* Mobile */
+.ai-panel--mobile {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 90vh !important;
+  top: auto !important;
+  bottom: 0 !important;
+  border-left: none !important;
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  transform: translateY(100%);
+}
+.ai-panel--mobile:not(.hidden) {
+  transform: translateY(0) !important;
+}
+.ai-panel--mobile .panel-resizer {
+  display: none !important;
+}
+
+/* Tablet */
+.ai-panel--tablet {
+  width: 50% !important;
+  max-width: 450px !important;
+}
+
+/* Larger Touch Targets */
+.ai-panel--mobile .chat-action-btn,
+.ai-panel--mobile .tab {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

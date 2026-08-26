@@ -4,13 +4,34 @@
  */
 
 // =========================================================================
-// 1. Chat State Management (DAG Tree)
+// 1. Storage Adapters & Repository (Dependency Inversion)
 // =========================================================================
-class ChatState {
-  constructor() {
-    this.tree = {};
-    this.currentLeafId = null;
-    this.returnLeafId = null;
+
+class StorageAdapter {
+  save(key, data) {}
+  load(key) {}
+}
+
+class LocalStorageAdapter extends StorageAdapter {
+  save(key, data) { 
+    try { window.safeStorage ? window.safeStorage.setItem(key, JSON.stringify(data)) : localStorage.setItem(key, JSON.stringify(data)); } catch(e){} 
+  }
+  load(key) { 
+    try { const v = window.safeStorage ? window.safeStorage.getItem(key) : localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e){ return null; } 
+  }
+}
+
+class ChatRepository {
+  constructor(storageAdapter) {
+    this.storage = storageAdapter;
+    const loaded = this.storage.load('aura_chat_tree') || {};
+    this.tree = loaded.tree || {};
+    this.currentLeafId = loaded.currentLeafId || null;
+    this.returnLeafId = loaded.returnLeafId || null;
+  }
+  
+  _persist() {
+    this.storage.save('aura_chat_tree', { tree: this.tree, currentLeafId: this.currentLeafId, returnLeafId: this.returnLeafId });
   }
 
   generateId() {
@@ -24,6 +45,7 @@ class ChatState {
     if (parentId && this.tree[parentId]) {
       this.tree[parentId].children.push(id);
     }
+    this._persist();
     return id;
   }
 
@@ -41,6 +63,7 @@ class ChatState {
     this.tree = {};
     this.currentLeafId = null;
     this.returnLeafId = null;
+    this._persist();
   }
 
   undo() {
@@ -56,31 +79,38 @@ class ChatState {
     } else {
       this.currentLeafId = null; 
     }
+    this._persist();
   }
 
   branch(nodeId) {
     this.returnLeafId = this.currentLeafId;
     this.currentLeafId = nodeId;
+    this._persist();
   }
 
   closeBranch() {
     if (this.returnLeafId) {
       this.currentLeafId = this.returnLeafId;
       this.returnLeafId = null;
+      this._persist();
     }
   }
 }
 
 // =========================================================================
-// 2. Chat UI Controller (DOM Manipulation)
+// 2. Chat UI Controller (Strategy & Factory Patterns)
 // =========================================================================
-class ChatUI {
+class BaseChatUI {
   constructor(state) {
     this.state = state;
     this.chatWin = document.getElementById('chat-win');
     this.chatInput = document.getElementById('chat-input');
     this.banner = document.getElementById('chat-branch-banner');
+    this.panel = document.getElementById('ai-panel');
+    this.initGestures();
   }
+
+  initGestures() { /* Base no-op */ }
 
   render() {
     if (!this.chatWin) this.chatWin = document.getElementById('chat-win');
@@ -106,7 +136,7 @@ class ChatUI {
       const textDiv = document.createElement('div');
       let contentStr = node.content || '';
       let formatted = window.fmt ? window.fmt(contentStr) : contentStr;
-      let cleanHtml = window.sanitizeHTML(formatted);
+      let cleanHtml = window.sanitizeHTML ? window.sanitizeHTML(formatted) : formatted;
       if (window.settingsRepo && window.settingsRepo.isTrue('aura-rag-citations')) {
         cleanHtml = cleanHtml.replace(/\[(?:Page|Doc Page|p\.)\s*(\d+)\]/gi, function(match, pNum) {
           return `<button class="rag-citation-badge" onclick="if(window.jumpToCitation) window.jumpToCitation(${pNum}); event.stopPropagation();" title="Jump to Page ${pNum}">📄 Page ${pNum}</button>`;
@@ -115,7 +145,6 @@ class ChatUI {
       textDiv.innerHTML = cleanHtml;
       el.appendChild(textDiv);
       
-      // Add hover actions container
       const actions = document.createElement('div');
       actions.className = 'chat-msg__actions';
       
@@ -140,7 +169,6 @@ class ChatUI {
         actions.appendChild(branchBtn);
       }
       
-      // Add branch switcher if multiple children
       if (node.parentId && this.state.tree[node.parentId] && this.state.tree[node.parentId].children.length > 1) {
          const parent = this.state.tree[node.parentId];
          const idx = parent.children.indexOf(node.id);
@@ -192,6 +220,68 @@ class ChatUI {
     if (this.chatInput) {
       this.chatInput.value = '';
       this.chatInput.style.height = '';
+    }
+  }
+}
+
+class DesktopChatUI extends BaseChatUI {
+  constructor(state) {
+    super(state);
+    if (this.panel) {
+      this.panel.classList.remove('ai-panel--mobile', 'ai-panel--tablet');
+    }
+  }
+}
+
+class TabletChatUI extends BaseChatUI {
+  constructor(state) {
+    super(state);
+    if (this.panel) {
+      this.panel.classList.remove('ai-panel--mobile');
+      this.panel.classList.add('ai-panel--tablet');
+    }
+  }
+}
+
+class MobileChatUI extends BaseChatUI {
+  constructor(state) {
+    super(state);
+    if (this.panel) {
+      this.panel.classList.remove('ai-panel--tablet');
+      this.panel.classList.add('ai-panel--mobile');
+    }
+  }
+  
+  initGestures() {
+    if(!this.panel) return;
+    let startY = 0;
+    this.panel.addEventListener('touchstart', (e) => {
+        if(e.touches.length === 1) startY = e.touches[0].clientY;
+    }, {passive: true});
+    this.panel.addEventListener('touchend', (e) => {
+        if(e.changedTouches.length === 1) {
+            let endY = e.changedTouches[0].clientY;
+            if (endY - startY > 100 && (!this.chatWin || this.chatWin.scrollTop <= 5)) {
+                if (window.togglePanel && !this.panel.classList.contains('hidden')) {
+                  window.togglePanel(); 
+                }
+            }
+        }
+    }, {passive: true});
+  }
+}
+
+class ChatUIFactory {
+  static create(state) {
+    const width = window.innerWidth;
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    
+    if (width <= 768) {
+      return new MobileChatUI(state);
+    } else if (width <= 1024 && isTouch) {
+      return new TabletChatUI(state);
+    } else {
+      return new DesktopChatUI(state);
     }
   }
 }
@@ -297,6 +387,7 @@ class ChatAPI {
               const parsed = JSON.parse(dataStr);
               if (parsed.token) {
                 this.state.tree[loadNodeId].content += parsed.token;
+                this.state._persist();
                 scheduleRender();
               } else if (parsed.error) {
                 throw new Error(parsed.error);
@@ -329,6 +420,7 @@ class ChatAPI {
         var ans = d.choices[0].message.content;
         
         this.state.tree[loadNodeId].content = ans;
+        this.state._persist();
         this.ui.render();
       }
     } catch(e) {
@@ -614,8 +706,16 @@ class ConnectionManager {
 // 5. System Instantiation & Legacy Facade (Backward Compatibility)
 // =========================================================================
 
-window.chatState = new ChatState();
-window.chatUI = new ChatUI(window.chatState);
+window.storageAdapter = new LocalStorageAdapter();
+window.chatState = new ChatRepository(window.storageAdapter);
+window.chatUI = ChatUIFactory.create(window.chatState);
+window.addEventListener('resize', () => {
+  const newUI = ChatUIFactory.create(window.chatState);
+  if (newUI.constructor.name !== window.chatUI.constructor.name) {
+    window.chatUI = newUI;
+    window.chatUI.render();
+  }
+});
 window.chatAPI = new ChatAPI(window.chatState, window.chatUI);
 window.connMgr = new ConnectionManager();
 
