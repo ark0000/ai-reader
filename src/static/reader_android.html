@@ -189,6 +189,7 @@
   <link rel="stylesheet" href="/static/css/ai-chat.css?v=1011">
   <link rel="stylesheet" href="/static/css/reader-layout.css?v=1008">
   <link rel="stylesheet" href="/static/css/uno.css?v=1005">
+  <link rel="stylesheet" href="/static/css/diagram-engine.css?v=11000">
   <style>
     /* ═══════════ TOC POPUP — Premium Glassmorphic Sidebar ═══════════ */
     #toc-popup {
@@ -1690,6 +1691,7 @@
       <div style="display:flex; gap:10px; align-items:center;">
         <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
         <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+        <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
@@ -1719,8 +1721,9 @@
   </div>
 </div>
 
-<script src="/static/js/notes-repository.js?v=1000"></script>
+<script src="/static/js/notes-repository.js?v=2032"></script>
 <script src="/static/js/external-editor.js?v=2035"></script>
+<script src="/static/js/diagram-engine.js?v=12000"></script>
 <script src="/static/js/components/AuraProfile.js?v=1"></script>
 
   <script>

@@ -861,6 +861,19 @@
       clone.style.marginTop = '8px';
       
       const svgHtml = clone.outerHTML;
+      const editor = document.getElementById('dgb-editor');
+      const mermaidCode = editor ? editor.value : '';
+
+      // Check if External Notes Editor is open
+      const extOverlay = document.getElementById('external-notes-overlay');
+      if (extOverlay && extOverlay.style.display !== 'none' && typeof window.insertDiagramIntoExternalEditor === 'function') {
+        const inserted = window.insertDiagramIntoExternalEditor(svgHtml, mermaidCode);
+        if (inserted) {
+          this._setStatus('Inserted into Notes Editor!', 'ok');
+          this.close();
+          return;
+        }
+      }
       
       if (window.notes && window.renderNotes) {
         window.notes.push({

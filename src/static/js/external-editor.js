@@ -1009,3 +1009,50 @@ async function readNoteInReader(id) {
     console.error("Failed to read note:", e);
   }
 }
+
+// ── Diagram Builder Integration for External Notes Editor ────────────────
+function openDiagramBuilderForExternalEditor() {
+  if (window.DiagramBuilder && typeof window.DiagramBuilder.open === 'function') {
+    window.DiagramBuilder.open();
+  } else {
+    alert("Diagram Builder is initializing. Please try again in a moment.");
+  }
+}
+window.openDiagramBuilderForExternalEditor = openDiagramBuilderForExternalEditor;
+
+function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
+  const overlay = document.getElementById('external-notes-overlay');
+  if (!overlay || overlay.style.display === 'none') return false;
+
+  const mode = window.editorModeController ? window.editorModeController.mode : 'visual';
+
+  if (mode === 'markdown') {
+    const rawEditor = document.getElementById('markdown-source-editor');
+    if (rawEditor) {
+      const codeBlock = `\n\n\`\`\`mermaid\n${(mermaidCode || '').trim()}\n\`\`\`\n\n`;
+      const start = rawEditor.selectionStart || rawEditor.value.length;
+      const end = rawEditor.selectionEnd || rawEditor.value.length;
+      const val = rawEditor.value;
+      rawEditor.value = val.substring(0, start) + codeBlock + val.substring(end);
+      rawEditor.selectionStart = rawEditor.selectionEnd = start + codeBlock.length;
+      rawEditor.focus();
+      return true;
+    }
+  } else {
+    // Visual mode (Quill)
+    if (window.quillEditor) {
+      const selection = window.quillEditor.getSelection(true);
+      const index = selection ? selection.index : window.quillEditor.getLength();
+      const containerHtml = `<div class="ql-diagram-container" style="margin: 16px 0; text-align: center; background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border); border-radius: 8px;">${svgHtml}</div><p><br></p>`;
+      if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+        window.quillEditor.clipboard.dangerouslyPasteHTML(index, containerHtml, 'user');
+      } else {
+        window.quillEditor.root.innerHTML += containerHtml;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+window.insertDiagramIntoExternalEditor = insertDiagramIntoExternalEditor;
+
