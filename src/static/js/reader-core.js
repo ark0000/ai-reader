@@ -505,36 +505,51 @@ class StorageRepository {
     }
   }
 
+  _getHeaders() {
+    const headers = {};
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
   async _getBackendDocumentStorage(key) {
     try {
-      const res = await fetch(`/api/storage/document/${encodeURIComponent(key)}`);
+      const res = await fetch(`/api/storage/document/${encodeURIComponent(key)}`, {
+        headers: this._getHeaders()
+      });
       if (res.ok) {
         const json = await res.json();
         return json.data || {};
       }
     } catch (e) {
-      console.error('[StorageRepository] Backend get error:', e);
+      console.warn('[StorageRepository] Backend get warning:', e);
     }
     return {};
   }
 
   async _saveBackendDocumentStorage(key, data) {
     try {
+      const headers = this._getHeaders();
+      headers['Content-Type'] = 'application/json';
       const res = await fetch(`/api/storage/document/${encodeURIComponent(key)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({ data })
       });
       if (!res.ok) throw new Error("Failed to save to backend");
     } catch (e) {
-      console.error('[StorageRepository] Backend save error:', e);
+      console.warn('[StorageRepository] Backend save warning:', e);
     }
   }
 
   async loadScrollState(id) {
+    // 1. Try Backend Storage first
     const data = await this._getBackendDocumentStorage(id);
-    if (data.scrollState) return data.scrollState;
-    // Fallback logic
+    if (data && data.scrollState) return data.scrollState;
+
+    // 2. Fallback check on backend with suffix
     if (typeof id === 'string' && id.includes('_')) {
       const suffix = id.substring(id.indexOf('_') + 1);
       const guestData = await this._getBackendDocumentStorage('guest_' + suffix);
@@ -542,10 +557,51 @@ class StorageRepository {
       const defaultData = await this._getBackendDocumentStorage(suffix);
       if (defaultData && defaultData.scrollState) return defaultData.scrollState;
     }
+
+    // 3. Fallback to Local IndexedDB (documents_meta)
+    try {
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readonly');
+      const localMeta = await new Promise((res) => {
+        const req = metaStore.get(id);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => res(null);
+      });
+      if (localMeta && localMeta.scrollState) return localMeta.scrollState;
+
+      // Local fallback with suffix
+      if (typeof id === 'string' && id.includes('_')) {
+        const suffix = id.substring(id.indexOf('_') + 1);
+        for (const fbKey of ['guest_' + suffix, suffix]) {
+          const fbMeta = await new Promise((res) => {
+            const req = metaStore.get(fbKey);
+            req.onsuccess = () => res(req.result || null);
+            req.onerror = () => res(null);
+          });
+          if (fbMeta && fbMeta.scrollState) return fbMeta.scrollState;
+        }
+      }
+    } catch (e) {
+      console.warn('[StorageRepository] Local scrollState load error:', e);
+    }
+
     return null;
   }
 
   async saveScrollState(id, scrollState) {
+    // 1. Save to local IndexedDB (documents_meta)
+    try {
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
+      const existing = await new Promise((res) => {
+        const req = metaStore.get(id);
+        req.onsuccess = () => res(req.result || {});
+        req.onerror = () => res({});
+      });
+      metaStore.put({ ...existing, id, scrollState, timestamp: Date.now() });
+    } catch (e) {
+      console.warn('[StorageRepository] Local scrollState save error:', e);
+    }
+
+    // 2. Sync to Backend
     await this._saveBackendDocumentStorage(id, { scrollState });
   }
 
@@ -646,14 +702,25 @@ class StorageRepository {
   async saveNotes(id, notes, pdfHighlights, force = false) {
     // Guard: skip auto-saves during document hydration, but always allow force-saves (e.g. manual save button)
     if (!force && window._isDocumentLoading) return;
+
+    // 1. Save to local IndexedDB (annotations)
+    try {
+      const annStore = await this.dbManager.getTransaction('annotations', 'readwrite');
+      annStore.put({ id, notes, pdfHighlights, timestamp: Date.now() });
+    } catch (e) {
+      console.warn('[StorageRepository] Local annotations save error:', e);
+    }
+
+    // 2. Sync to Backend
     await this._saveBackendDocumentStorage(id, { notes, pdfHighlights });
   }
 
   async loadNotes(id) {
+    // 1. Try Backend Storage first
     const data = await this._getBackendDocumentStorage(id);
-    if (data.notes) return data;
+    if (data && data.notes) return data;
     
-    // Fallback logic
+    // 2. Fallback check on backend with suffix
     if (typeof id === 'string' && id.includes('_')) {
       const suffix = id.substring(id.indexOf('_') + 1);
       const guestData = await this._getBackendDocumentStorage('guest_' + suffix);
@@ -661,6 +728,33 @@ class StorageRepository {
       const defaultData = await this._getBackendDocumentStorage(suffix);
       if (defaultData && defaultData.notes) return defaultData;
     }
+
+    // 3. Fallback to Local IndexedDB (annotations)
+    try {
+      const annStore = await this.dbManager.getTransaction('annotations', 'readonly');
+      const localAnn = await new Promise((res) => {
+        const req = annStore.get(id);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => res(null);
+      });
+      if (localAnn && localAnn.notes) return localAnn;
+
+      // Local fallback with suffix
+      if (typeof id === 'string' && id.includes('_')) {
+        const suffix = id.substring(id.indexOf('_') + 1);
+        for (const fbKey of ['guest_' + suffix, suffix]) {
+          const fbAnn = await new Promise((res) => {
+            const req = annStore.get(fbKey);
+            req.onsuccess = () => res(req.result || null);
+            req.onerror = () => res(null);
+          });
+          if (fbAnn && fbAnn.notes) return fbAnn;
+        }
+      }
+    } catch (e) {
+      console.warn('[StorageRepository] Local annotations load error:', e);
+    }
+
     return null;
   }
 

@@ -95,17 +95,25 @@ async def delete_global_note(note_id: int, user_id: int = Depends(get_current_us
 
 
 # Document Storage Endpoints
-@router.get("/api/storage/document/{key}")
+@router.get("/api/storage/document/{key:path}")
 async def get_document_storage(key: str, user_id: int = Depends(get_current_user)):
-    data = DocumentStorageRepository.get(user_id, key)
-    if not data:
-        # Return empty state if not found
+    try:
+        data = DocumentStorageRepository.get(user_id, key)
+        if not data:
+            # Return empty state if not found (200 OK)
+            return {"data": {}}
+        return {"data": data}
+    except Exception as e:
         return {"data": {}}
-    return {"data": data}
 
-@router.post("/api/storage/document/{key}")
+@router.post("/api/storage/document/{key:path}")
 async def save_document_storage(key: str, payload: DocumentStorageData, user_id: int = Depends(get_current_user)):
-    success = DocumentStorageRepository.save(user_id, key, payload.data)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to save document storage")
-    return {"status": "success"}
+    try:
+        success = DocumentStorageRepository.save(user_id, key, payload.data)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to save document storage")
+        return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save document storage: {str(e)}")
