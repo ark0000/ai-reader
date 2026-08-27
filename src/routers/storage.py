@@ -26,7 +26,7 @@ def get_current_user(request: Request) -> int:
 
 # Models
 class GlobalNote(BaseModel):
-    id: int
+    id: Optional[int] = None
     title: Optional[str] = "Untitled Note"
     content: Optional[str] = ""
     rawText: Optional[str] = ""
@@ -70,12 +70,13 @@ async def get_global_note(note_id: int, user_id: int = Depends(get_current_user)
 @router.post("/api/notes/global", response_model=dict)
 async def save_global_note(note: GlobalNote, user_id: int = Depends(get_current_user)):
     import time
+    note_id = note.id if note.id is not None else int(time.time() * 1000)
     created_at = note.createdAt or (time.time() * 1000)
     updated_at = note.updatedAt or (time.time() * 1000)
     
     success = GlobalNotesRepository.save(
         user_id=user_id,
-        note_id=note.id,
+        note_id=note_id,
         title=note.title or "Untitled Note",
         content=note.content or "",
         raw_text=note.rawText or "",
@@ -84,7 +85,11 @@ async def save_global_note(note: GlobalNote, user_id: int = Depends(get_current_
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save note")
-    return note.model_dump() if hasattr(note, 'model_dump') else note.dict()
+    res = note.model_dump() if hasattr(note, 'model_dump') else note.dict()
+    res["id"] = note_id
+    res["createdAt"] = created_at
+    res["updatedAt"] = updated_at
+    return res
 
 @router.delete("/api/notes/global/{note_id}")
 async def delete_global_note(note_id: int, user_id: int = Depends(get_current_user)):
