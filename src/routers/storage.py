@@ -39,16 +39,19 @@ class DocumentStorageData(BaseModel):
 # Global Notes Endpoints
 @router.get("/api/notes/global", response_model=List[dict])
 async def get_global_notes(user_id: int = Depends(get_current_user)):
-    notes = GlobalNotesRepository.get_all(user_id)
-    # Map snake_case to camelCase for frontend
-    return [{
-        "id": n["id"],
-        "title": n["title"],
-        "content": n["content"],
-        "rawText": n["raw_text"],
-        "createdAt": n["created_at"],
-        "updatedAt": n["updated_at"]
-    } for n in notes]
+    try:
+        notes = GlobalNotesRepository.get_all(user_id)
+        # Map snake_case to camelCase for frontend safely
+        return [{
+            "id": n["id"],
+            "title": n.get("title") or "Untitled Note",
+            "content": n.get("content") or "",
+            "rawText": n.get("raw_text") or "",
+            "createdAt": n.get("created_at"),
+            "updatedAt": n.get("updated_at")
+        } for n in notes]
+    except Exception as e:
+        return []
 
 @router.get("/api/notes/global/{note_id}", response_model=dict)
 async def get_global_note(note_id: int, user_id: int = Depends(get_current_user)):
@@ -57,11 +60,11 @@ async def get_global_note(note_id: int, user_id: int = Depends(get_current_user)
         raise HTTPException(status_code=404, detail="Note not found")
     return {
         "id": note["id"],
-        "title": note["title"],
-        "content": note["content"],
-        "rawText": note["raw_text"],
-        "createdAt": note["created_at"],
-        "updatedAt": note["updated_at"]
+        "title": note.get("title") or "Untitled Note",
+        "content": note.get("content") or "",
+        "rawText": note.get("raw_text") or "",
+        "createdAt": note.get("created_at"),
+        "updatedAt": note.get("updated_at")
     }
 
 @router.post("/api/notes/global", response_model=dict)
@@ -73,15 +76,15 @@ async def save_global_note(note: GlobalNote, user_id: int = Depends(get_current_
     success = GlobalNotesRepository.save(
         user_id=user_id,
         note_id=note.id,
-        title=note.title,
-        content=note.content,
-        raw_text=note.rawText,
+        title=note.title or "Untitled Note",
+        content=note.content or "",
+        raw_text=note.rawText or "",
         created_at=created_at,
         updated_at=updated_at
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save note")
-    return note.dict()
+    return note.model_dump() if hasattr(note, 'model_dump') else note.dict()
 
 @router.delete("/api/notes/global/{note_id}")
 async def delete_global_note(note_id: int, user_id: int = Depends(get_current_user)):

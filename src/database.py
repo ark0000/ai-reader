@@ -147,10 +147,8 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO providers (id, name, type, base_url_template, auth_type) VALUES (?, ?, ?, ?, ?)", providers)
 
-    # Seed guest user if empty
-    cursor.execute("SELECT COUNT(*) FROM users")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO users (id, username, hashed_password) VALUES (1, 'guest', '!locked')")
+    # Ensure guest user (id=1) always exists for unauthenticated/offline access
+    cursor.execute("INSERT OR IGNORE INTO users (id, username, hashed_password) VALUES (1, 'guest', '!locked')")
 
     conn.commit()
     conn.close()

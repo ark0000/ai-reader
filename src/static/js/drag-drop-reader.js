@@ -59,7 +59,7 @@ class ReaderDragDropManager {
   }
 
   bindEvents() {
-    const target = document.documentElement; // More reliable than document.body
+    const target = window; // More reliable to bind to window to capture everything
     
     // Using capture phase to ensure we intercept events before child elements stop propagation
     target.addEventListener('dragenter', this.handleDragEnter.bind(this), true);
@@ -70,22 +70,19 @@ class ReaderDragDropManager {
 
   isValidDrag(e) {
     if (!e.dataTransfer) return false;
-    try {
-      if (e.dataTransfer.types) {
-        for (let i = 0; i < e.dataTransfer.types.length; i++) {
-          const t = e.dataTransfer.types[i];
-          if (t && (typeof t === 'string')) {
-            const type = t.toLowerCase();
-            if (type === 'files' || type === 'application/pdf') {
-              return true;
-            }
-          }
-        }
+    // During drop, files are accessible
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) return true;
+    
+    // During dragover, rely on types
+    if (e.dataTransfer.types) {
+      const types = Array.from(e.dataTransfer.types).map(t => t.toLowerCase());
+      if (types.some(t => t.includes('file') || t.includes('pdf'))) {
+        return true;
       }
-    } catch(err) {
-      console.warn("isValidDrag error:", err);
     }
-    return true; // Fallback
+    
+    // Default permissive to ensure we intercept it
+    return true;
   }
 
   handleDragEnter(e) {
@@ -130,20 +127,31 @@ class ReaderDragDropManager {
       this.dragCounter = 0;
       this.overlay.classList.remove('active');
 
-      if (!this.isValidDrag(e)) return;
+      if (!this.isValidDrag(e)) {
+        console.warn("Invalid drag data", e.dataTransfer);
+        return;
+      }
 
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
         const file = files[0];
-        const openFn = this.openFileCallback || window.openFile;
+        console.log("File dropped:", file.name, file.type, file.size);
+        
+        // Always try to fetch from window in case it was updated late
+        const openFn = window.openFile || this.openFileCallback;
         if (openFn) {
+          console.log("Found openFn, opening file...");
           await openFn(file);
         } else {
-           console.error("No file opener function found.");
+           console.error("No file opener function found on window.openFile or callback.");
+           alert("Could not find file opening function. Please use the open button.");
         }
+      } else {
+        console.warn("Drop event contained no files.");
       }
     } catch (err) {
       console.error("Drop error:", err);
+      alert("Error opening dropped file: " + err.message);
     }
   }
 }

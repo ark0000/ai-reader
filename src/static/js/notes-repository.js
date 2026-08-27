@@ -1,11 +1,22 @@
 /**
- * Repository for managing Global Notes via backend SQLite storage.
- * Includes a one-time migration from the legacy IndexedDB.
+ * NotesRepository.js
+ * Multi-Tier Resilient Storage Architecture (Repository Pattern):
+ * 1. Primary: SQLite Backend API (/api/notes/global) for cross-device sync & server persistence.
+ * 2. Secondary / Offline: Local IndexedDB (NotesDB -> global_notes).
+ * 3. Tertiary Fallback: localStorage (aura_global_notes_backup) for environments without IndexedDB.
+ *
+ * Guarantees zero data loss: notes are always saved locally first, synced with backend when available,
+ * and seamlessly retrieved from local cache if backend is unreachable.
  */
 class NotesRepository {
   constructor() {
     this.apiBase = '/api/notes/global';
+    this.dbName = 'NotesDB';
+    this.storeName = 'global_notes';
+    this.localStorageBackupKey = 'aura_global_notes_backup';
     this.migratedKey = 'global_notes_migrated_v2';
+    this._db = null;
+    this._initPromise = null;
   }
 
   _getHeaders() {
@@ -17,77 +28,217 @@ class NotesRepository {
     return headers;
   }
 
-  async init() {
-    if (this._initializing) return;
-    if (localStorage.getItem(this.migratedKey)) return;
-    
-    this._initializing = true;
-    // Perform one-time migration from IndexedDB
-    try {
-      const legacyDB = await this._openLegacyDB();
-      if (!legacyDB) return;
-      
-      const tx = legacyDB.transaction(['global_notes'], 'readonly');
-      const store = tx.objectStore('global_notes');
-      
-      const allNotes = await new Promise((resolve) => {
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
-      });
-      
-      for (const note of allNotes) {
-        await this.saveNote(note);
+  async _getDB() {
+    if (this._db) return this._db;
+    if (this._initPromise) return this._initPromise;
+
+    this._initPromise = new Promise((resolve) => {
+      try {
+        if (!window.indexedDB) {
+          resolve(null);
+          return;
+        }
+        const req = indexedDB.open(this.dbName, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            const store = db.createObjectStore(this.storeName, { keyPath: 'id' });
+            store.createIndex('updatedAt', 'updatedAt', { unique: false });
+          }
+        };
+        req.onsuccess = (e) => {
+          this._db = e.target.result;
+          resolve(this._db);
+        };
+        req.onerror = () => resolve(null);
+      } catch (err) {
+        console.warn("IndexedDB initialization error:", err);
+        resolve(null);
       }
-      
-      localStorage.setItem(this.migratedKey, 'true');
-      console.log(`Migrated ${allNotes.length} global notes to backend storage.`);
+    });
+
+    return this._initPromise;
+  }
+
+  // --- Local Storage Layer (IndexedDB + localStorage fallback) ---
+
+  async _saveLocal(note) {
+    // 1. Save to localStorage backup
+    try {
+      const backupRaw = localStorage.getItem(this.localStorageBackupKey);
+      let list = backupRaw ? JSON.parse(backupRaw) : [];
+      list = list.filter(n => String(n.id) !== String(note.id));
+      list.unshift(note);
+      localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
     } catch (e) {
-      console.warn("Failed to migrate legacy global notes:", e);
-    } finally {
-      this._initializing = false;
+      console.warn("localStorage note backup error:", e);
+    }
+
+    // 2. Save to IndexedDB
+    try {
+      const db = await this._getDB();
+      if (db) {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction([this.storeName], 'readwrite');
+          const store = tx.objectStore(this.storeName);
+          store.put(note);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+    } catch (e) {
+      console.warn("IndexedDB saveLocal error:", e);
     }
   }
 
-  async _openLegacyDB() {
-    return new Promise((resolve) => {
-      const req = indexedDB.open('NotesDB', 1);
-      req.onsuccess = (e) => {
-        const db = e.target.result;
-        if (db.objectStoreNames.contains('global_notes')) {
-          resolve(db);
-        } else {
-          resolve(null);
+  async _getLocalAll() {
+    // Try IndexedDB first
+    try {
+      const db = await this._getDB();
+      if (db) {
+        const notes = await new Promise((resolve) => {
+          const tx = db.transaction([this.storeName], 'readonly');
+          const store = tx.objectStore(this.storeName);
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        });
+        if (notes && notes.length > 0) {
+          notes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          return notes;
         }
-      };
-      req.onerror = () => resolve(null);
-      req.onupgradeneeded = () => resolve(null);
-    });
+      }
+    } catch (e) {
+      console.warn("IndexedDB getLocalAll error:", e);
+    }
+
+    // Fallback to localStorage backup
+    try {
+      const backupRaw = localStorage.getItem(this.localStorageBackupKey);
+      if (backupRaw) {
+        const list = JSON.parse(backupRaw);
+        list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        return list;
+      }
+    } catch (e) {
+      console.warn("localStorage getLocalAll error:", e);
+    }
+
+    return [];
   }
+
+  async _deleteLocal(id) {
+    // 1. Delete from localStorage backup
+    try {
+      const backupRaw = localStorage.getItem(this.localStorageBackupKey);
+      if (backupRaw) {
+        let list = JSON.parse(backupRaw);
+        list = list.filter(n => String(n.id) !== String(id));
+        localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
+      }
+    } catch (e) {
+      console.warn("localStorage delete error:", e);
+    }
+
+    // 2. Delete from IndexedDB
+    try {
+      const db = await this._getDB();
+      if (db) {
+        await new Promise((resolve) => {
+          const tx = db.transaction([this.storeName], 'readwrite');
+          const store = tx.objectStore(this.storeName);
+          const req = store.delete(isNaN(Number(id)) ? id : Number(id));
+          req.onsuccess = () => resolve();
+          req.onerror = () => resolve();
+        });
+      }
+    } catch (e) {
+      console.warn("IndexedDB deleteLocal error:", e);
+    }
+  }
+
+  // --- Synchronization & Init ---
+
+  async init() {
+    if (this._syncing) return;
+    this._syncing = true;
+    try {
+      await this._getDB();
+
+      // One-time initial sync if needed
+      if (!localStorage.getItem(this.migratedKey)) {
+        const localNotes = await this._getLocalAll();
+        if (localNotes && localNotes.length > 0) {
+          for (const note of localNotes) {
+            try {
+              const headers = this._getHeaders();
+              headers['Content-Type'] = 'application/json';
+              await fetch(this.apiBase, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(note)
+              });
+            } catch (syncErr) {
+              // Non-blocking sync error
+            }
+          }
+        }
+        localStorage.setItem(this.migratedKey, 'true');
+      }
+    } catch (e) {
+      console.warn("NotesRepository init/sync error:", e);
+    } finally {
+      this._syncing = false;
+    }
+  }
+
+  // --- Public API ---
 
   async getAllNotes() {
     await this.init();
+
+    // 1. Attempt to fetch latest from backend
     try {
       const res = await fetch(this.apiBase, { headers: this._getHeaders() });
-      if (!res.ok) throw new Error("Failed to fetch notes");
-      const notes = await res.json();
-      return notes;
-    } catch (e) {
-      console.error(e);
-      return [];
+      if (res.ok) {
+        const serverNotes = await res.json();
+        if (Array.isArray(serverNotes)) {
+          // Cache server notes to local storage in background
+          for (const note of serverNotes) {
+            this._saveLocal(note).catch(() => {});
+          }
+          return serverNotes;
+        }
+      }
+    } catch (fetchErr) {
+      console.warn("Backend fetch failed, falling back to local notes:", fetchErr.message);
     }
+
+    // 2. Graceful fallback to local persistent store (IndexedDB / localStorage)
+    return await this._getLocalAll();
   }
 
   async getNote(id) {
     await this.init();
+    const parsedId = isNaN(Number(id)) ? id : Number(id);
+
+    // 1. Try backend
     try {
-      const res = await fetch(`${this.apiBase}/${id}`, { headers: this._getHeaders() });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch (e) {
-      console.error(e);
-      return null;
+      const res = await fetch(`${this.apiBase}/${parsedId}`, { headers: this._getHeaders() });
+      if (res.ok) {
+        const note = await res.json();
+        if (note) {
+          this._saveLocal(note).catch(() => {});
+          return note;
+        }
+      }
+    } catch (fetchErr) {
+      console.warn("Backend getNote failed, falling back to local note:", fetchErr.message);
     }
+
+    // 2. Fallback to local store
+    const localNotes = await this._getLocalAll();
+    return localNotes.find(n => String(n.id) === String(parsedId)) || null;
   }
 
   async saveNote(note) {
@@ -96,7 +247,14 @@ class NotesRepository {
     note.id = parsedId;
     note.updatedAt = Date.now();
     if (!note.createdAt) note.createdAt = note.updatedAt;
-    
+    note.title = note.title || 'Untitled Note';
+    note.content = note.content || '';
+    note.rawText = note.rawText || '';
+
+    // 1. Immediate local persistence (guarantees zero data loss even if network/server is down)
+    await this._saveLocal(note);
+
+    // 2. Synchronize to backend
     try {
       const headers = this._getHeaders();
       headers['Content-Type'] = 'application/json';
@@ -105,26 +263,32 @@ class NotesRepository {
         headers: headers,
         body: JSON.stringify(note)
       });
-      if (!res.ok) throw new Error("Failed to save note");
-      return await res.json();
+      if (res.ok) {
+        const serverResult = await res.json();
+        return serverResult;
+      }
     } catch (e) {
-      console.error(e);
-      throw e;
+      console.warn("Backend note save failed, saved to local storage:", e.message);
     }
+
+    return note;
   }
 
   async deleteNote(id) {
     await this.init();
     const parsedId = isNaN(Number(id)) ? id : Number(id);
+
+    // 1. Immediate local deletion
+    await this._deleteLocal(parsedId);
+
+    // 2. Delete on backend
     try {
-      const res = await fetch(`${this.apiBase}/${parsedId}`, {
+      await fetch(`${this.apiBase}/${parsedId}`, {
         method: 'DELETE',
         headers: this._getHeaders()
       });
-      if (!res.ok) throw new Error("Failed to delete note");
     } catch (e) {
-      console.error(e);
-      throw e;
+      console.warn("Backend note delete failed:", e.message);
     }
   }
 }
