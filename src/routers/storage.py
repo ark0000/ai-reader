@@ -6,20 +6,23 @@ from src.database import GlobalNotesRepository, DocumentStorageRepository, verif
 router = APIRouter()
 
 def get_current_user(request: Request) -> int:
-    # First check Authorization header
+    token = None
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        payload = verify_jwt(token)
-        if payload and "user_id" in payload:
-            return payload["user_id"]
-            
-    # Then check cookies
-    token = request.cookies.get("auth_token")
+    else:
+        token = request.cookies.get("auth_token")
+        
     if token:
         payload = verify_jwt(token)
         if payload and "user_id" in payload:
-            return payload["user_id"]
+            # Verify user still exists in database
+            from src.database import get_db_connection
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE id = ?", (payload["user_id"],))
+                if cursor.fetchone():
+                    return payload["user_id"]
             
     # Fallback to guest (user_id 1)
     return 1

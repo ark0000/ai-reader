@@ -256,6 +256,9 @@
     </div>
     <span class="topbar-badge">DEV MODE</span>
     <div class="topbar-right">
+      <label class="auto-label" title="Toggle Floating Performance Dashboard">
+        <input type="checkbox" id="perf-toggle-cb" onchange="if(window.AuraPerf) window.AuraPerf.toggleUI(this.checked)" /> Telemetry
+      </label>
       <label class="auto-label">
         <input type="checkbox" id="auto-refresh-cb" checked /> Auto-refresh 10s
       </label>
@@ -264,6 +267,19 @@
       <span class="status-dot" id="status-dot" title="Server connection"></span>
     </div>
   </header>
+  
+  <script src="/static/js/perf-monitor.js"></script>
+  <script>
+    if (window.AuraPerf) {
+      window.AuraPerf.registerCustomStat({ id: 'adm-cpu', label: 'Host CPU', tooltip: 'Server CPU Usage' });
+      window.AuraPerf.registerCustomStat({ id: 'adm-mem', label: 'Host Memory', tooltip: 'Server Memory Usage' });
+      window.AuraPerf.registerCustomStat({ id: 'adm-users', label: 'Active Users', tooltip: 'Currently reading' });
+      window.AuraPerf.registerCustomStat({ id: 'adm-tasks', label: 'Pending Tasks', tooltip: 'Docs in queue' });
+      
+      class AdminTelemetryProfile { constructor() { this.name = "Admin"; this.stats = []; } }
+      window.AuraPerf.setActiveProfile(new AdminTelemetryProfile());
+    }
+  </script>
 
   <!-- ── Main ── -->
   <div class="main">
@@ -296,7 +312,7 @@
         <span class="badge danger" id="badge-errors">0</span>
       </button>
       <button class="tab-btn" data-tab="system" onclick="switchTab('system')">
-        <span class="icon">💻</span> System
+        <span class="icon">📈</span> Performance Dashboard
       </button>
     </nav>
 
@@ -441,17 +457,24 @@
         </div>
       </div>
 
-      <!-- SYSTEM -->
+      <!-- PERFORMANCE DASHBOARD -->
       <div class="content" id="tab-system">
+        <div class="panel-header" style="margin-bottom:24px;">
+          <span class="panel-title" style="font-size:24px; color:var(--accent);">Performance Dashboard</span>
+          <span class="panel-hint">Real-time server resource metrics</span>
+        </div>
         <div class="sys-grid">
-          <div class="sys-card" id="sys-info-card">
-            <div class="sys-card-title">Runtime</div>
-            <div id="sys-rows"><div class="no-data">Loading…</div></div>
+          <!-- Main Resource Gauges -->
+          <div class="sys-card" id="sys-res-card" style="grid-column: 1 / -1; padding:24px;">
+            <div class="sys-card-title" style="font-size:14px; margin-bottom:20px;">Live Resources</div>
+            <div id="gauge-area" style="margin-bottom: 24px; padding: 16px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--border);"></div>
+            <div id="res-rows"></div>
           </div>
-          <div class="sys-card" id="sys-res-card">
-            <div class="sys-card-title">Resources</div>
-            <div id="res-rows"><div class="no-data">Loading…</div></div>
-            <div class="gauge-wrap" id="gauge-area"></div>
+          
+          <!-- System Details -->
+          <div class="sys-card" id="sys-info-card">
+            <div class="sys-card-title">Runtime Info</div>
+            <div id="sys-rows"><div class="no-data">Loading…</div></div>
           </div>
         </div>
       </div>
@@ -606,6 +629,11 @@ function renderOverview(d) {
   document.getElementById('badge-active').textContent   = summary.active_users || 0;
   document.getElementById('badge-sessions').textContent = sessions.length;
   document.getElementById('overview-hint').textContent  = sessions.length + ' active sessions';
+  
+  if (window.AuraPerf) {
+      const el = document.getElementById('adm-users');
+      if (el) el.textContent = summary.active_users || 0;
+  }
 
   var tbody = document.getElementById('overview-tbody');
   if (!sessions.length) {
@@ -719,7 +747,11 @@ async function dumpUserNotes(userId, username) {
                 listHtml += `<div style="padding:8px 16px; font-size:12px; color:var(--accent); font-weight:600; word-break:break-all;">📄 ${esc(docName)}</div>`;
                 
                 parsedNotes.forEach((note, noteIdx) => {
-                    const textContent = note.txt || note.text || note.content || 'Note item';
+                    let textContent = note.txt || note.text || note.content;
+                    if (!textContent && note.q) {
+                        textContent = note.q.replace(/<[^>]*>?/gm, ''); // Strip HTML for sidebar
+                    }
+                    textContent = textContent || 'Note item';
                     listHtml += `
                     <div onclick="viewNoteDetail('doc', ${docIdx}, ${noteIdx})" style="padding:10px 16px 10px 32px; border-bottom:1px solid var(--border); cursor:pointer;">
                         <div style="font-weight:600; font-size:13px; margin-bottom:4px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(textContent)}</div>
@@ -745,45 +777,71 @@ async function dumpUserNotes(userId, username) {
     }
 }
 
-function viewNoteDetail(type, idx1, idx2) {
-    const data = window._currentNotesData;
-    const titleEl = document.getElementById('note-view-title');
-    const typeEl = document.getElementById('note-view-type');
-    const contentEl = document.getElementById('note-view-content');
+function viewNoteDetail(type, docOrGlobalIdx, noteIdx) {
+    if (!window._currentNotesData) return;
+    
+    let content = '';
+    let title = '';
+    let meta = '';
     
     if (type === 'global') {
-        const note = data.global_notes[idx1];
-        titleEl.textContent = note.title || 'Untitled Note';
-        typeEl.textContent = 'Global Note';
-        typeEl.style.display = 'inline-block';
-        contentEl.innerHTML = (note.content || note.raw_text || '').trim() || '<span style="color:var(--text-muted)">Empty content</span>';
-    } else if (type === 'doc') {
-        const doc = data.document_storage[idx1];
-        const dData = typeof doc.data_json === 'object' ? doc.data_json : (function(){ try { return JSON.parse(doc.data_json || '{}'); } catch(e){ return {}; } })();
-        let parsedNotes = [];
-        if (Array.isArray(dData.notes)) parsedNotes = dData.notes;
-        else if (Array.isArray(dData)) parsedNotes = dData;
-        else if (Array.isArray(dData.highlights)) parsedNotes = dData.highlights;
+        const note = window._currentNotesData.global_notes[docOrGlobalIdx];
+        title = note.title || 'Untitled Global Note';
+        content = note.content || note.raw_text || '<span class="muted-cell">Empty Note</span>';
+        meta = 'Global Note • ' + new Date(note.updated_at).toLocaleString();
+        document.getElementById('note-view-type').className = 'pill active';
+        document.getElementById('note-view-type').textContent = 'Global';
+    } else {
+        const doc = window._currentNotesData.document_storage[docOrGlobalIdx];
+        const dData = typeof doc.data_json === 'object' ? doc.data_json : JSON.parse(doc.data_json || '{}');
+        let parsedNotes = Array.isArray(dData.notes) ? dData.notes : (Array.isArray(dData) ? dData : dData.highlights || []);
         
-        const note = parsedNotes[idx2] || {};
-        const docName = doc.document_key || doc.filename || 'Document';
+        const note = parsedNotes[noteIdx];
+        title = doc.document_key || doc.filename || 'Document Note';
         
-        titleEl.textContent = docName;
-        typeEl.textContent = 'Document Highlight / Note';
-        typeEl.style.display = 'inline-block';
-        contentEl.innerHTML = (note.txt || note.text || note.content || note.q || '').trim() || '<span style="color:var(--text-muted)">Empty content</span>';
+        if (note.color) {
+            content += `<div style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${note.color}; margin-right:8px; vertical-align:middle;"></div>`;
+        }
+        
+        let displayContent = '';
+        if (note.q) {
+            displayContent += `<div style="padding:12px; background:var(--surface2); border-left:3px solid var(--accent); margin-bottom:12px; border-radius:4px; font-style:italic;">${note.q}</div>`;
+        }
+        if (note.txt || note.text || note.content) {
+            displayContent += note.txt || note.text || note.content;
+        }
+        
+        if (!displayContent) displayContent = JSON.stringify(note, null, 2);
+        
+        content += displayContent;
+        meta = 'Document Note';
+        document.getElementById('note-view-type').className = 'pill';
+        document.getElementById('note-view-type').textContent = 'Document';
+    }
+    
+    document.getElementById('note-view-title').textContent = title;
+    document.getElementById('note-view-type').style.display = 'inline-block';
+    
+    // Check if the content is mostly HTML
+    if (content.includes('<') && content.includes('>')) {
+        document.getElementById('note-view-content').innerHTML = content;
+    } else {
+        document.getElementById('note-view-content').innerHTML = content.replace(/\n/g, '<br>');
     }
 }
 
+function closeNotesModal() {
+    document.getElementById('notes-modal').style.display = 'none';
+}
+
 async function clearAllUsers() {
-    if (!confirm("⚠️ DANGER: This will permanently wipe all users, documents, and notes from the database. Are you absolutely sure?")) return;
-    if (!confirm("Final warning: This cannot be undone.")) return;
+    if (!confirm("⚠️ WARNING ⚠️\n\nAre you sure you want to completely clear ALL users and their notes from the database? This cannot be undone!")) return;
     
     try {
         const resp = await fetch('/api/admin/users/clear', { method: 'DELETE' });
-        if(!resp.ok) throw new Error("Failed to clear users");
-        alert("All user data has been cleared.");
-        loadAll(); // Refresh tables
+        if(!resp.ok) throw new Error("Failed to clear database");
+        alert("All users have been cleared from the database.");
+        loadAll();
     } catch(err) {
         alert("Error: " + err.message);
     }
@@ -807,6 +865,12 @@ function renderQueue(d) {
   var hint = document.getElementById('queue-hint');
   hint.textContent = d.total_tasks + ' total tasks';
   var tbody = document.getElementById('queue-tbody');
+  
+  if (window.AuraPerf) {
+      const el = document.getElementById('adm-tasks');
+      if (el) el.textContent = d.total_tasks || 0;
+  }
+  
   if (!tasks.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="no-data">No tasks</td></tr>';
     return;
@@ -895,6 +959,14 @@ function renderSystem(d) {
     document.getElementById('res-rows').innerHTML = '<div class="no-data">' + esc(res.note) + '</div>';
     return;
   }
+  
+  if (window.AuraPerf) {
+      const cpuEl = document.getElementById('adm-cpu');
+      const memEl = document.getElementById('adm-mem');
+      if (cpuEl) cpuEl.textContent = (res.cpu_percent||0) + '%';
+      if (memEl) memEl.textContent = (res.mem_used_mb||0) + ' MB';
+  }
+  
   var rrows = [
     ['CPU',      (res.cpu_percent||0) + '%'],
     ['Memory',   (res.mem_used_mb||0) + ' / ' + (res.mem_total_mb||0) + ' MB'],
@@ -904,10 +976,10 @@ function renderSystem(d) {
     return '<div class="sys-row"><span class="sys-key">' + r[0] + '</span><span class="sys-val">' + r[1] + '</span></div>';
   }).join('');
   document.getElementById('gauge-area').innerHTML =
-    '<div class="gauge-wrap"><div class="gauge-label"><span>CPU</span><span>' + (res.cpu_percent||0) + '%</span></div>'
-    + '<div class="gauge-bar"><div class="gauge-fill cpu" style="width:' + (res.cpu_percent||0) + '%"></div></div></div>'
-    + '<div class="gauge-wrap" style="margin-top:12px"><div class="gauge-label"><span>Memory</span><span>' + (res.mem_percent||0) + '%</span></div>'
-    + '<div class="gauge-bar"><div class="gauge-fill mem" style="width:' + (res.mem_percent||0) + '%"></div></div></div>';
+    '<div class="gauge-wrap"><div class="gauge-label" style="font-size:14px; font-weight:bold; color:var(--text); margin-bottom:8px;"><span>CPU Usage</span><span style="color:var(--accent);">' + (res.cpu_percent||0) + '%</span></div>'
+    + '<div class="gauge-bar" style="height:14px; border-radius:7px; background:rgba(255,255,255,0.05);"><div class="gauge-fill cpu" style="width:' + (res.cpu_percent||0) + '%; box-shadow: 0 0 10px var(--accent);"></div></div></div>'
+    + '<div class="gauge-wrap" style="margin-top:24px"><div class="gauge-label" style="font-size:14px; font-weight:bold; color:var(--text); margin-bottom:8px;"><span>Memory Usage</span><span style="color:var(--accent2);">' + (res.mem_percent||0) + '%</span></div>'
+    + '<div class="gauge-bar" style="height:14px; border-radius:7px; background:rgba(255,255,255,0.05);"><div class="gauge-fill mem" style="width:' + (res.mem_percent||0) + '%; box-shadow: 0 0 10px var(--accent2);"></div></div></div>';
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────

@@ -210,11 +210,12 @@ window.cancelEdit = function(id) {
 };
 
 window.renderNotes = function(){
-  // Save notes to IndexedDB for persistence if enabled (skip during document hydration)
-  if (!window._isDocumentLoading && window.settingsRepo && window.settingsRepo.isTrue('aura-notes-state') && window.currentFileName) {
-    if (window.storageRepository) {
+  // Auto-save notes to backend Document Storage (skip during hydration)
+  if (!window._isDocumentLoading && window.currentFileName) {
+    if (window.storageRepository && window.settingsRepo) {
       var uname = window.settingsRepo.getUsername();
-      window.storageRepository.saveNotes(uname + '_' + window.currentFileName, window.notes, window.pdfHighlights);
+      // Force auto-save to ensure document notes are never lost in backend
+      window.storageRepository.saveNotes(uname + '_' + window.currentFileName, window.notes, window.pdfHighlights, true);
     }
   }
 

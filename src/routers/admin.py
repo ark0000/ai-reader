@@ -337,6 +337,20 @@ async def get_all_users(_: None = Depends(require_dev_mode)):
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        
+        # 1. Fetch true library note counts by parsing JSON
+        cursor.execute("SELECT user_id, data_json FROM document_storage")
+        import json
+        import collections
+        lib_notes_map = collections.defaultdict(int)
+        for r in cursor.fetchall():
+            try:
+                data = json.loads(r["data_json"])
+                notes_array = data.get("notes") or []
+                lib_notes_map[r["user_id"]] += len(notes_array)
+            except:
+                pass
+                
         cursor.execute("""
             SELECT
                 u.id,
@@ -344,12 +358,14 @@ async def get_all_users(_: None = Depends(require_dev_mode)):
                 (SELECT COUNT(id) FROM history WHERE user_id = u.id) AS total_documents,
                 (SELECT SUM(pages_count) FROM history WHERE user_id = u.id) AS total_pages,
                 (SELECT MAX(created_at) FROM history WHERE user_id = u.id) AS last_activity,
-                (SELECT COUNT(id) FROM global_notes WHERE user_id = u.id) AS total_global_notes,
-                (SELECT COUNT(id) FROM document_storage WHERE user_id = u.id) AS total_library_notes
+                (SELECT COUNT(id) FROM global_notes WHERE user_id = u.id) AS total_global_notes
             FROM users u
             ORDER BY last_activity DESC NULLS LAST
         """)
         rows = [dict(r) for r in cursor.fetchall()]
+        
+        for row in rows:
+            row["total_library_notes"] = lib_notes_map.get(row["id"], 0)
 
     # Merge with live tracker data
     live = {s["username"]: s for s in _tracker.get_active_sessions(include_expired=True)}

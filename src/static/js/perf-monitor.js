@@ -191,6 +191,7 @@ class PdfTelemetryProfile extends TelemetryProfile {
       { id: 'estimatedRamMB', label: 'PDF RAM (Est.)', tooltip: 'Estimated RAM used by PDF canvases.', formatter: v => v + ' MB' },
       { id: 'lastRenderTimeMs', label: 'PDF Render Time', tooltip: 'Time taken to render the last PDF page.', formatter: v => v + ' ms' },
       { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'ragLatencyMs', label: 'Deep Analyze', tooltip: 'Time taken for RAG/Deep Analyze search.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
       { id: 'apiLatencyMs', label: 'API Latency', tooltip: 'Average API latency (ms).', formatter: v => v + ' ms' }
     ];
   }
@@ -207,6 +208,7 @@ class MarkdownTelemetryProfile extends TelemetryProfile {
       { id: 'mdParseTimeMs', label: 'MD Parse Time', tooltip: 'Time taken by marked.js to parse text.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
       { id: 'mathRenderTimeMs', label: 'Math Rendering', tooltip: 'Time taken by KaTeX to parse math.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
       { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'ragLatencyMs', label: 'Deep Analyze', tooltip: 'Time taken for RAG/Deep Analyze search.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
       { id: 'apiLatencyMs', label: 'API Latency', tooltip: 'Average API latency (ms).', formatter: v => v + ' ms' }
     ];
   }
@@ -222,7 +224,9 @@ class EpubTelemetryProfile extends TelemetryProfile {
       { id: 'epubIframes', label: 'Active iFrames', tooltip: 'Number of chapter iframes loaded by epub.js.' },
       { id: 'jsHeapMB', label: 'JS Heap', tooltip: "Actual computer memory used.", formatter: v => v + ' MB' },
       { id: 'epubReflowTimeMs', label: 'Reflow Latency', tooltip: 'Time taken to paginate or reflow columns.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
-      { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' }
+      { id: 'aiLatencyMs', label: 'AI Latency', tooltip: 'Time taken for the last AI response.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'ragLatencyMs', label: 'Deep Analyze', tooltip: 'Time taken for RAG/Deep Analyze search.', formatter: v => v > 0 ? v + ' ms' : 'N/A' },
+      { id: 'apiLatencyMs', label: 'API Latency', tooltip: 'Average API latency (ms).', formatter: v => v + ' ms' }
     ];
   }
 }

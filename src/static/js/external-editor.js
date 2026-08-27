@@ -1043,14 +1043,29 @@ window.openDiagramBuilderForExternalEditor = openDiagramBuilderForExternalEditor
 
 function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
   const overlay = document.getElementById('external-notes-overlay');
-  if (!overlay || overlay.style.display === 'none') return false;
+  const codeBlock = `\n\n\`\`\`mermaid\n${(mermaidCode || '').trim()}\n\`\`\`\n\n`;
+  
+  if (!overlay || overlay.style.display === 'none') {
+    // If Full Editor is closed, save it as a new Global Note
+    if (window.notesRepo) {
+      const noteToSave = {
+        title: 'Diagram Note ' + new Date().toLocaleString(),
+        content: `<p>Diagram generated from builder</p>${svgHtml}`,
+        rawText: codeBlock
+      };
+      window.notesRepo.saveNote(noteToSave).then(() => {
+        if (window.refreshExternalNotesList) window.refreshExternalNotesList();
+      });
+      return true; // Successfully saved to Full Editor backend
+    }
+    return false;
+  }
 
   const mode = window.editorModeController ? window.editorModeController.mode : 'visual';
 
   if (mode === 'markdown') {
     const rawEditor = document.getElementById('markdown-source-editor');
     if (rawEditor) {
-      const codeBlock = `\n\n\`\`\`mermaid\n${(mermaidCode || '').trim()}\n\`\`\`\n\n`;
       const start = rawEditor.selectionStart || rawEditor.value.length;
       const end = rawEditor.selectionEnd || rawEditor.value.length;
       const val = rawEditor.value;
