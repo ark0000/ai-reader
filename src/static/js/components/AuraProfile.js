@@ -68,7 +68,7 @@ class AuraProfile extends HTMLElement {
           <div class="avatar" id="avatar-circle">A</div>
           <div class="update-marker" id="update-marker" title="Update Available"></div>
         </div>
-        <span class="username" id="username-text">arun</span>
+        <span class="username" id="username-text">Guest</span>
       </div>
     `;
   }

@@ -557,6 +557,12 @@ window.saveUsernameProfile = async function(customName = null) {
   if (window.safeStorage) {
     window.safeStorage.setItem('username', newName);
   }
+  try {
+    localStorage.setItem('username', newName);
+    if (newName === 'guest') {
+      localStorage.removeItem('token');
+    }
+  } catch(e) {}
   window.currentUsername = newName;
 
   const logoutBtn = document.getElementById('logout-btn');
