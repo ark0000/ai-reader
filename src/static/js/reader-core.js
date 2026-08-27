@@ -524,7 +524,7 @@ class StorageRepository {
         return json.data || {};
       }
     } catch (e) {
-      console.warn('[StorageRepository] Backend get warning:', e);
+      // Network/offline fallback
     }
     return {};
   }
@@ -533,14 +533,13 @@ class StorageRepository {
     try {
       const headers = this._getHeaders();
       headers['Content-Type'] = 'application/json';
-      const res = await fetch(`/api/storage/document/${encodeURIComponent(key)}`, {
+      await fetch(`/api/storage/document/${encodeURIComponent(key)}`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({ data })
       });
-      if (!res.ok) throw new Error("Failed to save to backend");
     } catch (e) {
-      console.warn('[StorageRepository] Backend save warning:', e);
+      // Local persistence in IndexedDB already succeeded
     }
   }
 
