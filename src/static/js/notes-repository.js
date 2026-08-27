@@ -197,25 +197,45 @@ class NotesRepository {
   async getAllNotes() {
     await this.init();
 
+    let localNotes = await this._getLocalAll();
+    let serverNotes = null;
+
     // 1. Attempt to fetch latest from backend
     try {
       const res = await fetch(this.apiBase, { headers: this._getHeaders() });
       if (res.ok) {
-        const serverNotes = await res.json();
-        if (Array.isArray(serverNotes)) {
-          // Cache server notes to local storage in background
-          for (const note of serverNotes) {
-            this._saveLocal(note).catch(() => {});
-          }
-          return serverNotes;
-        }
+        serverNotes = await res.json();
       }
     } catch (fetchErr) {
       console.warn("Backend fetch failed, falling back to local notes:", fetchErr.message);
     }
 
-    // 2. Graceful fallback to local persistent store (IndexedDB / localStorage)
-    return await this._getLocalAll();
+    if (Array.isArray(serverNotes)) {
+      const noteMap = new Map();
+      
+      // Load local notes first
+      for (const n of localNotes) {
+        noteMap.set(String(n.id), n);
+      }
+      
+      // Overlay server notes and update local DB
+      for (const n of serverNotes) {
+        const local = noteMap.get(String(n.id));
+        if (!local || (n.updatedAt && local.updatedAt && n.updatedAt >= local.updatedAt)) {
+          noteMap.set(String(n.id), n);
+          this._saveLocal(n).catch(() => {});
+        }
+      }
+      
+      // If we have local notes that are not on the server, we might want to sync them back
+      // But for now, just returning the merged list ensures zero data loss.
+      const merged = Array.from(noteMap.values());
+      merged.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      return merged;
+    }
+
+    // 2. Graceful fallback if fetch totally failed
+    return localNotes;
   }
 
   async getNote(id) {
