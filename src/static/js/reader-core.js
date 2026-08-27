@@ -159,6 +159,17 @@ document.addEventListener("DOMContentLoaded", function() {
   window.currentUsername = localStorage.getItem('username') || 'guest';
   const usernameInput = document.getElementById('username-input');
   if (usernameInput) usernameInput.value = window.currentUsername === 'guest' ? '' : window.currentUsername;
+  
+  // Auto-login stored profile to ensure backend token is valid
+  if (window.currentUsername !== 'guest') {
+      fetch('/api/mock-login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username: window.currentUsername})
+      }).then(res => res.json()).then(data => {
+          if(data.token) localStorage.setItem('token', data.token);
+      }).catch(e => console.warn('Auto-login failed', e));
+  }
 
 
   const manualSaveCb = document.getElementById('manual-save-cb');
@@ -1274,3 +1285,39 @@ window.addEventListener('load', async () => {
   // Expose for test access
   window._adminPingSend = _sendAdminPing;
 })();
+
+// --- Raw Storage Debugger ---
+window.openRawStorageDebugger = async function() {
+    try {
+        const resp = await fetch('/api/admin/raw_notes_dump', { headers: window.authHeaders() });
+        let backendData = { error: "Failed to fetch from backend" };
+        if (resp.ok) {
+            backendData = await resp.json();
+        } else {
+            backendData = { error: await resp.text() };
+        }
+        
+        let localChatHistory = null;
+        try {
+            const val = window.safeStorage ? window.safeStorage.getItem('aura_chat_tree') : localStorage.getItem('aura_chat_tree');
+            localChatHistory = val ? JSON.parse(val) : null;
+        } catch(e) {}
+        
+        const finalDump = {
+            backend_storage: backendData,
+            browser_local_storage: {
+                ai_chat_history: localChatHistory
+            }
+        };
+        
+        const w = window.open('', '_blank');
+        if (w) {
+            w.document.write('<html><head><title>Raw Storage Debugger</title></head><body style="background:#111;color:#0f0;font-family:monospace;padding:20px;white-space:pre-wrap;word-wrap:break-word;">' + JSON.stringify(finalDump, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</body></html>');
+            w.document.close();
+        } else {
+            alert('Popup blocked! Please allow popups to see the debugger.');
+        }
+    } catch(err) {
+        alert("Failed to load raw storage dump: " + err.message);
+    }
+};

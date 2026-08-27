@@ -11,10 +11,18 @@
 class NotesRepository {
   constructor() {
     this.apiBase = '/api/notes/global';
-    this.dbName = 'NotesDB';
+    
+    // Fetch username to strictly isolate the local IndexedDB / LocalStorage by user
+    let uname = 'guest';
+    try {
+        uname = localStorage.getItem('username') || window.currentUsername || 'guest';
+    } catch(e) {}
+    
+    this.dbName = 'NotesDB_' + uname;
     this.storeName = 'global_notes';
-    this.localStorageBackupKey = 'aura_global_notes_backup';
-    this.migratedKey = 'global_notes_migrated_v2';
+    this.localStorageBackupKey = 'aura_global_notes_backup_' + uname;
+    this.migratedKey = 'global_notes_migrated_v2_' + uname;
+    
     this._db = null;
     this._initPromise = null;
   }
@@ -61,6 +69,8 @@ class NotesRepository {
   }
 
   // --- Local Storage Layer (IndexedDB + localStorage fallback) ---
+
+
 
   async _saveLocal(note) {
     // 1. Save to localStorage backup
@@ -202,9 +212,16 @@ class NotesRepository {
 
     // 1. Attempt to fetch latest from backend
     try {
-      const res = await fetch(this.apiBase, { headers: this._getHeaders() });
-      if (res.ok) {
-        serverNotes = await res.json();
+      const token = localStorage.getItem('token');
+      // STRICT ISOLATION: If they are logged in as a named user but lack a token, DO NOT fetch.
+      // This prevents the backend from silently falling back to returning 'guest' notes.
+      if (this.username !== 'guest' && !token) {
+         console.warn("Skipping backend sync: No valid token for profile", this.username);
+      } else {
+        const res = await fetch(this.apiBase, { headers: this._getHeaders() });
+        if (res.ok) {
+          serverNotes = await res.json();
+        }
       }
     } catch (fetchErr) {
       console.warn("Backend fetch failed, falling back to local notes:", fetchErr.message);
@@ -212,10 +229,22 @@ class NotesRepository {
 
     if (Array.isArray(serverNotes)) {
       const noteMap = new Map();
+      const serverIds = new Set(serverNotes.map(n => String(n.id)));
       
       // Load local notes first
       for (const n of localNotes) {
         noteMap.set(String(n.id), n);
+        
+        // AUTO-SYNC: If the local note is not on the server, upload it now
+        if (!serverIds.has(String(n.id))) {
+          const headers = this._getHeaders();
+          headers['Content-Type'] = 'application/json';
+          fetch(this.apiBase, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(n)
+          }).catch(e => console.warn("Failed to auto-sync local note to server:", e));
+        }
       }
       
       // Overlay server notes and update local DB
@@ -227,8 +256,6 @@ class NotesRepository {
         }
       }
       
-      // If we have local notes that are not on the server, we might want to sync them back
-      // But for now, just returning the merged list ensures zero data loss.
       const merged = Array.from(noteMap.values());
       merged.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       return merged;
@@ -244,12 +271,17 @@ class NotesRepository {
 
     // 1. Try backend
     try {
-      const res = await fetch(`${this.apiBase}/${parsedId}`, { headers: this._getHeaders() });
-      if (res.ok) {
-        const note = await res.json();
-        if (note) {
-          this._saveLocal(note).catch(() => {});
-          return note;
+      const token = localStorage.getItem('token');
+      if (this.username !== 'guest' && !token) {
+          console.warn("Skipping getNote sync: No valid token for profile", this.username);
+      } else {
+        const res = await fetch(`${this.apiBase}/${parsedId}`, { headers: this._getHeaders() });
+        if (res.ok) {
+          const note = await res.json();
+          if (note) {
+            this._saveLocal(note).catch(() => {});
+            return note;
+          }
         }
       }
     } catch (fetchErr) {
@@ -276,6 +308,12 @@ class NotesRepository {
 
     // 2. Synchronize to backend
     try {
+      const token = localStorage.getItem('token');
+      if (this.username !== 'guest' && !token) {
+          console.warn("Skipping backend saveNote: No valid token for profile", this.username);
+          return note;
+      }
+      
       const headers = this._getHeaders();
       headers['Content-Type'] = 'application/json';
       const res = await fetch(this.apiBase, {
@@ -303,6 +341,11 @@ class NotesRepository {
 
     // 2. Delete on backend
     try {
+      const token = localStorage.getItem('token');
+      if (this.username !== 'guest' && !token) {
+          console.warn("Skipping backend deleteNote: No valid token for profile", this.username);
+          return;
+      }
       await fetch(`${this.apiBase}/${parsedId}`, {
         method: 'DELETE',
         headers: this._getHeaders()

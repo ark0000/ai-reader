@@ -22,6 +22,23 @@ if (typeof Quill !== 'undefined') {
     CustomTableBlot.tagName = 'div';
     CustomTableBlot.className = 'ql-custom-table-container';
     Quill.register(CustomTableBlot, true);
+
+    class CustomDiagramBlot extends BlockEmbed {
+      static create(value) {
+        const node = super.create();
+        node.innerHTML = typeof value === 'string' ? value : '';
+        node.setAttribute('contenteditable', 'false'); // SVG diagrams shouldn't be editable text
+        node.setAttribute('style', 'margin: 16px 0; text-align: center; background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border); border-radius: 8px;');
+        return node;
+      }
+      static value(node) {
+        return node.innerHTML;
+      }
+    }
+    CustomDiagramBlot.blotName = 'custom-diagram';
+    CustomDiagramBlot.tagName = 'div';
+    CustomDiagramBlot.className = 'ql-diagram-container';
+    Quill.register(CustomDiagramBlot, true);
   } catch(e) {
     console.warn("CustomTableBlot registration:", e);
   }
@@ -381,7 +398,7 @@ class MarkdownIntelligenceEngine {
       });
       
       if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
-        this.quill.setText('');
+        this.quill.setText('\n');
         this.quill.clipboard.dangerouslyPasteHTML(0, html, 'user');
       } else {
         this.quill.root.innerHTML = html;
@@ -602,7 +619,7 @@ class EditorModeController {
     }
 
     if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-      window.quillEditor.setText('');
+      window.quillEditor.setText('\n');
       window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'user');
     } else {
       window.quillEditor.root.innerHTML = html;
@@ -637,7 +654,7 @@ class EditorModeController {
           // FIX Bug 7 & R1: Use dangerouslyPasteHTML to go through Quill's Delta model.
           // Skip destructive raw-text replacement if marked parser is unavailable.
           if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-            window.quillEditor.setText('');
+            window.quillEditor.setText('\n');
             window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
           } else {
             window.quillEditor.root.innerHTML = html;
@@ -668,9 +685,13 @@ window.updateMarkdownUI = updateMarkdownUI;
 function createNewExternalNote() {
   currentExternalNoteId = null;
   currentSessionNoteId = null;
-  document.getElementById('external-note-title').value = '';
-  // FIX R3: Reset Delta model properly using setText('') instead of .root.innerHTML = ''
-  if (window.quillEditor) window.quillEditor.setText('');
+  const titleInput = document.getElementById('external-note-title');
+  if (titleInput) {
+    titleInput.value = '';
+    setTimeout(() => titleInput.focus(), 50);
+  }
+  // FIX R3: Reset Delta model properly using setText('\n') instead of .root.innerHTML = ''
+  if (window.quillEditor) window.quillEditor.setText('\n');
   const rawEditor = document.getElementById('markdown-source-editor');
   if (rawEditor) rawEditor.value = '';
   if (window.editorModeController && window.editorModeController.mode === 'markdown') {
@@ -693,7 +714,7 @@ async function loadExternalNote(id) {
         // Direct .root.innerHTML assignment bypasses undo history — Ctrl+Z after load shows garbage.
         const html = note.content || '';
         if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-          window.quillEditor.setText('');
+          window.quillEditor.setText('\n');
           window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
         } else {
           window.quillEditor.root.innerHTML = html;
@@ -976,7 +997,7 @@ window.editSessionNoteInFullEditor = async function(id) {
   if (editor) {
     const html = note.txt || '';
     if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
-      editor.setText('');
+      editor.setText('\n');
       editor.clipboard.dangerouslyPasteHTML(0, html, 'api');
     } else {
       editor.root.innerHTML = html;
@@ -1043,12 +1064,9 @@ function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
     if (window.quillEditor) {
       const selection = window.quillEditor.getSelection(true);
       const index = selection ? selection.index : window.quillEditor.getLength();
-      const containerHtml = `<div class="ql-diagram-container" style="margin: 16px 0; text-align: center; background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border); border-radius: 8px;">${svgHtml}</div><p><br></p>`;
-      if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-        window.quillEditor.clipboard.dangerouslyPasteHTML(index, containerHtml, 'user');
-      } else {
-        window.quillEditor.root.innerHTML += containerHtml;
-      }
+      window.quillEditor.insertEmbed(index, 'custom-diagram', svgHtml, 'user');
+      window.quillEditor.insertText(index + 1, '\n', 'user');
+      window.quillEditor.setSelection(index + 2, 'silent');
       return true;
     }
   }

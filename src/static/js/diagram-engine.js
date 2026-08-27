@@ -864,12 +864,11 @@
       const editor = document.getElementById('dgb-editor');
       const mermaidCode = editor ? editor.value : '';
 
-      // Check if External Notes Editor is open
-      const extOverlay = document.getElementById('external-notes-overlay');
-      if (extOverlay && extOverlay.style.display !== 'none' && typeof window.insertDiagramIntoExternalEditor === 'function') {
+      // Insert into Full Text Editor if available
+      if (typeof window.insertDiagramIntoExternalEditor === 'function') {
         const inserted = window.insertDiagramIntoExternalEditor(svgHtml, mermaidCode);
         if (inserted) {
-          this._setStatus('Inserted into Notes Editor!', 'ok');
+          this._setStatus('Inserted into Full Editor!', 'ok');
           this.close();
           return;
         }

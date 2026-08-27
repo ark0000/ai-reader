@@ -122,3 +122,34 @@ async def save_document_storage(key: str, payload: DocumentStorageData, user_id:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save document storage: {str(e)}")
+
+@router.get("/api/admin/raw_notes_dump")
+async def raw_notes_dump(user_id: int = Depends(get_current_user)):
+    from src.database import get_db_connection
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM global_notes WHERE user_id = ?", (user_id,))
+            global_notes = [dict(r) for r in cursor.fetchall()]
+            
+            cursor.execute("SELECT * FROM document_storage WHERE user_id = ?", (user_id,))
+            doc_storage = []
+            import json
+            for r in cursor.fetchall():
+                d = dict(r)
+                if d.get('data_json'):
+                    try:
+                        d['data_json'] = json.loads(d['data_json'])
+                    except:
+                        pass
+                doc_storage.append(d)
+                
+            return {
+                "user_id": user_id,
+                "global_notes_count": len(global_notes),
+                "document_storage_count": len(doc_storage),
+                "global_notes": global_notes,
+                "document_storage": doc_storage
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

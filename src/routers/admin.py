@@ -341,12 +341,12 @@ async def get_all_users(_: None = Depends(require_dev_mode)):
             SELECT
                 u.id,
                 u.username,
-                COUNT(h.id)         AS total_documents,
-                SUM(h.pages_count)  AS total_pages,
-                MAX(h.created_at)   AS last_activity
+                (SELECT COUNT(id) FROM history WHERE user_id = u.id) AS total_documents,
+                (SELECT SUM(pages_count) FROM history WHERE user_id = u.id) AS total_pages,
+                (SELECT MAX(created_at) FROM history WHERE user_id = u.id) AS last_activity,
+                (SELECT COUNT(id) FROM global_notes WHERE user_id = u.id) AS total_global_notes,
+                (SELECT COUNT(id) FROM document_storage WHERE user_id = u.id) AS total_library_notes
             FROM users u
-            LEFT JOIN history h ON h.user_id = u.id
-            GROUP BY u.id
             ORDER BY last_activity DESC NULLS LAST
         """)
         rows = [dict(r) for r in cursor.fetchall()]
@@ -365,6 +365,63 @@ async def get_all_users(_: None = Depends(require_dev_mode)):
         row["ip"]           = live_data.get("ip")
 
     return {"users": rows, "total": len(rows)}
+
+
+@router.get("/users/{target_user_id}/dump")
+async def dump_user_notes(target_user_id: int, _: None = Depends(require_dev_mode)):
+    """Dump raw JSON notes data for a specific user."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM global_notes WHERE user_id = ?", (target_user_id,))
+        global_notes = [dict(r) for r in cursor.fetchall()]
+        
+        cursor.execute("SELECT * FROM document_storage WHERE user_id = ?", (target_user_id,))
+        doc_storage = []
+        import json
+        for r in cursor.fetchall():
+            d = dict(r)
+            if d.get('data_json'):
+                try: d['data_json'] = json.loads(d['data_json'])
+                except: pass
+            doc_storage.append(d)
+            
+        return {
+            "target_user_id": target_user_id,
+            "global_notes": global_notes,
+            "document_storage": doc_storage
+        }
+
+
+@router.delete("/users/{target_user_id}")
+async def delete_single_user(target_user_id: int, _: None = Depends(require_dev_mode)):
+    """Delete a specific user and all their data."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        for table in ["document_storage", "global_notes", "history", "connections", "credentials", "themes"]:
+            cursor.execute(f"DELETE FROM {table} WHERE user_id = ?", (target_user_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (target_user_id,))
+        conn.commit()
+    
+    to_remove = [sid for sid, s in _tracker._sessions.items() if s.get("user_id") == target_user_id]
+    for sid in to_remove:
+        del _tracker._sessions[sid]
+        
+    return {"status": "success", "message": f"User {target_user_id} deleted."}
+
+
+@router.delete("/users/clear")
+async def clear_all_users(_: None = Depends(require_dev_mode)):
+    """DANGER: Wipe all user data and notes from the database."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        for table in ["document_storage", "global_notes", "history", "connections", "credentials", "themes"]:
+            try: cursor.execute(f"DELETE FROM {table}")
+            except: pass
+        cursor.execute("DELETE FROM users")
+        conn.commit()
+    
+    _tracker._sessions.clear()
+    return {"status": "success", "message": "All user data has been cleared."}
 
 
 @router.get("/system")

@@ -502,7 +502,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-window.saveUsernameProfile = function(customName = null) {
+window.saveUsernameProfile = async function(customName = null) {
   const userInput = document.getElementById('username-input');
   const rawName = customName !== null ? customName.trim() : (userInput ? userInput.value.trim() : '');
 
@@ -535,7 +535,21 @@ window.saveUsernameProfile = function(customName = null) {
     }
   }
 
-  const newName = rawName;
+  const newName = rawName || 'guest';
+
+  try {
+      const resp = await fetch('/api/mock-login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username: newName})
+      });
+      if(resp.ok) {
+          const data = await resp.json();
+          localStorage.setItem('token', data.token);
+      }
+  } catch(e) {
+      console.warn("Backend mock login failed:", e);
+  }
 
   if (window.settingsRepo) {
     window.settingsRepo.set('username', newName);
@@ -543,20 +557,23 @@ window.saveUsernameProfile = function(customName = null) {
   if (window.safeStorage) {
     window.safeStorage.setItem('username', newName);
   }
-  window.currentUsername = newName || 'guest';
+  window.currentUsername = newName;
 
   const logoutBtn = document.getElementById('logout-btn');
   const loginBtn = document.getElementById('login-profile-btn');
-  if (logoutBtn) logoutBtn.style.display = newName ? 'inline-block' : 'none';
-  if (loginBtn) loginBtn.style.display = newName ? 'none' : 'inline-block';
-  if (userInput) userInput.value = newName;
+  if (logoutBtn) logoutBtn.style.display = newName !== 'guest' ? 'inline-block' : 'none';
+  if (loginBtn) loginBtn.style.display = newName !== 'guest' ? 'none' : 'inline-block';
+  if (userInput) userInput.value = newName !== 'guest' ? newName : '';
 
-  const toastMsg = newName ? `Logged in as "${newName}"` : 'Switched to Guest profile';
+  const toastMsg = newName !== 'guest' ? `Logged in as "${newName}"` : 'Switched to Guest profile';
   if (typeof showToast === 'function') {
     showToast(`👤 ${toastMsg}`);
   } else {
     console.log(`[Profile] ${toastMsg}`);
   }
+  
+  // Reload the page to cleanly switch context
+  setTimeout(() => window.location.reload(), 500);
 };
 
 window.triggerManualSave = function(btnElement) {

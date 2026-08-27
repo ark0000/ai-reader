@@ -50,7 +50,18 @@ def _log(msg):
         pass
 
 def get_free_port():
-    """Find a dynamically available ephemeral port using the OS kernel."""
+    """Find a dynamically available port, preferring 8500 to keep browser origins consistent."""
+    # First try a fixed port so browser localStorage/IndexedDB persists across restarts
+    preferred_port = 8500
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', preferred_port))
+        s.close()
+        return preferred_port
+    except OSError:
+        pass
+        
+    # Fallback to random ephemeral port if preferred is taken
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('127.0.0.1', 0))
     port = s.getsockname()[1]

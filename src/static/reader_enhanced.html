@@ -827,7 +827,6 @@
               </button>
             </div>
           </div>
-
           <label class="settings-header">Font &amp; Rendering Quality</label>
           <div class="settings-group">
             <div class="settings-row">
@@ -1132,7 +1131,7 @@
               <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
                 <div>
                   <span class="settings-label" style="font-weight:600;">AuraReader Desktop</span>
-                  <span style="font-size:12px; color:var(--text-2); margin-left:6px;" id="updater-current-version">v1.0.0</span>
+                  <span style="font-size:12px; color:var(--text-2); margin-left:6px; cursor:pointer;" id="updater-current-version" onclick="handleVersionClick()">v1.0.0</span>
                 </div>
                 <div id="updater-status-label" style="font-size:12px; color:var(--text-2);">
                   <span style="color:#10b981; font-weight:600;">&#10003; Up to date</span>
@@ -1154,9 +1153,9 @@
             </div>
           </div>
 
-          <!-- Developer Tools (Hidden by default) -->
-          <div class="settings-group">
-            <h3 class="settings-group-title">Developer Tools</h3>
+          <!-- Developer Tools (Revealed by DEV MODE or 7 clicks) -->
+          <label class="settings-header developer-block">🛠 Developer Tools</label>
+          <div class="settings-group developer-block">
             
             <div class="settings-row developer-option">
               <div class="settings-label-container">
@@ -1177,6 +1176,10 @@
                 Export
               </button>
             </div>
+          </div>
+          
+          <div style="text-align:center; padding: 16px 0 4px; opacity: 0.35; font-size: 11px; user-select: none;">
+            Tap version number 7 times to enable developer options.
           </div>
         </div>
       </div>
@@ -1532,12 +1535,41 @@
       if (window.ReadingExperience && window.ReadingExperience.Font && window.ReadingExperience.Font.init) {
         window.ReadingExperience.Font.init();
       }
+      
+      // Update button
+      var checkBtn = document.getElementById('check-update-btn');
+      if (checkBtn) {
+        checkBtn.addEventListener('click', function() {
+          if (window.appEventBus) window.appEventBus.emit('App:CheckUpdate');
+        });
+      }
+
+      // Developer mode easter egg (7 clicks)
+      let devClickCount = 0;
+      let devClickTimer = null;
+      window.handleVersionClick = function() {
+        devClickCount++;
+        clearTimeout(devClickTimer);
+        
+        if (devClickCount >= 7) {
+          document.body.classList.add('dev-mode-active');
+          window.safeStorage.setItem('aura-force-dev-mode', 'true');
+          showToast("You are now a developer! 🛠️", "success");
+          devClickCount = 0;
+        } else if (devClickCount >= 3) {
+          showToast(`You are ${7 - devClickCount} steps away from being a developer.`, "info");
+        }
+        
+        devClickTimer = setTimeout(() => {
+          devClickCount = 0;
+        }, 2000);
+      };
     });
   </script>
   <script src="/static/js/brightness-engine.js?v=2"></script>
   <script src="/static/js/theme-engine.js?v=2"></script>
-  <script src="/static/js/reader-core.js?v=5"></script>
-  <script src="/static/js/ui-components.js?v=2037"></script>
+  <script src="/static/js/reader-core.js?v=6"></script>
+  <script src="/static/js/ui-components.js?v=2038"></script>
   <script src="/static/js/ai-chat.js?v=12"></script>
   <script src="/static/js/dictionary-tools.js?v=2"></script>
   <script src="/static/js/notes-tts.js?v=4"></script>
@@ -1686,9 +1718,9 @@
   </div>
 </div>
 
-<script src="/static/js/notes-repository.js?v=2037"></script>
-<script src="/static/js/external-editor.js?v=2037"></script>
-<script src="/static/js/diagram-engine.js?v=12000"></script>
+<script src="/static/js/notes-repository.js?v=2042"></script>
+<script src="/static/js/external-editor.js?v=2040"></script>
+<script src="/static/js/diagram-engine.js?v=12001"></script>
 <script src="/static/js/components/AuraProfile.js?v=1"></script>
 
   <script>
