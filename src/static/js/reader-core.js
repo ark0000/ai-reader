@@ -505,72 +505,48 @@ class StorageRepository {
     }
   }
 
-  async loadScrollState(id) {
+  async _getBackendDocumentStorage(key) {
     try {
-      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readonly');
-      return await new Promise((resolve) => {
-        const req = metaStore.get(id);
-        req.onsuccess = () => {
-          if (req.result && req.result.scrollState) {
-            resolve(req.result.scrollState);
-          } else {
-            if (typeof id === 'string' && id.includes('_')) {
-              const suffix = id.substring(id.indexOf('_') + 1);
-              const fbReq = metaStore.get('guest_' + suffix);
-              fbReq.onsuccess = () => {
-                if (fbReq.result && fbReq.result.scrollState) resolve(fbReq.result.scrollState);
-                else {
-                  const fbReq2 = metaStore.get(suffix);
-                  fbReq2.onsuccess = () => resolve(fbReq2.result && fbReq2.result.scrollState ? fbReq2.result.scrollState : null);
-                  fbReq2.onerror = () => resolve(null);
-                }
-              };
-              fbReq.onerror = () => resolve(null);
-            } else {
-              resolve(null);
-            }
-          }
-        };
-        req.onerror = () => resolve(null);
-      });
+      const res = await fetch(`/api/storage/document/${encodeURIComponent(key)}`);
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || {};
+      }
     } catch (e) {
-      console.warn('[StorageRepository] Failed to load scroll state:', e);
-      return null;
+      console.error('[StorageRepository] Backend get error:', e);
+    }
+    return {};
+  }
+
+  async _saveBackendDocumentStorage(key, data) {
+    try {
+      const res = await fetch(`/api/storage/document/${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data })
+      });
+      if (!res.ok) throw new Error("Failed to save to backend");
+    } catch (e) {
+      console.error('[StorageRepository] Backend save error:', e);
     }
   }
 
-  async saveScrollState(id, scrollState) {
-    // FIX: Use a single atomic transaction covering both stores
-    // Previously used two separate transactions that could diverge on page-unload.
-    try {
-      const db = await this.dbManager.getDB();
-      const stores = ['documents_meta'];
-      if (db.objectStoreNames.contains('documents')) stores.push('documents');
-
-      const tx = db.transaction(stores, 'readwrite');
-
-      const getAndUpdate = (storeName) => new Promise((resolve) => {
-        const store = tx.objectStore(storeName);
-        const req = store.get(id);
-        req.onsuccess = () => {
-          if (req.result) {
-            req.result.scrollState = scrollState;
-            store.put(req.result);
-          }
-          resolve();
-        };
-        req.onerror = () => resolve(); // non-fatal
-      });
-
-      await Promise.all(stores.map(s => getAndUpdate(s)));
-
-      await new Promise((resolve) => {
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
-      });
-    } catch (e) {
-      console.warn('[StorageRepository] Failed to save scroll state:', e);
+  async loadScrollState(id) {
+    const data = await this._getBackendDocumentStorage(id);
+    if (data.scrollState) return data.scrollState;
+    // Fallback logic
+    if (typeof id === 'string' && id.includes('_')) {
+      const suffix = id.substring(id.indexOf('_') + 1);
+      const guestData = await this._getBackendDocumentStorage('guest_' + suffix);
+      if (guestData && guestData.scrollState) return guestData.scrollState;
+      const defaultData = await this._getBackendDocumentStorage(suffix);
+      if (defaultData && defaultData.scrollState) return defaultData.scrollState;
     }
+    return null;
+  }
+
+  async saveScrollState(id, scrollState) {
+    await this._saveBackendDocumentStorage(id, { scrollState });
   }
 
   async deleteDocument(id) {
@@ -670,45 +646,22 @@ class StorageRepository {
   async saveNotes(id, notes, pdfHighlights, force = false) {
     // Guard: skip auto-saves during document hydration, but always allow force-saves (e.g. manual save button)
     if (!force && window._isDocumentLoading) return;
-    try {
-      const store = await this.dbManager.getTransaction('annotations', 'readwrite');
-      store.put({ id, notes: JSON.parse(JSON.stringify(notes)), pdfHighlights: JSON.parse(JSON.stringify(pdfHighlights || [])), timestamp: Date.now() });
-    } catch (e) {
-      console.warn("Failed to save notes to IndexedDB", e);
-    }
+    await this._saveBackendDocumentStorage(id, { notes, pdfHighlights });
   }
 
   async loadNotes(id) {
-    try {
-      const store = await this.dbManager.getTransaction('annotations', 'readonly');
-      return new Promise((resolve, reject) => {
-        const req = store.get(id);
-        req.onsuccess = () => {
-          if (req.result) resolve(req.result);
-          else {
-            if (typeof id === 'string' && id.includes('_')) {
-              const suffix = id.substring(id.indexOf('_') + 1);
-              const fbReq = store.get('guest_' + suffix);
-              fbReq.onsuccess = () => {
-                if (fbReq.result) resolve(fbReq.result);
-                else {
-                  const fbReq2 = store.get(suffix);
-                  fbReq2.onsuccess = () => resolve(fbReq2.result || null);
-                  fbReq2.onerror = () => resolve(null);
-                }
-              };
-              fbReq.onerror = () => resolve(null);
-            } else {
-              resolve(null);
-            }
-          }
-        };
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      console.warn("Failed to load notes", e);
-      return null;
+    const data = await this._getBackendDocumentStorage(id);
+    if (data.notes) return data;
+    
+    // Fallback logic
+    if (typeof id === 'string' && id.includes('_')) {
+      const suffix = id.substring(id.indexOf('_') + 1);
+      const guestData = await this._getBackendDocumentStorage('guest_' + suffix);
+      if (guestData && guestData.notes) return guestData;
+      const defaultData = await this._getBackendDocumentStorage(suffix);
+      if (defaultData && defaultData.notes) return defaultData;
     }
+    return null;
   }
 
   async migrateNamespace(fromPrefix, toPrefix) {
@@ -771,6 +724,52 @@ class StorageRepository {
       console.log(`[StorageRepository] Successfully migrated namespace from '${fromPrefix}' to '${toPrefix}'`);
     } catch(e) {
       console.warn('[StorageRepository] Migration error:', e);
+    }
+  }
+
+  async migrateBackend() {
+    if (localStorage.getItem('document_storage_migrated_v2')) return;
+    try {
+      const db = await this.dbManager.getDB();
+      const stores = ['documents_meta', 'annotations'];
+      const availableStores = stores.filter(s => db.objectStoreNames.contains(s));
+      
+      const toMigrate = {};
+
+      for (const storeName of availableStores) {
+        const readTx = db.transaction([storeName], 'readonly');
+        const readStore = readTx.objectStore(storeName);
+        const allItems = await new Promise((resolve) => {
+          const req = readStore.getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        });
+        
+        for (const item of allItems) {
+          const key = String(item.id);
+          if (!toMigrate[key]) toMigrate[key] = {};
+          if (storeName === 'documents_meta' && item.scrollState) {
+            toMigrate[key].scrollState = item.scrollState;
+          }
+          if (storeName === 'annotations') {
+            if (item.notes) toMigrate[key].notes = item.notes;
+            if (item.pdfHighlights) toMigrate[key].pdfHighlights = item.pdfHighlights;
+          }
+        }
+      }
+
+      let count = 0;
+      for (const key of Object.keys(toMigrate)) {
+        if (Object.keys(toMigrate[key]).length > 0) {
+          await this._saveBackendDocumentStorage(key, toMigrate[key]);
+          count++;
+        }
+      }
+      
+      localStorage.setItem('document_storage_migrated_v2', 'true');
+      console.log(`Migrated ${count} document records to backend storage.`);
+    } catch (e) {
+      console.warn("Failed to migrate legacy document storage:", e);
     }
   }
 
@@ -848,6 +847,7 @@ class StorageRepository {
 
 window.dbManager = new DatabaseManager();
 window.storageRepository = new StorageRepository(window.dbManager);
+window.storageRepository.migrateBackend().catch(e => console.warn(e));
 
 // --- Event Bus ---
 class EventBus {

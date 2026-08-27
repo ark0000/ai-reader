@@ -69,63 +69,81 @@ class ReaderDragDropManager {
   }
 
   isValidDrag(e) {
-    if (e.dataTransfer && e.dataTransfer.types) {
-      for (let i = 0; i < e.dataTransfer.types.length; i++) {
-        if (e.dataTransfer.types[i].toLowerCase() === 'files') {
-          return true;
+    if (!e.dataTransfer) return false;
+    try {
+      if (e.dataTransfer.types) {
+        for (let i = 0; i < e.dataTransfer.types.length; i++) {
+          const t = e.dataTransfer.types[i];
+          if (t && (typeof t === 'string')) {
+            const type = t.toLowerCase();
+            if (type === 'files' || type === 'application/pdf') {
+              return true;
+            }
+          }
         }
       }
+    } catch(err) {
+      console.warn("isValidDrag error:", err);
     }
-    return false;
+    return true; // Fallback
   }
 
   handleDragEnter(e) {
-    if (this.isValidDrag(e)) {
-      e.preventDefault();
-      this.dragCounter++;
-      this.overlay.classList.add('active');
-    }
+    try {
+      if (this.isValidDrag(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.dragCounter++;
+        this.overlay.classList.add('active');
+      }
+    } catch(err) { console.warn(err); }
   }
 
   handleDragOver(e) {
-    if (this.isValidDrag(e)) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-    }
+    try {
+      if (this.isValidDrag(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    } catch(err) { console.warn(err); }
   }
 
   handleDragLeave(e) {
-    if (this.isValidDrag(e)) {
-      e.preventDefault();
-      this.dragCounter--;
-      if (this.dragCounter <= 0) {
-        this.dragCounter = 0;
-        this.overlay.classList.remove('active');
+    try {
+      if (this.isValidDrag(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.dragCounter--;
+        if (this.dragCounter <= 0) {
+          this.dragCounter = 0;
+          this.overlay.classList.remove('active');
+        }
       }
-    }
+    } catch(err) { console.warn(err); }
   }
 
   async handleDrop(e) {
-    e.preventDefault();
-    this.dragCounter = 0;
-    this.overlay.classList.remove('active');
+    try {
+      e.preventDefault();
+      e.stopPropagation();
+      this.dragCounter = 0;
+      this.overlay.classList.remove('active');
 
-    if (!this.isValidDrag(e)) return;
+      if (!this.isValidDrag(e)) return;
 
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      // Resolve callback dynamically in case it was bound late
-      const openFn = this.openFileCallback || window.openFile;
-      if (openFn) {
-        try {
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        const openFn = this.openFileCallback || window.openFile;
+        if (openFn) {
           await openFn(file);
-        } catch (err) {
-          console.error("Error opening dropped file:", err);
+        } else {
+           console.error("No file opener function found.");
         }
-      } else {
-         console.error("No file opener function found.");
       }
+    } catch (err) {
+      console.error("Drop error:", err);
     }
   }
 }

@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from src.database import init_db
 from src.task_queue import task_queue
 from src.config import settings
-from src.routers import auth, chat, connections, files, themes, tts, updater
+from src.routers import auth, chat, connections, files, themes, tts, updater, storage
 from src.routers import admin as admin_router
 from src.rag.manager import RAGManager
 from src.rag.providers.local_chroma import LocalChromaRAGProvider
@@ -215,6 +215,7 @@ app.include_router(files.router)
 app.include_router(themes.router)
 app.include_router(tts.router)
 app.include_router(updater.router)
+app.include_router(storage.router)
 app.include_router(admin_router.router)
 
 @app.get("/admin", response_class=HTMLResponse)

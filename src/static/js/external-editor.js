@@ -731,6 +731,11 @@ async function saveExternalNote(silent = false) {
       if (idx !== -1) {
         window.notes[idx].txt = content;
         if (typeof renderNotes === 'function') renderNotes();
+        // Force flush to storage because this is an explicit user "Save" action
+        if (window.storageRepository && window.currentFileName) {
+          const uname = window.settingsRepo ? window.settingsRepo.getUsername() : (window.currentUsername || 'guest');
+          window.storageRepository.saveNotes(uname + '_' + window.currentFileName, window.notes, window.pdfHighlights, true);
+        }
       }
     }
 

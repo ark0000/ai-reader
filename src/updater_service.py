@@ -134,8 +134,12 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
                 zip_ref.extractall(extract_dir)
             
             # Find the root folder inside the extracted zip
-            subfolders = [os.path.join(extract_dir, f) for f in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, f))]
-            source_folder = subfolders[0] if len(subfolders) == 1 else extract_dir
+            exe_name = os.path.basename(sys.argv[0])
+            if os.path.exists(os.path.join(extract_dir, exe_name)):
+                source_folder = extract_dir
+            else:
+                subfolders = [os.path.join(extract_dir, f) for f in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, f))]
+                source_folder = subfolders[0] if len(subfolders) == 1 else extract_dir
             
             if not getattr(sys, 'frozen', False) or not is_compiled_asset:
                 # Not frozen or downloaded source zipball: safely update static files only
@@ -179,7 +183,7 @@ class ReleaseAssetUpdateStrategy(UpdateStrategy):
                 
                 bat_script = f"""@echo off
 echo Waiting for AuraReader to close...
-ping 127.0.0.1 -n 3 > nul
+ping 127.0.0.1 -n 6 > nul
 echo Updating files...
 xcopy /s /e /y "{os.path.basename(extract_dir)}\\{os.path.basename(source_folder)}\\*" "."
 echo Cleaning up...
@@ -279,43 +283,96 @@ class DesktopUpdaterFacade:
                 cls._cached_result = result
                 cls._cache_time = now
             else:
-                # For frozen apps, check the latest commit on main branch instead of releases
-                commit_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
+                # Hybrid update for frozen apps:
+                # 1. Check for official release (full backend update)
+                # 2. Check for commits on main (frontend UI hot-patch)
+                
+                release_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
                 req = urllib.request.Request(
-                    commit_api_url,
+                    release_api_url,
                     headers={
                         'User-Agent': 'AuraReader-Desktop',
                         'Accept': 'application/vnd.github.v3+json'
                     }
                 )
-                with urllib.request.urlopen(req, timeout=5) as response:
-                    if response.status == 200:
-                        data = json.loads(response.read().decode('utf-8'))
-                        latest_sha = data.get("sha", "")
-                        
-                        # Read the local .version file to know our current SHA
-                        current_sha = CURRENT_VERSION
-                        version_file = os.path.join(root, ".version")
-                        if os.path.exists(version_file):
-                            with open(version_file, "r") as f:
-                                current_sha = f.read().strip()
-                        
-                        has_update = latest_sha != "" and not latest_sha.startswith(current_sha)
-                        
-                        result.update({
-                            "latest_version": latest_sha[:7] if latest_sha else CURRENT_VERSION,
-                            "current_version": current_sha[:7] if len(current_sha) > 7 else current_sha,
-                            "has_update": has_update,
-                            "release_name": f"Commit {latest_sha[:7]}",
-                            "release_notes": data.get("commit", {}).get("message", "Latest updates from main branch."),
-                            "release_url": data.get("html_url") or result["release_url"],
-                            "published_at": data.get("commit", {}).get("author", {}).get("date", ""),
-                            "zipball_url": f"https://github.com/{GITHUB_REPO}/archive/refs/heads/main.zip",
-                            "asset_url": None
-                        })
-                        
-                        cls._cached_result = result
-                        cls._cache_time = now
+                
+                has_full_update = False
+                try:
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        if response.status == 200:
+                            data = json.loads(response.read().decode('utf-8'))
+                            latest_version = data.get("tag_name", "")
+                            
+                            current_version = CURRENT_VERSION
+                            version_file = os.path.join(root, ".version")
+                            if os.path.exists(version_file):
+                                with open(version_file, "r") as f:
+                                    cv = f.read().strip()
+                                    if cv.startswith("v") or "." in cv:
+                                        current_version = cv
+                            
+                            if SemVerComparator.is_newer(latest_version, current_version):
+                                has_full_update = True
+                                asset_url = None
+                                for asset in data.get("assets", []):
+                                    if asset.get("name", "").endswith(".zip"):
+                                        asset_url = asset.get("browser_download_url")
+                                        break
+                                
+                                result.update({
+                                    "latest_version": latest_version,
+                                    "current_version": current_version,
+                                    "has_update": True,
+                                    "release_name": data.get("name", latest_version) + " (Full Upgrade)",
+                                    "release_notes": data.get("body", ""),
+                                    "release_url": data.get("html_url") or result["release_url"],
+                                    "published_at": data.get("published_at", ""),
+                                    "zipball_url": data.get("zipball_url"),
+                                    "asset_url": asset_url
+                                })
+                except Exception as e:
+                    logger.warning(f"Failed to check releases: {e}")
+
+                if not has_full_update:
+                    # Fallback to commit-based hotpatch check
+                    commit_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
+                    req2 = urllib.request.Request(
+                        commit_api_url,
+                        headers={
+                            'User-Agent': 'AuraReader-Desktop',
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    )
+                    try:
+                        with urllib.request.urlopen(req2, timeout=5) as response2:
+                            if response2.status == 200:
+                                data = json.loads(response2.read().decode('utf-8'))
+                                latest_sha = data.get("sha", "")
+                                
+                                current_sha = CURRENT_VERSION
+                                version_file = os.path.join(root, ".version")
+                                if os.path.exists(version_file):
+                                    with open(version_file, "r") as f:
+                                        current_sha = f.read().strip()
+                                
+                                has_update = latest_sha != "" and not latest_sha.startswith(current_sha)
+                                
+                                result.update({
+                                    "latest_version": latest_sha[:7] if latest_sha else CURRENT_VERSION,
+                                    "current_version": current_sha[:7] if len(current_sha) > 7 else current_sha,
+                                    "has_update": has_update,
+                                    "release_name": f"Commit {latest_sha[:7]} (UI Hot-Patch)",
+                                    "release_notes": data.get("commit", {}).get("message", "Latest frontend UI updates."),
+                                    "release_url": data.get("html_url") or result["release_url"],
+                                    "published_at": data.get("commit", {}).get("author", {}).get("date", ""),
+                                    "zipball_url": f"https://github.com/{GITHUB_REPO}/archive/refs/heads/main.zip",
+                                    "asset_url": None
+                                })
+                    except Exception as e:
+                        logger.warning(f"Failed to check commits: {e}")
+                
+                cls._cached_result = result
+                cls._cache_time = now
         except Exception as e:
             logger.warning(f"Could not check for updates: {e}")
             result["error"] = str(e)

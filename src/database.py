@@ -108,6 +108,33 @@ def init_db():
         )
     """)
     
+    # 7. Create Global Notes Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS global_notes (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            title TEXT,
+            content TEXT,
+            raw_text TEXT,
+            created_at REAL,
+            updated_at REAL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
+    
+    # 8. Create Document Storage Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS document_storage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            document_key TEXT NOT NULL,
+            data_json TEXT,
+            updated_at REAL,
+            UNIQUE(user_id, document_key),
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
+    
     # Seed providers if empty
     cursor.execute("SELECT COUNT(*) FROM providers")
     if cursor.fetchone()[0] == 0:
@@ -400,6 +427,82 @@ class ConnectionRepository:
             else:
                 d['api_key'] = None
             return d
+
+class GlobalNotesRepository:
+    @staticmethod
+    def get_all(user_id: int) -> List[dict]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    @staticmethod
+    def get(user_id: int, note_id: int) -> Optional[dict]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? AND id = ?", (user_id, note_id))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    @staticmethod
+    def save(user_id: int, note_id: int, title: str, content: str, raw_text: str, created_at: float, updated_at: float):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO global_notes (id, user_id, title, content, raw_text, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    title=excluded.title,
+                    content=excluded.content,
+                    raw_text=excluded.raw_text,
+                    updated_at=excluded.updated_at
+            """, (note_id, user_id, title, content, raw_text, created_at, updated_at))
+            return True
+
+    @staticmethod
+    def delete(user_id: int, note_id: int) -> bool:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM global_notes WHERE user_id = ? AND id = ?", (user_id, note_id))
+            return cursor.rowcount > 0
+
+class DocumentStorageRepository:
+    @staticmethod
+    def get(user_id: int, document_key: str) -> Optional[dict]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT data_json FROM document_storage WHERE user_id = ? AND document_key = ?", (user_id, document_key))
+            row = cursor.fetchone()
+            if row and row['data_json']:
+                return json.loads(row['data_json'])
+            return None
+
+    @staticmethod
+    def save(user_id: int, document_key: str, data: dict):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Fetch existing to merge
+            cursor.execute("SELECT data_json FROM document_storage WHERE user_id = ? AND document_key = ?", (user_id, document_key))
+            row = cursor.fetchone()
+            existing_data = {}
+            if row and row['data_json']:
+                try:
+                    existing_data = json.loads(row['data_json'])
+                except Exception:
+                    pass
+            
+            # Deep-ish merge (top level keys)
+            existing_data.update(data)
+            
+            cursor.execute("""
+                INSERT INTO document_storage (user_id, document_key, data_json, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, document_key) DO UPDATE SET
+                    data_json=excluded.data_json,
+                    updated_at=excluded.updated_at
+            """, (user_id, document_key, json.dumps(existing_data), time.time()))
+            return True
 
 # ----------------- Backward-Compatible Helper Wrappers -----------------
 

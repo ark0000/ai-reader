@@ -1,73 +1,93 @@
 /**
- * Repository for managing Global Notes using IndexedDB.
+ * Repository for managing Global Notes via backend SQLite storage.
+ * Includes a one-time migration from the legacy IndexedDB.
  */
 class NotesRepository {
   constructor() {
-    this.dbName = 'NotesDB';
-    this.storeName = 'global_notes';
-    this.db = null;
+    this.apiBase = '/api/notes/global';
+    this.migratedKey = 'global_notes_migrated_v2';
+  }
+
+  _getHeaders() {
+    const headers = {};
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
   }
 
   async init() {
-    if (this.db) return;
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
-      request.onerror = (event) => reject(event.target.error);
-      request.onsuccess = (event) => {
-        this.db = event.target.result;
-        resolve();
-      };
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          const store = db.createObjectStore(this.storeName, { keyPath: 'id' });
-          store.createIndex('updatedAt', 'updatedAt', { unique: false });
+    if (this._initializing) return;
+    if (localStorage.getItem(this.migratedKey)) return;
+    
+    this._initializing = true;
+    // Perform one-time migration from IndexedDB
+    try {
+      const legacyDB = await this._openLegacyDB();
+      if (!legacyDB) return;
+      
+      const tx = legacyDB.transaction(['global_notes'], 'readonly');
+      const store = tx.objectStore('global_notes');
+      
+      const allNotes = await new Promise((resolve) => {
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+      
+      for (const note of allNotes) {
+        await this.saveNote(note);
+      }
+      
+      localStorage.setItem(this.migratedKey, 'true');
+      console.log(`Migrated ${allNotes.length} global notes to backend storage.`);
+    } catch (e) {
+      console.warn("Failed to migrate legacy global notes:", e);
+    } finally {
+      this._initializing = false;
+    }
+  }
+
+  async _openLegacyDB() {
+    return new Promise((resolve) => {
+      const req = indexedDB.open('NotesDB', 1);
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        if (db.objectStoreNames.contains('global_notes')) {
+          resolve(db);
+        } else {
+          resolve(null);
         }
       };
+      req.onerror = () => resolve(null);
+      req.onupgradeneeded = () => resolve(null);
     });
   }
 
   async getAllNotes() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.storeName], 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      const index = store.index('updatedAt');
-      const request = index.openCursor(null, 'prev'); // Sort descending by updatedAt
-      
-      const notes = [];
-      request.onsuccess = (event) => {
-        const cursor = event.target.result;
-        if (cursor) {
-          notes.push(cursor.value);
-          cursor.continue();
-        } else {
-          resolve(notes);
-        }
-      };
-      request.onerror = (event) => reject(event.target.error);
-    });
+    try {
+      const res = await fetch(this.apiBase, { headers: this._getHeaders() });
+      if (!res.ok) throw new Error("Failed to fetch notes");
+      const notes = await res.json();
+      return notes;
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
   }
 
   async getNote(id) {
     await this.init();
-    const numId = isNaN(Number(id)) ? id : Number(id);
-    const strId = String(id);
-    
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.storeName], 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.get(numId);
-      request.onsuccess = (event) => {
-        if (event.target.result) resolve(event.target.result);
-        else {
-          const req2 = store.get(strId);
-          req2.onsuccess = (e) => resolve(e.target.result);
-          req2.onerror = (e) => reject(e.target.error);
-        }
-      };
-      request.onerror = (event) => reject(event.target.error);
-    });
+    try {
+      const res = await fetch(`${this.apiBase}/${id}`, { headers: this._getHeaders() });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
   }
 
   async saveNote(note) {
@@ -77,31 +97,35 @@ class NotesRepository {
     note.updatedAt = Date.now();
     if (!note.createdAt) note.createdAt = note.updatedAt;
     
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.put(note);
-      request.onsuccess = () => resolve(note);
-      request.onerror = (event) => reject(event.target.error);
-    });
+    try {
+      const headers = this._getHeaders();
+      headers['Content-Type'] = 'application/json';
+      const res = await fetch(this.apiBase, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(note)
+      });
+      if (!res.ok) throw new Error("Failed to save note");
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   }
 
   async deleteNote(id) {
     await this.init();
-    const numId = isNaN(Number(id)) ? id : Number(id);
-    const strId = String(id);
-    
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      
-      // Attempt to delete both Number and String formats to handle legacy data
-      try { store.delete(numId); } catch(e) { console.warn('numId delete failed', e); }
-      try { store.delete(strId); } catch(e) { console.warn('strId delete failed', e); }
-      
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (event) => reject(event.target.error);
-    });
+    const parsedId = isNaN(Number(id)) ? id : Number(id);
+    try {
+      const res = await fetch(`${this.apiBase}/${parsedId}`, {
+        method: 'DELETE',
+        headers: this._getHeaders()
+      });
+      if (!res.ok) throw new Error("Failed to delete note");
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   }
 }
 
