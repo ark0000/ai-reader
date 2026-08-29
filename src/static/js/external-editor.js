@@ -207,6 +207,24 @@ class SmartMarkdownNormalizer {
 window.SmartMarkdownNormalizer = SmartMarkdownNormalizer;
 
 /**
+ * MarkedConfigAdapter  (Adapter Pattern, SRP)
+ *
+ * Configures the global marked.js instance ONCE at startup.
+ * marked.use() is additive/global in marked v4+ — calling it repeatedly
+ * accumulates duplicate options and causes rendering drift.
+ * All callers must use MarkedConfigAdapter.configure() instead of marked.use() directly.
+ */
+const MarkedConfigAdapter = {
+  _configured: false,
+  configure() {
+    if (this._configured || typeof marked === 'undefined' || !marked.use) return;
+    marked.use({ gfm: true, breaks: true });
+    this._configured = true;
+  }
+};
+window.MarkedConfigAdapter = MarkedConfigAdapter;
+
+/**
  * MarkdownIntelligenceEngine
  * 
  * Provides intelligent Markdown capabilities to Quill Rich Text Editor:
@@ -251,10 +269,13 @@ class MarkdownIntelligenceEngine {
   _bindEvents() {
     if (!this.quill) return;
 
-    // 1. Listen for keydown / text-change for live typing shortcuts
+    // 1. Listen for text-change for live typing shortcuts
+    // Debounced at 50ms (SRP): decouples keystroke detection from execution,
+    // preventing getLine() calls on every single character.
     this.quill.on('text-change', (delta, oldDelta, source) => {
       if (source !== 'user') return;
-      this._handleTextChange();
+      clearTimeout(this._textChangeTimer);
+      this._textChangeTimer = setTimeout(() => this._handleTextChange(), 50);
     });
 
     // 2. Intercept paste on container in CAPTURE phase so it intercepts before Quill clipboard
@@ -317,9 +338,7 @@ class MarkdownIntelligenceEngine {
       let html = '';
       if (typeof marked !== 'undefined' && marked.parse) {
         try {
-          if (marked.use) {
-            marked.use({ gfm: true, breaks: true });
-          }
+          MarkedConfigAdapter.configure(); // one-time global config (Adapter Pattern)
           html = marked.parse(normalized);
           // Wrap all <table>...</table> in custom-table container so Quill preserves them
           html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
@@ -327,9 +346,9 @@ class MarkdownIntelligenceEngine {
           });
           // Strip light-mode inline styles that clash with dark theme
           html = html
-            .replace(/\s*style="[^"]*background(?:-color)?:\s*(?:white|#fff|#ffffff)[^"]*"/gi, '')
+            .replace(/\s*style="[^"]*background(?:-color)?:\s*(?:white|#fff|#ffffff|rgb\(255,\s*255,\s*255\))[^"]*"/gi, '')
             .replace(/\s*style="[^"]*color:\s*(?:black|#000|#000000)[^"]*"/gi, '')
-            .replace(/background(?:-color)?:\s*(?:white|#fff|#ffffff)\s*;?/gi, '')
+            .replace(/background(?:-color)?:\s*(?:white|#fff|#ffffff|rgb\(255,\s*255,\s*255\))\s*;?/gi, '')
             .replace(/color:\s*(?:black|#000|#000000)\s*;?/gi, '');
         } catch (err) {
           console.warn('Marked parse fallback:', err);
@@ -343,6 +362,11 @@ class MarkdownIntelligenceEngine {
       
       if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
         this.quill.clipboard.dangerouslyPasteHTML(range.index, html, 'user');
+        // Fix: advance cursor to end of pasted block so user can keep typing naturally
+        setTimeout(() => {
+          const newLen = this.quill.getLength();
+          this.quill.setSelection(newLen - 1, 0, 'silent');
+        }, 0);
       } else {
         this.quill.root.innerHTML += html;
       }
@@ -390,7 +414,7 @@ class MarkdownIntelligenceEngine {
 
     try {
       const normalized = SmartMarkdownNormalizer.normalize(rawText);
-      if (marked.use) marked.use({ gfm: true, breaks: true });
+      MarkedConfigAdapter.configure(); // one-time global config (Adapter Pattern)
       let html = marked.parse(normalized);
       // Wrap all <table>...</table> in custom-table container
       html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
@@ -398,7 +422,7 @@ class MarkdownIntelligenceEngine {
       });
       
       if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
-        this.quill.setText('\n');
+        this.quill.setText('\n', 'api'); // 'api' source: suppresses auto-save trigger on blank content
         this.quill.clipboard.dangerouslyPasteHTML(0, html, 'user');
       } else {
         this.quill.root.innerHTML = html;
@@ -561,6 +585,13 @@ class EditorModeController {
   }
 
   toggleMode() {
+    // Guard: sync textarea content back to Quill before any mode switch (prevents content loss on rapid toggle)
+    this.syncBeforeSave();
+    // Guard: Quill must be initialized before switching modes
+    if (!window.quillEditor) {
+      console.warn('EditorModeController: Quill not initialized yet.');
+      return;
+    }
     if (window.mdIntelligence && !window.mdIntelligence.isEnabled()) {
       alert("Markdown features are currently disabled in Settings.");
       return;
@@ -609,7 +640,7 @@ class EditorModeController {
     const normalized = SmartMarkdownNormalizer.normalize(md);
     let html = '';
     if (typeof marked !== 'undefined' && marked.parse) {
-      if (marked.use) marked.use({ gfm: true, breaks: true });
+      MarkedConfigAdapter.configure(); // one-time global config (Adapter Pattern)
       html = marked.parse(normalized);
       html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
         return `<div class="ql-custom-table-container">${match}</div>`;
@@ -619,7 +650,7 @@ class EditorModeController {
     }
 
     if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-      window.quillEditor.setText('\n');
+      window.quillEditor.setText('\n', 'api'); // 'api' source: suppresses auto-save trigger on blank content
       window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'user');
     } else {
       window.quillEditor.root.innerHTML = html;
@@ -646,15 +677,14 @@ class EditorModeController {
         const normalized = SmartMarkdownNormalizer.normalize(md);
         let html = '';
         if (typeof marked !== 'undefined' && marked.parse) {
-          if (marked.use) marked.use({ gfm: true, breaks: true });
+          MarkedConfigAdapter.configure(); // one-time global config (Adapter Pattern)
           html = marked.parse(normalized);
           html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
             return `<div class="ql-custom-table-container">${match}</div>`;
           });
-          // FIX Bug 7 & R1: Use dangerouslyPasteHTML to go through Quill's Delta model.
-          // Skip destructive raw-text replacement if marked parser is unavailable.
+          // Use 'api' source for setText so auto-save timer is NOT triggered on blank content mid-sync
           if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-            window.quillEditor.setText('\n');
+            window.quillEditor.setText('\n', 'api');
             window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
           } else {
             window.quillEditor.root.innerHTML = html;
@@ -675,7 +705,14 @@ function updateMarkdownUI() {
   const convertBtn = document.getElementById('md-convert-btn');
   if (toggleBtn) toggleBtn.style.display = isEnabled ? 'inline-block' : 'none';
   if (convertBtn) convertBtn.style.display = isEnabled ? 'inline-block' : 'none';
-  
+
+  // Fix: explicitly hide the raw textarea when Markdown is disabled,
+  // in case switchToVisual() fails early (e.g. Quill not yet initialized)
+  if (!isEnabled) {
+    const rawEditor = document.getElementById('markdown-source-editor');
+    if (rawEditor) rawEditor.style.display = 'none';
+  }
+
   if (!isEnabled && window.editorModeController && window.editorModeController.mode === 'markdown') {
     window.editorModeController.switchToVisual();
   }
@@ -893,8 +930,23 @@ function htmlToMarkdown(htmlOrNode) {
       case 'th':
       case 'td':
         return childrenText.trim();
+      case 'u': return childrenText; // No GFM equivalent for underline — strip tags, keep text
       case 'hr': return `\n---\n\n`;
       case 'br': return `\n`;
+      case 'div': {
+        // Handle Mermaid diagram blots: emit fenced mermaid block for clean MD/TXT export
+        if (node.classList && node.classList.contains('ql-diagram-container')) {
+          const mermaidSrc = node.getAttribute('data-mermaid') || '';
+          return mermaidSrc
+            ? `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`
+            : `\n<!-- diagram -->\n`;
+        }
+        // Custom table containers: let the inner <table> case handle the content
+        if (node.classList && node.classList.contains('ql-custom-table-container')) {
+          return childrenText;
+        }
+        return childrenText;
+      }
       default: return childrenText;
     }
   }
@@ -920,11 +972,23 @@ function exportExternalNoteMD() {
 window.exportExternalNoteMD = exportExternalNoteMD;
 
 function convertCurrentNoteFromMarkdown() {
+  // Guard: warn user this is a destructive replace of all formatting
+  const currentText = window.quillEditor && window.quillEditor.getText().trim();
+  if (currentText && currentText.length > 10) {
+    const ok = confirm(
+      '⚠️ Convert to Rich Text\n\nThis will parse all text in the editor as Markdown and replace the current formatting.\n\nContinue?'
+    );
+    if (!ok) return;
+  }
   if (window.mdIntelligence) {
     window.mdIntelligence.convertCurrentContent();
   } else if (window.quillEditor && typeof marked !== 'undefined' && marked.parse) {
+    MarkedConfigAdapter.configure();
     const raw = window.quillEditor.getText().trim();
-    if (raw) window.quillEditor.root.innerHTML = marked.parse(raw);
+    if (raw) {
+      window.quillEditor.setText('\n', 'api'); // 'api' source: suppresses auto-save on blank content
+      window.quillEditor.clipboard.dangerouslyPasteHTML(0, marked.parse(raw), 'user');
+    }
   }
 }
 window.convertCurrentNoteFromMarkdown = convertCurrentNoteFromMarkdown;
