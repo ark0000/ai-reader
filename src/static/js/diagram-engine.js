@@ -878,6 +878,7 @@
         window.notes.push({
           q: svgHtml,
           txt: 'Diagram generated from builder',
+          rawText: mermaidCode,
           id: Date.now(),
           isScreenshot: true // use screenshot styling logic
         });

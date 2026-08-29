@@ -189,7 +189,7 @@ class BaseChatUI {
       noteBtn.onclick = () => {
          if (!window.notes) window.notes = [];
          const label = node.role === 'user' ? 'AI Chat Prompt' : 'AI Chat Response';
-         window.notes.push({q: '<i>' + label + '</i>', txt: window.fmt ? window.fmt(node.content) : node.content, id: Date.now()});
+         window.notes.push({q: '<i>' + label + '</i>', txt: window.fmt ? window.fmt(node.content) : node.content, rawText: node.content, id: Date.now()});
          if (window.renderNotes) window.renderNotes();
          if (window.panel && window.panel.classList.contains('hidden')) {
              if(window.togglePanel) window.togglePanel();

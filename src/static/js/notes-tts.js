@@ -337,13 +337,19 @@ window.openAllNotesInEditor = async function() {
     if (n.q && n.q.trim()) {
       var qTrim = n.q.trim();
       if (qTrim.includes('<svg')) {
-        // Convert SVG to data URI image so Quill renders it without stripping
-        var svg = qTrim;
-        if (!svg.includes('xmlns=')) {
-          svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+        if (n.rawText) {
+          // If it's a diagram note with raw mermaid code, emit a custom-diagram blot
+          var escapedMermaid = encodeURIComponent(n.rawText);
+          blocks.push('<div class="ql-diagram-container" data-mermaid="' + escapedMermaid + '" contenteditable="false" style="margin: 16px 0; text-align: center; background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border); border-radius: 8px;">' + qTrim + '</div><p><br></p>');
+        } else {
+          // Convert SVG to data URI image so Quill renders it without stripping
+          var svg = qTrim;
+          if (!svg.includes('xmlns=')) {
+            svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+          }
+          var uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+          blocks.push('<p><img src="' + uri + '" alt="Diagram" style="max-width:100%; border:1px solid #444; border-radius:4px;" /></p>');
         }
-        var uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-        blocks.push('<p><img src="' + uri + '" alt="Diagram" style="max-width:100%; border:1px solid #444; border-radius:4px;" /></p>');
       } else if (qTrim.startsWith('<img') || qTrim.includes('<img')) {
         blocks.push('<p>' + qTrim + '</p>');
       } else if (qTrim.startsWith('<pre') || qTrim.startsWith('<code')) {

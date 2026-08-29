@@ -26,12 +26,23 @@ if (typeof Quill !== 'undefined') {
     class CustomDiagramBlot extends BlockEmbed {
       static create(value) {
         const node = super.create();
-        node.innerHTML = typeof value === 'string' ? value : '';
+        if (typeof value === 'string') {
+          node.innerHTML = value;
+        } else if (typeof value === 'object' && value !== null) {
+          node.innerHTML = value.svg || '';
+          if (value.mermaid) {
+            node.setAttribute('data-mermaid', encodeURIComponent(value.mermaid));
+          }
+        }
         node.setAttribute('contenteditable', 'false'); // SVG diagrams shouldn't be editable text
         node.setAttribute('style', 'margin: 16px 0; text-align: center; background: rgba(255,255,255,0.02); padding: 12px; border: 1px solid var(--border); border-radius: 8px;');
         return node;
       }
       static value(node) {
+        const mermaid = node.getAttribute('data-mermaid');
+        if (mermaid) {
+          return { svg: node.innerHTML, mermaid: decodeURIComponent(mermaid) };
+        }
         return node.innerHTML;
       }
     }
@@ -243,16 +254,17 @@ class MarkdownIntelligenceEngine {
   _initStrategies() {
     // Line-level trigger rules (Prefix -> Formatting Strategy)
     this.lineStrategies = [
-      { pattern: /^#{6}\s$/, format: { header: 6 }, prefixLen: 7 },
-      { pattern: /^#{5}\s$/, format: { header: 5 }, prefixLen: 6 },
-      { pattern: /^#{4}\s$/, format: { header: 4 }, prefixLen: 5 },
-      { pattern: /^#{3}\s$/, format: { header: 3 }, prefixLen: 4 },
-      { pattern: /^#{2}\s$/, format: { header: 2 }, prefixLen: 3 },
-      { pattern: /^#{1}\s$/, format: { header: 1 }, prefixLen: 2 },
-      { pattern: /^[-*+]\s$/, format: { list: 'bullet' }, prefixLen: 2 },
-      { pattern: /^\d+\.\s$/, format: { list: 'ordered' }, prefixLen: (text) => text.indexOf('.') + 2 },
-      { pattern: /^>\s$/, format: { blockquote: true }, prefixLen: 2 },
-      { pattern: /^```\s*$/, format: { 'code-block': true }, prefixLen: 3 }
+      { pattern: /^#{6}\s/, format: { header: 6 }, prefixLen: 7 },
+      { pattern: /^#{5}\s/, format: { header: 5 }, prefixLen: 6 },
+      { pattern: /^#{4}\s/, format: { header: 4 }, prefixLen: 5 },
+      { pattern: /^#{3}\s/, format: { header: 3 }, prefixLen: 4 },
+      { pattern: /^#{2}\s/, format: { header: 2 }, prefixLen: 3 },
+      { pattern: /^#\s/, format: { header: 1 }, prefixLen: 2 },
+      { pattern: /^[-*+]\s/, format: { list: 'bullet' }, prefixLen: 2 },
+      { pattern: /^\d+\.\s/, format: { list: 'ordered' }, prefixLen: (text) => text.indexOf('.') + 2 },
+      { pattern: /^>\s/, format: { blockquote: true }, prefixLen: 2 },
+      { pattern: /^```\s/, format: { 'code-block': true }, prefixLen: 4 },
+      { pattern: /^---\s/, format: { divider: true }, prefixLen: 4 }
     ];
   }
 
@@ -936,7 +948,10 @@ function htmlToMarkdown(htmlOrNode) {
       case 'div': {
         // Handle Mermaid diagram blots: emit fenced mermaid block for clean MD/TXT export
         if (node.classList && node.classList.contains('ql-diagram-container')) {
-          const mermaidSrc = node.getAttribute('data-mermaid') || '';
+          let mermaidSrc = node.getAttribute('data-mermaid') || '';
+          if (mermaidSrc) {
+            try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch(e) {}
+          }
           return mermaidSrc
             ? `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`
             : `\n<!-- diagram -->\n`;
@@ -1143,7 +1158,7 @@ function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
     if (window.quillEditor) {
       const selection = window.quillEditor.getSelection(true);
       const index = selection ? selection.index : window.quillEditor.getLength();
-      window.quillEditor.insertEmbed(index, 'custom-diagram', svgHtml, 'user');
+      window.quillEditor.insertEmbed(index, 'custom-diagram', { svg: svgHtml, mermaid: mermaidCode }, 'user');
       window.quillEditor.insertText(index + 1, '\n', 'user');
       window.quillEditor.setSelection(index + 2, 'silent');
       return true;

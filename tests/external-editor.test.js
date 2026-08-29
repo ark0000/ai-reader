@@ -374,7 +374,7 @@ describe('Notes Full Editor — Robustness Tests', () => {
     test('R3: createNewExternalNote calls setText("") on quillEditor', () => {
       window.quillEditor.setText = jest.fn();
       window._createNewExternalNote();
-      expect(window.quillEditor.setText).toHaveBeenCalledWith('');
+      expect(window.quillEditor.setText).toHaveBeenCalledWith('\n');
     });
 
     test('R4: Auto-save text-change listener ignores non-user events (source !== "user")', () => {
@@ -394,5 +394,34 @@ describe('Notes Full Editor — Robustness Tests', () => {
     });
   });
 
-});
+  describe('Diagram and AI Notes Export Fixes', () => {
+    test('htmlToMarkdown correctly extracts data-mermaid from ql-diagram-container', () => {
+      const mermaidCode = 'graph TD\\n  A-->B';
+      const containerHtml = `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(mermaidCode)}"><svg></svg></div>`;
+      
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = containerHtml;
+      
+      const result = window.htmlToMarkdown(wrapper.firstChild);
+      expect(result).toContain('```mermaid');
+      expect(result).toContain('graph TD\\n  A-->B');
+      expect(result).toContain('```');
+    });
 
+    test('MarkdownIntelligenceEngine handles fast typing (no trailing characters required)', () => {
+      // Simulate typing "# " 
+      window.quillEditor.getText = jest.fn(() => '# ');
+      window.quillEditor.getSelection = jest.fn(() => ({ index: 2, length: 0 }));
+      window.quillEditor.getLine = jest.fn(() => [{ domNode: { textContent: '# ' } }, 0]);
+      
+      const mockFormatLine = jest.fn();
+      window.quillEditor.formatLine = mockFormatLine;
+      window.quillEditor.deleteText = jest.fn();
+
+      window.mdIntelligence._handleTextChange();
+      
+      // Should format as header
+      expect(mockFormatLine).toHaveBeenCalledWith(0, 1, 'header', 1, 'user');
+    });
+  });
+});
