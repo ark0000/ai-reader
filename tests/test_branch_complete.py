@@ -51,6 +51,11 @@ def session():
 @pytest.fixture(scope="session")
 def lmstudio_conn(session):
     """Create a test connection to LM Studio (if available) and return its ID."""
+    try:
+        requests.get("http://127.0.0.1:1234/v1/models", timeout=2)
+    except requests.exceptions.RequestException:
+        pytest.skip("LM Studio not running locally on port 1234")
+
     r = session.post(f"{BASE}/api/connections", json={
         "provider_id": "lmstudio",
         "name": "pytest-lmstudio",

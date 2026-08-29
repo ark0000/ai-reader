@@ -26,7 +26,7 @@ import logging
 import collections
 import threading
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel
 
@@ -407,14 +407,71 @@ async def dump_user_notes(target_user_id: int, _: None = Depends(require_dev_mod
             "document_storage": doc_storage
         }
 
+class DeleteNoteRequest(BaseModel):
+    type: str # 'global' or 'doc'
+    docOrGlobalIdx: int
+    noteIdx: int = -1
+
+@router.delete("/users/{target_user_id}/notes")
+async def delete_user_note(target_user_id: int, req: DeleteNoteRequest, _: None = Depends(require_dev_mode)):
+    """Delete a specific note for a user."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if req.type == 'global':
+            cursor.execute("SELECT id FROM global_notes WHERE user_id = ?", (target_user_id,))
+            global_notes = cursor.fetchall()
+            if 0 <= req.docOrGlobalIdx < len(global_notes):
+                note_id = global_notes[req.docOrGlobalIdx]['id']
+                cursor.execute("DELETE FROM global_notes WHERE id = ?", (note_id,))
+        elif req.type == 'doc':
+            cursor.execute("SELECT id, data_json FROM document_storage WHERE user_id = ?", (target_user_id,))
+            docs = cursor.fetchall()
+            if 0 <= req.docOrGlobalIdx < len(docs):
+                doc_id = docs[req.docOrGlobalIdx]['id']
+                import json
+                try:
+                    data = json.loads(docs[req.docOrGlobalIdx]['data_json'] or '{}')
+                    notes = []
+                    if isinstance(data.get('notes'), list): notes = data['notes']
+                    elif isinstance(data, list): notes = data
+                    elif isinstance(data.get('highlights'), list): notes = data['highlights']
+                    
+                    if 0 <= req.noteIdx < len(notes):
+                        notes.pop(req.noteIdx)
+                        if isinstance(data.get('notes'), list): data['notes'] = notes
+                        elif isinstance(data, list): data = notes
+                        elif isinstance(data.get('highlights'), list): data['highlights'] = notes
+                        
+                        cursor.execute("UPDATE document_storage SET data_json = ? WHERE id = ?", (json.dumps(data), doc_id))
+                except Exception:
+                    pass
+        conn.commit()
+    return {"status": "success", "message": "Note deleted."}
+
+@router.delete("/users/clear")
+async def clear_all_users(_: None = Depends(require_dev_mode)):
+    """DANGER: Wipe all user data and notes from the database."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Rely on ON DELETE CASCADE for all related tables
+        cursor.execute("DELETE FROM users WHERE id != 1")
+        # For the guest user (id=1), explicitly delete their data
+        for table in ["document_storage", "global_notes", "history", "connections", "themes"]:
+            try: cursor.execute(f"DELETE FROM {table} WHERE user_id = 1")
+            except: pass
+        conn.commit()
+    
+    _tracker._sessions.clear()
+    return {"status": "success", "message": "All user data has been cleared (Guest preserved)."}
+
 
 @router.delete("/users/{target_user_id}")
 async def delete_single_user(target_user_id: int, _: None = Depends(require_dev_mode)):
     """Delete a specific user and all their data."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        for table in ["document_storage", "global_notes", "history", "connections", "credentials", "themes"]:
-            cursor.execute(f"DELETE FROM {table} WHERE user_id = ?", (target_user_id,))
+        # Since foreign_keys = ON and tables have ON DELETE CASCADE, deleting the user
+        # will automatically delete their connections, credentials, themes, history, etc.
         cursor.execute("DELETE FROM users WHERE id = ?", (target_user_id,))
         conn.commit()
     
@@ -423,21 +480,6 @@ async def delete_single_user(target_user_id: int, _: None = Depends(require_dev_
         del _tracker._sessions[sid]
         
     return {"status": "success", "message": f"User {target_user_id} deleted."}
-
-
-@router.delete("/users/clear")
-async def clear_all_users(_: None = Depends(require_dev_mode)):
-    """DANGER: Wipe all user data and notes from the database."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        for table in ["document_storage", "global_notes", "history", "connections", "credentials", "themes"]:
-            try: cursor.execute(f"DELETE FROM {table}")
-            except: pass
-        cursor.execute("DELETE FROM users")
-        conn.commit()
-    
-    _tracker._sessions.clear()
-    return {"status": "success", "message": "All user data has been cleared."}
 
 
 @router.get("/system")
@@ -491,4 +533,168 @@ async def evict_expired_sessions(_: None = Depends(require_dev_mode)):
     return {"evicted": count}
 
 
+
+@router.get("/shared_files")
+async def get_all_shared_files(_: None = Depends(require_dev_mode)):
+    import os
+    from src.storage import LOCAL_TEMP_DIR
+    from src.database import get_db_connection
+    
+    files = []
+    if os.path.exists(LOCAL_TEMP_DIR):
+        for f in os.listdir(LOCAL_TEMP_DIR):
+            if "_input." in f or "_output." in f:
+                task_id = f.split("_input.")[0].split("_output.")[0]
+                size = os.path.getsize(os.path.join(LOCAL_TEMP_DIR, f))
+                
+                # Check if there is an output file
+                has_output = any(other.startswith(task_id + "_output.") for other in os.listdir(LOCAL_TEMP_DIR))
+                
+                if "_output." in f or (not has_output and "_input." in f):
+                    import json
+                    filename_to_show = f
+                    meta_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_meta.json")
+                    if os.path.exists(meta_path):
+                        try:
+                            with open(meta_path, "r", encoding="utf-8") as mf:
+                                meta = json.load(mf)
+                                filename_to_show = meta.get("original_filename", f)
+                        except Exception:
+                            pass
+                            
+                    files.append({
+                        "task_id": task_id,
+                        "filename": filename_to_show,
+                        "raw_filename": f,
+                        "size": size
+                    })
+    
+    # Deduplicate by task_id
+    seen = set()
+    unique_files = []
+    for f in files:
+        if f["task_id"] not in seen:
+            seen.add(f["task_id"])
+            unique_files.append(f)
+            
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT task_id, filename, shared_at FROM shared_files")
+        shared = {r["task_id"]: dict(r) for r in cursor.fetchall()}
+        
+    for f in unique_files:
+        f["is_shared"] = f["task_id"] in shared
+        if f["is_shared"]:
+            f["shared_filename"] = shared[f["task_id"]]["filename"]
+            
+    return {"files": unique_files}
+
+class SharePayload(BaseModel):
+    filename: str
+
+@router.post("/shared_files/{task_id}")
+async def share_file(task_id: str, payload: SharePayload, _: None = Depends(require_dev_mode)):
+    from src.database import get_db_connection
+    import time
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO shared_files (task_id, filename, shared_at) VALUES (?, ?, ?)", 
+                       (task_id, payload.filename, time.time()))
+        conn.commit()
+    return {"status": "success"}
+
+@router.delete("/shared_files/{task_id}")
+async def unshare_file(task_id: str, _: None = Depends(require_dev_mode)):
+    from src.database import get_db_connection
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM shared_files WHERE task_id = ?", (task_id,))
+        conn.commit()
+    return {"status": "success"}
+
+
+@router.post("/upload")
+async def admin_upload_file(file: UploadFile, _: None = Depends(require_dev_mode)):
+    import uuid
+    import os
+    from src.storage import LOCAL_TEMP_DIR
+    
+    ext = file.filename.lower().split('.')[-1]
+
+    task_id = uuid.uuid4().hex
+    try:
+        content_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read upload: {str(e)}")
+        
+    input_filename = f"{task_id}_input.{ext}"
+    output_filename = f"{task_id}_output.pdf"
+    
+    # Save input
+    input_path = os.path.join(LOCAL_TEMP_DIR, input_filename)
+    with open(input_path, "wb") as f:
+        f.write(content_bytes)
+        
+    # Save metadata
+    import json
+    meta_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_meta.json")
+    with open(meta_path, "w", encoding="utf-8") as mf:
+        json.dump({"original_filename": file.filename}, mf)
+        
+    # If it's a PDF, we can also just copy it to output so it's instantly readable without conversion
+    if ext == "pdf":
+        output_path = os.path.join(LOCAL_TEMP_DIR, output_filename)
+        with open(output_path, "wb") as f:
+            f.write(content_bytes)
+            
+    return {"status": "success", "task_id": task_id}
+
+@router.delete("/vault/{task_id}")
+async def delete_vault_file(task_id: str, _: None = Depends(require_dev_mode)):
+    import os
+    from src.storage import LOCAL_TEMP_DIR
+    from src.database import get_db_connection
+    
+    # Delete all associated files
+    if os.path.exists(LOCAL_TEMP_DIR):
+        for f in os.listdir(LOCAL_TEMP_DIR):
+            if f.startswith(task_id):
+                try:
+                    os.remove(os.path.join(LOCAL_TEMP_DIR, f))
+                except Exception:
+                    pass
+                    
+    # Remove from shared_files
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM shared_files WHERE task_id = ?", (task_id,))
+        conn.commit()
+        
+    return {"status": "success"}
+
+@router.delete("/vault")
+async def delete_all_vault_files(_: None = Depends(require_dev_mode)):
+    import os
+    from src.storage import LOCAL_TEMP_DIR
+    from src.database import get_db_connection
+    
+    # Delete all vault files (_input, _output, _meta)
+    if os.path.exists(LOCAL_TEMP_DIR):
+        for f in os.listdir(LOCAL_TEMP_DIR):
+            if "_input." in f or "_output." in f or "_meta." in f:
+                try:
+                    os.remove(os.path.join(LOCAL_TEMP_DIR, f))
+                except Exception:
+                    pass
+                    
+    # Truncate shared_files table
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM shared_files")
+        conn.commit()
+        
+    return {"status": "success"}
+
 _startup_time = time.time()
+
+

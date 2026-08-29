@@ -331,9 +331,55 @@ async def start_conversion(
 
 @router.get("/api/status/{task_id}")
 async def get_task_status(task_id: str, user_data: dict = Depends(resolve_user)):
+    from src.storage import LOCAL_TEMP_DIR
+    from src.database import get_db_connection
+    import os
+    import json
+    
     status_data = task_queue.get_status(task_id)
+    original_filename = None
+    
+    is_vault = False
+    vault_ext = None
+    for ext in ['pdf', 'md', 'epub', 'txt']:
+        if os.path.exists(os.path.join(LOCAL_TEMP_DIR, f"{task_id}_input.{ext}")):
+            is_vault = True
+            vault_ext = ext
+            break
+            
+    meta_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_meta.json")
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as mf:
+                meta = json.load(mf)
+                original_filename = meta.get("original_filename")
+        except Exception:
+            pass
+
+    is_shared = False
+    if not original_filename:
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT filename FROM shared_files WHERE task_id = ?", (task_id,))
+                row = cursor.fetchone()
+                if row:
+                    original_filename = row["filename"]
+                    is_shared = True
+        except Exception:
+            pass
+
     if not status_data:
+        if is_vault or is_shared:
+            ext = vault_ext
+            if not ext and original_filename:
+                ext = original_filename.split('.')[-1] if '.' in original_filename else 'pdf'
+            return {"status": "completed", "ext": ext, "original_filename": original_filename}
         raise HTTPException(status_code=404, detail="Task not found")
+        
+    if original_filename:
+        status_data["original_filename"] = original_filename
+        
     return status_data
 
 @router.get("/api/preview/render")
@@ -398,60 +444,174 @@ async def render_preview(
 
 @router.get("/api/download/{task_id}")
 async def download_file(task_id: str, user_data: dict = Depends(resolve_user)):
+    from src.database import get_db_connection
+    import os
+    from src.storage import LOCAL_TEMP_DIR
+    
+    # Check if file is shared
+    is_shared = False
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM shared_files WHERE task_id = ?", (task_id,))
+        if cursor.fetchone():
+            is_shared = True
+
     status_data = task_queue.get_status(task_id)
+    
+    # Bypass is_shared if it's a direct vault file
+    is_vault_file = False
+    vault_file_url = None
     if not status_data:
+        for ext in [".pdf", ".epub", ".md", ".txt", ""]:
+            out_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_output{ext}")
+            if os.path.exists(out_path):
+                vault_file_url = out_path
+                is_vault_file = True
+                break
+        if not is_vault_file:
+            for ext in [".pdf", ".epub", ".md", ".txt", ""]:
+                in_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_input{ext}")
+                if os.path.exists(in_path):
+                    vault_file_url = in_path
+                    is_vault_file = True
+                    break
+
+    if not status_data and not is_shared and not is_vault_file:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    # Check IDOR
-    task_meta = task_queue.tasks.get(task_id)
-    if not task_meta or task_meta.get("user_id") != user_data["user_id"]:
-        raise HTTPException(status_code=403, detail="Forbidden: You don't own this file.")
-        
-    if status_data["status"] != "completed":
-        raise HTTPException(status_code=400, detail="Document processing is not finished yet.")
-        
-    file_url = status_data["file_url"]
+    if is_vault_file or is_shared:
+        # Find the correct file in LOCAL_TEMP_DIR
+        file_url = vault_file_url
+        if not file_url and status_data and status_data.get("file_url"):
+            file_url = status_data["file_url"]
+            
+        if not file_url:
+            for suffix in ["_dark", "_light", "_output", "_input"]:
+                for ext in [".pdf", ".epub", ".md", ".txt", ""]:
+                    possible_url = storage_client.get_file_url_or_path(f"{task_id}{suffix}{ext}")
+                    if possible_url.startswith("http") or os.path.exists(possible_url):
+                        file_url = possible_url
+                        break
+                if file_url:
+                    break
+    else:
+        # Check IDOR only if not shared and not vault file
+        task_meta = task_queue.tasks.get(task_id)
+        if not task_meta or task_meta.get("user_id") != user_data["user_id"]:
+            raise HTTPException(status_code=403, detail="Forbidden: You don't own this file.")
+            
+        if status_data["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Document processing is not finished yet.")
+            
+        file_url = status_data["file_url"]
     
-    if file_url.startswith("http://") or file_url.startswith("https://"):
+    if file_url and (file_url.startswith("http://") or file_url.startswith("https://")):
         return RedirectResponse(url=file_url)
         
-    if not os.path.exists(file_url):
+    if not file_url or not os.path.exists(file_url):
         raise HTTPException(status_code=404, detail="Converted PDF not found locally.")
+
+    ext = file_url.split('.')[-1] if '.' in file_url else 'pdf'
+    import mimetypes
+    media_type, _ = mimetypes.guess_type(file_url)
+    if not media_type:
+        media_type = "application/pdf" if ext == 'pdf' else "text/plain"
 
     from fastapi.responses import Response
     with open(file_url, "rb") as f:
-        pdf_bytes = f.read()
+        file_bytes = f.read()
     return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
+        content=file_bytes,
+        media_type=media_type,
         headers={"Content-Disposition": "inline"}
     )
 
 @router.get("/api/download-file/{task_id}")
 async def download_file_attachment(task_id: str, user_data: dict = Depends(resolve_user)):
+    from src.database import get_db_connection
+    import os
+    from src.storage import LOCAL_TEMP_DIR
+    
+    is_shared = False
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM shared_files WHERE task_id = ?", (task_id,))
+        if cursor.fetchone():
+            is_shared = True
+
     status_data = task_queue.get_status(task_id)
+    
+    # Bypass is_shared if it's a direct vault file
+    is_vault_file = False
+    vault_file_url = None
     if not status_data:
+        for ext in [".pdf", ".epub", ".md", ".txt", ""]:
+            out_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_output{ext}")
+            if os.path.exists(out_path):
+                vault_file_url = out_path
+                is_vault_file = True
+                break
+        if not is_vault_file:
+            for ext in [".pdf", ".epub", ".md", ".txt", ""]:
+                in_path = os.path.join(LOCAL_TEMP_DIR, f"{task_id}_input{ext}")
+                if os.path.exists(in_path):
+                    vault_file_url = in_path
+                    is_vault_file = True
+                    break
+
+    if not status_data and not is_shared and not is_vault_file:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    # Check IDOR
-    task_meta = task_queue.tasks.get(task_id)
-    if not task_meta or task_meta.get("user_id") != user_data["user_id"]:
-        raise HTTPException(status_code=403, detail="Forbidden: You don't own this file.")
-        
-    if status_data["status"] != "completed":
-        raise HTTPException(status_code=400, detail="Document processing is not finished yet.")
-        
-    file_url = status_data["file_url"]
-    
-    if file_url.startswith("http://") or file_url.startswith("https://"):
+    if is_vault_file or is_shared:
+        # Find the correct file in LOCAL_TEMP_DIR
+        file_url = vault_file_url
+        if not file_url and status_data and status_data.get("file_url"):
+            file_url = status_data["file_url"]
+            
+        if not file_url:
+            for suffix in ["_dark", "_light", "_output", "_input"]:
+                for ext in [".pdf", ".epub", ".md", ".txt", ""]:
+                    possible_url = storage_client.get_file_url_or_path(f"{task_id}{suffix}{ext}")
+                    if possible_url.startswith("http") or os.path.exists(possible_url):
+                        file_url = possible_url
+                        break
+                if file_url:
+                    break
+    else:
+        task_meta = task_queue.tasks.get(task_id)
+        if not task_meta or task_meta.get("user_id") != user_data["user_id"]:
+            raise HTTPException(status_code=403, detail="Forbidden: You don't own this file.")
+            
+        if status_data["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Document processing is not finished yet.")
+            
+        file_url = status_data["file_url"]
+            
+    if file_url and (file_url.startswith("http://") or file_url.startswith("https://")):
         return RedirectResponse(url=file_url)
         
-    if not os.path.exists(file_url):
+    if not file_url or not os.path.exists(file_url):
         raise HTTPException(status_code=404, detail="Converted PDF not found locally.")
+
+    ext = file_url.split('.')[-1] if '.' in file_url else 'pdf'
+    import mimetypes
+    media_type, _ = mimetypes.guess_type(file_url)
+    if not media_type:
+        media_type = "application/octet-stream"
 
     return FileResponse(
         path=file_url,
-        media_type="application/pdf",
-        filename="dark_mode_document.pdf"
+        media_type=media_type,
+        filename=f"shared_file.{ext}"
     )
+
+
+
+@router.get("/api/public/shared")
+async def get_public_shared_files(user_data: dict = Depends(resolve_user)):
+    from src.database import get_db_connection
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT task_id, filename, shared_at FROM shared_files ORDER BY shared_at DESC")
+        return [dict(r) for r in cursor.fetchall()]
 

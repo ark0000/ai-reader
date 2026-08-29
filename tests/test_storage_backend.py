@@ -14,16 +14,15 @@ os.environ["GCP_PROJECT"] = "mock-project-id"
 from src.main import app
 from src.database import init_db, register_user, get_db_connection
 
-# Initialize database tables for testing
-init_db()
-
-# Create test users
-try:
-    register_user("testuser_999", "password")
-    register_user("testuser_888", "password")
-    register_user("testuser_777", "password")
-except Exception:
-    pass
+@pytest.fixture(autouse=True)
+def setup_test_users():
+    init_db()
+    try:
+        register_user("testuser_999", "password")
+        register_user("testuser_888", "password")
+        register_user("testuser_777", "password")
+    except Exception:
+        pass
 
 def get_user_id(username):
     with get_db_connection() as conn:
@@ -31,20 +30,16 @@ def get_user_id(username):
         c.execute("SELECT id FROM users WHERE username = ?", (username,))
         return c.fetchone()['id']
 
-user_999_id = get_user_id("testuser_999")
-user_888_id = get_user_id("testuser_888")
-user_777_id = get_user_id("testuser_777")
-
-client = TestClient(app)
-
-# Helper function to mock authentication headers for testing
-def get_auth_headers(user_id):
+def get_auth_headers(username):
+    user_id = get_user_id(username)
     from src.database import create_jwt
     token = create_jwt({"user_id": user_id})
     return {"Authorization": f"Bearer {token}"}
 
+client = TestClient(app)
+
 def test_global_notes_crud():
-    headers = get_auth_headers(user_id=user_999_id) # test user
+    headers = get_auth_headers("testuser_999") # test user
     
     # 1. Create a note
     note_payload = {
@@ -80,7 +75,7 @@ def test_global_notes_crud():
     assert response.status_code == 404
 
 def test_document_storage_merging():
-    headers = get_auth_headers(user_id=user_999_id)
+    headers = get_auth_headers("testuser_999")
     doc_key = f"test_doc_{int(time.time())}.pdf"
     
     # 1. Save scroll state
@@ -114,8 +109,8 @@ def test_document_storage_merging():
     assert data["notes"][0]["text"] == "A note"
 
 def test_document_storage_isolation():
-    user1_headers = get_auth_headers(user_id=user_888_id)
-    user2_headers = get_auth_headers(user_id=user_777_id)
+    user1_headers = get_auth_headers("testuser_888")
+    user2_headers = get_auth_headers("testuser_777")
     doc_key = "shared_doc.pdf"
     
     # User 1 saves data

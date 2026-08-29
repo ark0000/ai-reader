@@ -122,8 +122,7 @@ def test_pubsub_endpoint_invalid_payload():
 
 from unittest.mock import patch, MagicMock, AsyncMock
 
-@pytest.mark.asyncio
-async def test_api_local_chat_success():
+def test_api_local_chat_success():
     payload = {
         "local_endpoint": "http://mock-local-llm/v1/chat/completions",
         "prompt": "Hello world",
@@ -149,8 +148,7 @@ async def test_api_local_chat_success():
         assert args[0] == "http://mock-local-llm/v1/chat/completions"
         assert kwargs["json"]["messages"][1]["content"] == "Hello world"
 
-@pytest.mark.asyncio
-async def test_api_local_chat_rag_enabled():
+def test_api_local_chat_rag_enabled():
     payload = {
         "local_endpoint": "http://mock-local-llm/v1/chat/completions",
         "prompt": "What is the document about?",
@@ -182,8 +180,7 @@ async def test_api_local_chat_rag_enabled():
         assert len(messages) == 3
         assert "This document is about testing." in messages[0]["content"]
 
-@pytest.mark.asyncio
-async def test_api_local_chat_failure():
+def test_api_local_chat_failure():
     payload = {
         "local_endpoint": "http://mock-local-llm/v1/chat/completions",
         "prompt": "Hello",

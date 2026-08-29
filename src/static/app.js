@@ -77,6 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const userDashboardPanel = document.getElementById('user-dashboard-panel');
     const historyList = document.getElementById('history-list');
     const historyCount = document.getElementById('history-count');
+
+    const sharedList = document.getElementById('shared-list');
+    const sharedCount = document.getElementById('shared-count');
+    const sharedDashboardPanel = document.getElementById('shared-dashboard-panel');
+
     
     let currentTaskId = null;
     let uploadFileObject = null;
@@ -414,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dropZone.style.display = 'flex';
         switchView('upload');
         if (converterTracker) converterTracker.updateState('Idle', '0%', 'N/A');
-        loadUserHistory(); // Reload history log dashboard
+        loadUserHistory(); loadSharedFiles(); // Reload history log dashboard
     }
 
     changeFileBtn.addEventListener('click', resetUploader);
@@ -508,11 +513,61 @@ document.addEventListener('DOMContentLoaded', () => {
             authLoggedOut.style.display = 'none';
             authLoggedIn.style.display = 'inline';
             authUsername.textContent = username;
-            loadUserHistory();
+            loadUserHistory(); loadSharedFiles();
         } else {
             authLoggedOut.style.display = 'inline';
             authLoggedIn.style.display = 'none';
             userDashboardPanel.style.display = 'none';
+        }
+    }
+
+    
+    async function loadSharedFiles() {
+        if (!sharedDashboardPanel) return;
+        try {
+            const res = await fetch('/api/public/shared', {
+                headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+            });
+            if (!res.ok) throw new Error('Failed to fetch shared files');
+            const data = await res.json();
+            
+            sharedList.innerHTML = '';
+            sharedCount.textContent = `${data.length} files`;
+            
+            if (data.length === 0) {
+                sharedList.innerHTML = `<div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No shared files available.</div>`;
+            } else {
+                data.forEach(item => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.justifyContent = 'space-between';
+                    row.style.background = 'rgba(0, 242, 254, 0.05)';
+                    row.style.border = '1px solid rgba(0, 242, 254, 0.2)';
+                    row.style.borderRadius = '8px';
+                    row.style.padding = '10px 14px';
+                    row.style.fontSize = '0.85rem';
+                    row.style.marginBottom = '8px';
+                    row.style.cursor = 'pointer';
+                    
+                    const isCompatible = item.filename.toLowerCase().match(/\.(pdf|epub|md|txt)$/);
+                    const readButtonHtml = isCompatible 
+                        ? `<div onclick="window.location.href = 'reader.html?task_id=${item.task_id}';" style="color: #00f2fe; text-decoration: underline; cursor: pointer;">Read</div>`
+                        : '';
+                        
+                    row.innerHTML = `
+                        <div style="font-weight: 500; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;" title="${item.filename}">📄 ${item.filename}</div>
+                        <div style="display: flex; gap: 15px;">
+                            ${readButtonHtml}
+                            <div onclick="window.location.href = '/api/download-file/${item.task_id}';" style="color: #4CAF50; text-decoration: underline; cursor: pointer;">Download</div>
+                        </div>
+                    `;
+                    row.style.cursor = 'default';
+                    sharedList.appendChild(row);
+                });
+            }
+            sharedDashboardPanel.style.display = 'block';
+        } catch (err) {
+            console.error('Shared files load failed:', err);
         }
     }
 
@@ -556,6 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             userDashboardPanel.style.display = 'block';
+        loadSharedFiles();
         })
         .catch(err => {
             console.error('History load failed:', err);
@@ -623,7 +679,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('token', data.token);
             localStorage.setItem('username', data.username);
             
-            // Sync with reader's global profile state
             if (window.saveUsernameProfile) {
                 window.saveUsernameProfile(data.username);
             } else if (window.settingsRepo) {
@@ -633,6 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             authModal.style.display = 'none';
             authSubmitBtn.disabled = false;
+            
             updateAuthStateUI();
         })
         .catch(err => {

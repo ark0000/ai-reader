@@ -41,16 +41,16 @@ def test_server():
     server.join(timeout=2)
 
 
-def authenticate_user(page: Page) -> str:
+def authenticate_user(page: Page) -> tuple[str, str]:
     # Use playwright request context to register a test user
     import time
     username = f"e2e_user_{int(time.time())}"
     res = page.request.post("http://127.0.0.1:8001/api/auth/register", data={"username": username, "password": "password123"})
     token = res.json()["token"]
-    return token
+    return token, username
 
 def test_drag_and_drop_upload(page: Page):
-    token = authenticate_user(page)
+    token, _ = authenticate_user(page)
     # Inject token by going to a blank page on same origin first
     page.goto("http://127.0.0.1:8001/")
     page.evaluate(f"localStorage.setItem('token', '{token}')")
@@ -89,9 +89,9 @@ def test_drag_and_drop_upload(page: Page):
     time.sleep(2)
 
 def test_global_notes_migration_on_startup(page: Page):
-    token = authenticate_user(page)
+    token, username = authenticate_user(page)
     page.goto("http://127.0.0.1:8001/")
-    page.evaluate(f"localStorage.setItem('token', '{token}')")
+    page.evaluate(f"localStorage.setItem('token', '{token}'); localStorage.setItem('username', '{username}');")
     
     page.on("console", lambda msg: print(f"CONSOLE: {msg.text}"))
 
@@ -100,40 +100,40 @@ def test_global_notes_migration_on_startup(page: Page):
     page.wait_for_load_state("domcontentloaded")
     
     # Inject legacy notes into IndexedDB
-    page.evaluate("""async () => {
-        return new Promise((resolve, reject) => {
-            const req = indexedDB.open('NotesDB', 1);
-            req.onupgradeneeded = (e) => {
+    page.evaluate(f"""async () => {{
+        return new Promise((resolve, reject) => {{
+            const req = indexedDB.open('NotesDB_{username}', 1);
+            req.onupgradeneeded = (e) => {{
                 const db = e.target.result;
-                if (!db.objectStoreNames.contains('global_notes')) {
-                    const store = db.createObjectStore('global_notes', { keyPath: 'id' });
-                    store.createIndex('updatedAt', 'updatedAt', { unique: false });
-                }
-            };
-            req.onsuccess = (e) => {
+                if (!db.objectStoreNames.contains('global_notes')) {{
+                    const store = db.createObjectStore('global_notes', {{ keyPath: 'id' }});
+                    store.createIndex('updatedAt', 'updatedAt', {{ unique: false }});
+                }}
+            }};
+            req.onsuccess = (e) => {{
                 const db = e.target.result;
                 const tx = db.transaction('global_notes', 'readwrite');
                 const store = tx.objectStore('global_notes');
-                store.put({
+                store.put({{
                     id: 123456789,
                     title: 'Legacy E2E Note',
                     content: 'This note should migrate',
                     rawText: 'This note should migrate',
                     updatedAt: Date.now()
-                });
-                tx.oncomplete = () => {
+                }});
+                tx.oncomplete = () => {{
                     db.close();
                     resolve();
-                };
+                }};
                 tx.onerror = () => reject();
-            };
-        });
-    }""")
+            }};
+        }});
+    }}""")
     
     # Clear localStorage migration flag to trigger migration
-    page.evaluate("""() => {
-        localStorage.removeItem('global_notes_migrated_v2');
-    }""")
+    page.evaluate(f"""() => {{
+        localStorage.removeItem('global_notes_migrated_v2_{username}');
+    }}""")
     
     # Load reader-enhanced to trigger migration
     page.goto("http://127.0.0.1:8001/reader-enhanced")
@@ -145,7 +145,7 @@ def test_global_notes_migration_on_startup(page: Page):
     time.sleep(2) # Give fetch() time to complete
     
     # Verify migration flag is set
-    migrated = page.evaluate("() => localStorage.getItem('global_notes_migrated_v2')")
+    migrated = page.evaluate(f"() => localStorage.getItem('global_notes_migrated_v2_{username}')")
     assert migrated == 'true'
     
     # Fetch from backend to ensure it's there

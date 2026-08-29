@@ -108,7 +108,16 @@ def init_db():
         )
     """)
     
-    # 7. Create Global Notes Table
+    # 7. Create Shared Files Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS shared_files (
+            task_id TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            shared_at REAL NOT NULL
+        )
+    """)
+    
+    # 8. Create Global Notes Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS global_notes (
             id INTEGER PRIMARY KEY,
