@@ -1689,6 +1689,7 @@
         <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
         <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
         <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
+        <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="window.openStylusDrawing && window.openStylusDrawing()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
@@ -1697,6 +1698,30 @@
       </div>
     </div>
     
+    <div id="stylus-toolbar" class="hidden" style="padding:8px 24px; border-bottom:1px solid var(--border); background:var(--bg-body); display:flex; gap:12px; align-items:center;">
+      <span style="font-weight:600; font-size:14px; color:var(--text-1);">Stylus Tools:</span>
+      <button class="tb-btn" onclick="StylusEngine.setTool('pen')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🖋️ Pen</button>
+      <button class="tb-btn" onclick="StylusEngine.setTool('highlighter')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🖍️ Highlighter</button>
+      <button class="tb-btn" onclick="StylusEngine.setTool('eraser')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🧽 Eraser</button>
+      
+      <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
+      
+      <input type="color" onchange="StylusEngine.setColor(this.value)" value="#000000" style="border:none; border-radius:4px; width:30px; height:30px; cursor:pointer;" title="Choose Color">
+      
+      <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
+      
+      <button class="tb-btn" onclick="StylusEngine.undo()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);" title="Undo (Ctrl+Z)">↩️</button>
+      <button class="tb-btn" onclick="StylusEngine.redo()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);" title="Redo (Ctrl+Y)">↪️</button>
+      
+      <div style="flex:1;"></div>
+      
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+        <input type="checkbox" onchange="StylusEngine.setPenOnly(this.checked)"> Pen-Only Mode
+      </label>
+      
+      <button class="tb-btn" onclick="StylusEngine.close()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:var(--bg-panel);">Done</button>
+    </div>
+
     <div style="display:flex; flex:1; overflow:hidden;">
       <!-- Sidebar for saved notes list -->
       <div style="width:280px; border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column;">
@@ -1721,6 +1746,7 @@
 <script src="/static/js/notes-repository.js?v=2042"></script>
 <script src="/static/js/external-editor.js?v=2040"></script>
 <script src="/static/js/diagram-engine.js?v=12001"></script>
+<script src="/static/js/stylus-engine.js?v=1"></script>
 <script src="/static/js/components/AuraProfile.js?v=1"></script>
 
   <script>

@@ -198,6 +198,18 @@ class BaseChatUI {
       };
       actions.appendChild(noteBtn);
       
+      if (node.role !== 'user') {
+          const exportBtn = document.createElement('button');
+          exportBtn.innerHTML = '📝 Export to Editor';
+          exportBtn.className = 'chat-action-btn';
+          exportBtn.onclick = () => {
+              if (window.openExternalEditorWithContent) {
+                  window.openExternalEditorWithContent('AI Response', cleanHtml);
+              }
+          };
+          actions.appendChild(exportBtn);
+      }
+      
       el.appendChild(actions);
       this.chatWin.appendChild(el);
     });

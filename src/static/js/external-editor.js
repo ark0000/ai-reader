@@ -1168,3 +1168,48 @@ function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
 }
 window.insertDiagramIntoExternalEditor = insertDiagramIntoExternalEditor;
 
+window.openStylusDrawing = function() {
+    if (!window.StylusEngine || !window.StylusEngine.isSupported) {
+        if (window.showToast) window.showToast('Drawing requires a modern browser with Pointer Events support.');
+        else alert('Drawing requires a modern browser with Pointer Events support.');
+        return;
+    }
+    
+    // Switch to visual mode if not already
+    if (window.currentEditorMode === 'markdown') {
+        if (typeof toggleEditorMode === 'function') {
+            toggleEditorMode();
+        }
+    }
+    
+    if (window.quillEditor) {
+        const selection = window.quillEditor.getSelection(true);
+        const index = selection ? selection.index : window.quillEditor.getLength();
+        
+        // Insert a new stylus canvas block
+        window.quillEditor.insertEmbed(index, 'stylus-canvas', {
+            strokes: '[]',
+            svg: '',
+            meta: { version: 1 }
+        }, 'user');
+        
+        // Add a newline after
+        window.quillEditor.insertText(index + 1, '\n', 'user');
+        window.quillEditor.setSelection(index + 2, 'silent');
+        
+        // Focus the newly inserted node to activate Stylus Mode immediately
+        setTimeout(() => {
+            const nodes = window.quillEditor.root.querySelectorAll('.ql-stylus-canvas');
+            if (nodes.length > 0) {
+                const newNode = nodes[nodes.length - 1];
+                newNode.focus();
+                // Manually trigger activation just in case focus doesn't propagate
+                if (window.StylusEngine && window.StylusEngine.activate) {
+                    window.StylusEngine.activate(newNode);
+                }
+            }
+        }, 50);
+    } else {
+        console.warn("Cannot insert drawing, quillEditor is not initialized.");
+    }
+};
