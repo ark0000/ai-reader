@@ -947,6 +947,39 @@ class StorageRepository {
       return [];
     }
   }
+
+  async deleteDocument(id) {
+    try {
+      // 1. Delete Blob
+      const docStore = await this.dbManager.getTransaction('documents', 'readwrite');
+      await new Promise((resolve, reject) => {
+        const req = docStore.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+
+      // 2. Delete Meta
+      const metaStore = await this.dbManager.getTransaction('documents_meta', 'readwrite');
+      await new Promise((resolve, reject) => {
+        const req = metaStore.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+
+      // 3. Delete Annotations
+      const annStore = await this.dbManager.getTransaction('annotations', 'readwrite');
+      await new Promise((resolve, reject) => {
+        const req = annStore.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+      
+      console.log(`[StorageRepository] Deleted document and all metadata for id: ${id}`);
+    } catch (e) {
+      console.error("[StorageRepository] Error deleting document:", e);
+      throw e;
+    }
+  }
 }
 
 window.dbManager = new DatabaseManager();

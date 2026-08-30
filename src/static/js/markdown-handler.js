@@ -555,8 +555,8 @@ class MarkdownDocumentHandler {
     var cleanHtml = rawHtml;
     if (typeof DOMPurify !== 'undefined') {
       cleanHtml = DOMPurify.sanitize(rawHtml, {
-        ALLOWED_TAGS: ['strong', 'em', 'code', 'pre', 'br', 'a', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mspace', 'mtext', 'annotation', 'mark', 'hr', 'img', 'details', 'summary'],
-        ALLOWED_ATTR: ['href', 'id', 'name', 'style', 'class', 'target', 'rel', 'title', 'alt', 'src', 'width', 'height', 'xmlns', 'display', 'encoding', 'data-slug', 'data-heading-idx', 'data-heading-level']
+        ALLOWED_TAGS: ['strong', 'em', 'code', 'pre', 'br', 'a', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mspace', 'mtext', 'annotation', 'mark', 'hr', 'img', 'details', 'summary', 'svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon'],
+        ALLOWED_ATTR: ['href', 'id', 'name', 'style', 'class', 'target', 'rel', 'title', 'alt', 'src', 'width', 'height', 'xmlns', 'display', 'encoding', 'data-slug', 'data-heading-idx', 'data-heading-level', 'viewBox', 'd', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2']
       });
     }
     

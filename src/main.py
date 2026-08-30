@@ -8,7 +8,7 @@ import certifi
 import ssl
 from typing import Optional, List
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
@@ -19,6 +19,7 @@ from src.routers import auth, chat, connections, files, themes, tts, updater, st
 from src.routers import admin as admin_router
 from src.rag.manager import RAGManager
 from src.rag.providers.local_chroma import LocalChromaRAGProvider
+from src.websocket_manager import manager
 
 log_level = logging.INFO if settings.debug_console == "1" else logging.WARNING
 logging.basicConfig(level=log_level)
@@ -206,6 +207,58 @@ async def get_reader_enhanced():
                 }
             )
     raise HTTPException(status_code=404, detail="reader_enhanced.html not found")
+
+@app.get("/canvas", response_class=HTMLResponse)
+async def canvas_view():
+    path = os.path.join(os.path.dirname(__file__), "static", "canvas.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="Canvas page not found", status_code=404)
+
+@app.get("/remote-stylus", response_class=HTMLResponse)
+async def get_remote_stylus():
+    path = os.path.join(os.path.dirname(__file__), "static", "remote_stylus.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="remote_stylus.html not found")
+
+@app.get("/remote-notes", response_class=HTMLResponse)
+async def get_remote_notes():
+    path = os.path.join(os.path.dirname(__file__), "static", "remote_notes.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="remote_notes.html not found")
+
+@app.get("/api/system/local-ip")
+async def get_local_ip():
+    import socket
+    ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    return {"ip": ip, "port": "8000"}
+
+@app.websocket("/ws/stylus/{room_id}")
+async def websocket_stylus_endpoint(websocket: WebSocket, room_id: str):
+    await manager.connect(room_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            import json
+            try:
+                payload = json.loads(data)
+                await manager.broadcast(room_id, payload, exclude_sender=websocket)
+            except Exception as e:
+                logger.error(f"Invalid JSON received from websocket: {e}")
+    except WebSocketDisconnect:
+        manager.disconnect(room_id, websocket)
 
 # Include Routers
 app.include_router(auth.router)

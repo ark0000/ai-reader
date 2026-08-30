@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura Canvas</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            background: #f4f4f4; font-family: sans-serif;
+        }
+        #canvas-container {
+            width: 100%; height: 100%; position: relative; background: #fff;
+        }
+        canvas {
+            display: block; width: 100%; height: 100%; touch-action: none;
+        }
+        #stylus-toolbar {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9); padding: 10px 20px;
+            border-radius: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex; gap: 15px; z-index: 1000; align-items: center;
+        }
+        .tool-btn {
+            background: none; border: none; font-size: 24px; cursor: pointer; padding: 5px; border-radius: 5px;
+        }
+        .tool-btn:hover { background: #eee; }
+        .color-picker {
+            width: 30px; height: 30px; border: none; padding: 0; cursor: pointer; border-radius: 15px; overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="drawing-surface"></canvas>
+    </div>
+    
+    <div id="stylus-toolbar">
+        <button class="tool-btn" onclick="StylusEngine.setTool('pen')" title="Pen">🖊️</button>
+        <button class="tool-btn" onclick="StylusEngine.setTool('highlighter')" title="Highlighter">🖍️</button>
+        <button class="tool-btn" onclick="StylusEngine.setTool('eraser')" title="Eraser">🧹</button>
+        <input type="color" class="color-picker" value="#000000" onchange="StylusEngine.setColor(this.value)">
+        <div style="width:1px; height:24px; background:#ddd; margin: 0 10px;"></div>
+        <button class="tool-btn" onclick="StylusEngine.undo()" title="Undo">↩️</button>
+        <button class="tool-btn" onclick="StylusEngine.redo()" title="Redo">↪️</button>
+    </div>
+
+    <script src="/static/js/stylus-engine.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('canvas-container');
+            // Mock Quill and Blot behavior for standalone full screen
+            window.StylusEngine.activate(container);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,840 @@
+commit 5ed51b0f99ade193b562255f3bcedd11d57338d0
+Author: AI Assistant <ai@example.com>
+Date:   Sat Aug 29 17:09:20 2026 +0530
+
+    feat: complete stylus pen engine and ai export to editor
+
+diff --git a/src/.admin_state.json b/src/.admin_state.json
+index ea6236b..12b4e2c 100644
+--- a/src/.admin_state.json
++++ b/src/.admin_state.json
+@@ -1 +1 @@
+-{"sessions": {"guest": {"username": "guest", "user_id": 1, "current_file": null, "file_ext": null, "note_count": 0, "library_count": 0, "page": null, "last_seen": 1787997523.0322886, "started_at": 1787995230.0673304, "ip": "127.0.0.1"}, "e2e_user_1787997525": {"username": "e2e_user_1787997525", "user_id": 1, "current_file": null, "file_ext": null, "note_count": 0, "library_count": 0, "page": null, "last_seen": 1787997525.8521047, "started_at": 1787997525.8521047, "ip": "127.0.0.1"}}, "event_log": []}
+\ No newline at end of file
++{"sessions": {"guest": {"username": "guest", "user_id": 1, "current_file": null, "file_ext": null, "note_count": 0, "library_count": 0, "page": null, "last_seen": 1787995232.851795, "started_at": 1787995230.0673304, "ip": "127.0.0.1"}}, "event_log": []}
+\ No newline at end of file
+diff --git a/src/static/js/ai-chat.js b/src/static/js/ai-chat.js
+index aa6303d..103ecd7 100644
+--- a/src/static/js/ai-chat.js
++++ b/src/static/js/ai-chat.js
+@@ -198,6 +198,18 @@ class BaseChatUI {
+       };
+       actions.appendChild(noteBtn);
+       
++      if (node.role !== 'user') {
++          const exportBtn = document.createElement('button');
++          exportBtn.innerHTML = '📝 Export to Editor';
++          exportBtn.className = 'chat-action-btn';
++          exportBtn.onclick = () => {
++              if (window.openExternalEditorWithContent) {
++                  window.openExternalEditorWithContent('AI Response', cleanHtml);
++              }
++          };
++          actions.appendChild(exportBtn);
++      }
++      
+       el.appendChild(actions);
+       this.chatWin.appendChild(el);
+     });
+diff --git a/src/static/js/external-editor.js b/src/static/js/external-editor.js
+index e495d28..0ff6edb 100644
+--- a/src/static/js/external-editor.js
++++ b/src/static/js/external-editor.js
+@@ -1168,3 +1168,48 @@ function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
+ }
+ window.insertDiagramIntoExternalEditor = insertDiagramIntoExternalEditor;
+ 
++window.openStylusDrawing = function() {
++    if (!window.StylusEngine || !window.StylusEngine.isSupported) {
++        if (window.showToast) window.showToast('Drawing requires a modern browser with Pointer Events support.');
++        else alert('Drawing requires a modern browser with Pointer Events support.');
++        return;
++    }
++    
++    // Switch to visual mode if not already
++    if (window.currentEditorMode === 'markdown') {
++        if (typeof toggleEditorMode === 'function') {
++            toggleEditorMode();
++        }
++    }
++    
++    if (window.quillEditor) {
++        const selection = window.quillEditor.getSelection(true);
++        const index = selection ? selection.index : window.quillEditor.getLength();
++        
++        // Insert a new stylus canvas block
++        window.quillEditor.insertEmbed(index, 'stylus-canvas', {
++            strokes: '[]',
++            svg: '',
++            meta: { version: 1 }
++        }, 'user');
++        
++        // Add a newline after
++        window.quillEditor.insertText(index + 1, '\n', 'user');
++        window.quillEditor.setSelection(index + 2, 'silent');
++        
++        // Focus the newly inserted node to activate Stylus Mode immediately
++        setTimeout(() => {
++            const nodes = window.quillEditor.root.querySelectorAll('.ql-stylus-canvas');
++            if (nodes.length > 0) {
++                const newNode = nodes[nodes.length - 1];
++                newNode.focus();
++                // Manually trigger activation just in case focus doesn't propagate
++                if (window.StylusEngine && window.StylusEngine.activate) {
++                    window.StylusEngine.activate(newNode);
++                }
++            }
++        }, 50);
++    } else {
++        console.warn("Cannot insert drawing, quillEditor is not initialized.");
++    }
++};
+diff --git a/src/static/js/stylus-engine.js b/src/static/js/stylus-engine.js
+new file mode 100644
+index 0000000..7e1a4d1
+--- /dev/null
++++ b/src/static/js/stylus-engine.js
+@@ -0,0 +1,591 @@
++/**
++ * stylus-engine.js
++ * Implements native stylus and freehand drawing capabilities for the Aura External Editor.
++ */
++
++(function(window) {
++    // Check for PointerEvent support
++    const HAS_POINTER_EVENTS = window.PointerEvent !== undefined;
++
++    // --- 1. Strategies ---
++    class DrawingStrategy {
++        constructor(ctx) { this.ctx = ctx; }
++        begin(x, y, p) {}
++        move(x, y, p) {}
++        end() {}
++    }
++
++    class PenStrategy extends DrawingStrategy {
++        constructor(ctx, color, baseWidth) {
++            super(ctx);
++            this.color = color;
++            this.baseWidth = baseWidth;
++            this.lastX = 0;
++            this.lastY = 0;
++        }
++        begin(x, y, p) {
++            this.ctx.globalCompositeOperation = 'source-over';
++            this.ctx.lineCap = 'round';
++            this.ctx.lineJoin = 'round';
++            this.ctx.strokeStyle = this.color;
++            this.ctx.beginPath();
++            this.ctx.moveTo(x, y);
++            this.lastX = x;
++            this.lastY = y;
++            this.ctx.lineWidth = this.baseWidth * p;
++            this.ctx.lineTo(x, y);
++            this.ctx.stroke();
++        }
++        move(x, y, p) {
++            this.ctx.lineWidth = this.baseWidth * p;
++            this.ctx.lineTo(x, y);
++            this.ctx.stroke();
++            this.ctx.beginPath();
++            this.ctx.moveTo(x, y);
++            this.lastX = x;
++            this.lastY = y;
++        }
++        end() {}
++    }
++
++    class HighlighterStrategy extends DrawingStrategy {
++        constructor(ctx, color, baseWidth) {
++            super(ctx);
++            this.color = color;
++            this.baseWidth = baseWidth * 3; // Thicker
++            this.lastX = 0;
++            this.lastY = 0;
++        }
++        begin(x, y, p) {
++            this.ctx.globalCompositeOperation = 'multiply';
++            this.ctx.lineCap = 'round';
++            this.ctx.lineJoin = 'round';
++            this.ctx.strokeStyle = this.color;
++            this.ctx.lineWidth = this.baseWidth;
++            this.ctx.beginPath();
++            this.ctx.moveTo(x, y);
++            this.lastX = x;
++            this.lastY = y;
++            this.ctx.lineTo(x, y);
++            this.ctx.stroke();
++        }
++        move(x, y, p) {
++            this.ctx.lineWidth = this.baseWidth;
++            this.ctx.lineTo(x, y);
++            this.ctx.stroke();
++            this.ctx.beginPath();
++            this.ctx.moveTo(x, y);
++            this.lastX = x;
++            this.lastY = y;
++        }
++        end() {}
++    }
++    
++    class EraserStrategy extends DrawingStrategy {
++       constructor(ctx, onErase) {
++           super(ctx);
++           this.onErase = onErase;
++       }
++       begin(x, y, p) { this.onErase(x, y); }
++       move(x, y, p) { this.onErase(x, y); }
++       end() {}
++    }
++
++    // --- 2. Repository ---
++    class DrawingRepository {
++        constructor() {
++            this.strokes = [];
++            this.undoStack = [];
++            this.redoStack = [];
++            this.currentStroke = null;
++        }
++        
++        beginStroke(tool, color) {
++            this.currentStroke = { tool, color, points: [] };
++        }
++        
++        addPoint(x, y, p) {
++            if (!this.currentStroke) return;
++            const pts = this.currentStroke.points;
++            if (pts.length > 0) {
++                const last = pts[pts.length - 1];
++                const dist = Math.hypot(x - last.x, y - last.y);
++                if (dist < 2) return; // Simplification (drop points < 2px)
++            }
++            this.currentStroke.points.push({ x: Math.round(x), y: Math.round(y), p: Number(p.toFixed(2)) });
++        }
++        
++        endStroke() {
++            if (this.currentStroke && this.currentStroke.points.length > 0) {
++                this.undoStack.push({ type: 'add', stroke: this.currentStroke });
++                this.strokes.push(this.currentStroke);
++                this.redoStack = []; 
++                if (window.settingsRepo && window.settingsRepo.isTrue('debug_console')) {
++                   let totalPts = this.strokes.reduce((acc, s) => acc + s.points.length, 0);
++                   console.log(`[StylusEngine] Total points: ${totalPts}`);
++                   if (totalPts > 10000) console.warn("Soft cap reached! Consider clearing strokes.");
++                }
++            }
++            this.currentStroke = null;
++        }
++        
++        eraseAt(x, y) {
++            const ERASER_RADIUS = 20;
++            const toRemove = [];
++            for (let i = this.strokes.length - 1; i >= 0; i--) {
++                const stroke = this.strokes[i];
++                for (const pt of stroke.points) {
++                    if (Math.hypot(pt.x - x, pt.y - y) < ERASER_RADIUS) {
++                        toRemove.push(i);
++                        break;
++                    }
++                }
++            }
++            if (toRemove.length > 0) {
++                const removedStrokes = [];
++                toRemove.forEach(idx => {
++                    removedStrokes.push({ idx, stroke: this.strokes[idx] });
++                    this.strokes.splice(idx, 1);
++                });
++                this.undoStack.push({ type: 'erase', removed: removedStrokes });
++                this.redoStack = [];
++                return true;
++            }
++            return false;
++        }
++        
++        undo() {
++            if (this.undoStack.length === 0) return false;
++            const action = this.undoStack.pop();
++            if (action.type === 'add') {
++                this.strokes.pop();
++                this.redoStack.push(action);
++            } else if (action.type === 'erase') {
++                action.removed.slice().reverse().forEach(r => {
++                    this.strokes.splice(r.idx, 0, r.stroke);
++                });
++                this.redoStack.push(action);
++            }
++            return true;
++        }
++        
++        redo() {
++            if (this.redoStack.length === 0) return false;
++            const action = this.redoStack.pop();
++            if (action.type === 'add') {
++                this.strokes.push(action.stroke);
++                this.undoStack.push(action);
++            } else if (action.type === 'erase') {
++                action.removed.forEach(r => {
++                    this.strokes.splice(this.strokes.indexOf(r.stroke), 1);
++                });
++                this.undoStack.push(action);
++            }
++            return true;
++        }
++        
++        load(strokesArray) {
++            this.strokes = strokesArray || [];
++            this.undoStack = [];
++            this.redoStack = [];
++        }
++        
++        serialize() {
++            return JSON.stringify(this.strokes);
++        }
++    }
++
++    // --- 3. Adapter ---
++    class PointerEventAdapter {
++        constructor(canvas, onBegin, onMove, onEnd) {
++            this.canvas = canvas;
++            this.onBegin = onBegin;
++            this.onMove = onMove;
++            this.onEnd = onEnd;
++            this.penOnly = false;
++            
++            this.handlers = {
++                pointerdown: this._handleDown.bind(this),
++                pointermove: this._handleMove.bind(this),
++                pointerup: this._handleUp.bind(this),
++                pointercancel: this._handleUp.bind(this), // Same as up
++            };
++            
++            if (HAS_POINTER_EVENTS) {
++                this.canvas.addEventListener('pointerdown', this.handlers.pointerdown);
++                this.canvas.addEventListener('pointermove', this.handlers.pointermove);
++                this.canvas.addEventListener('pointerup', this.handlers.pointerup);
++                this.canvas.addEventListener('pointercancel', this.handlers.pointercancel);
++            }
++        }
++        
++        setPenOnly(enabled) {
++            this.penOnly = enabled;
++        }
++        
++        _getCoords(e) {
++            const rect = this.canvas.getBoundingClientRect();
++            // Fallback for pressure (Mouse usually sends 0.5)
++            // Clamp to 0.1 minimum to fix Android zero-pressure bug
++            let p = e.pressure !== undefined ? e.pressure : 0.5;
++            if (p === 0 && e.pointerType !== 'mouse') p = 0.5; // fallback
++            return {
++                x: e.clientX - rect.left,
++                y: e.clientY - rect.top,
++                p: Math.max(0.1, p) 
++            };
++        }
++        
++        _handleDown(e) {
++            if (this.penOnly && e.pointerType !== 'pen') {
++                if (window.showToast) window.showToast('Pen-only mode is active — use your stylus to draw.');
++                return;
++            }
++            this.canvas.setPointerCapture(e.pointerId);
++            const { x, y, p } = this._getCoords(e);
++            this.onBegin(x, y, p);
++            e.preventDefault();
++        }
++        
++        _handleMove(e) {
++            if (this.penOnly && e.pointerType !== 'pen') return;
++            if (!this.canvas.hasPointerCapture(e.pointerId)) return;
++            const { x, y, p } = this._getCoords(e);
++            this.onMove(x, y, p);
++            e.preventDefault();
++        }
++        
++        _handleUp(e) {
++            if (this.canvas.hasPointerCapture(e.pointerId)) {
++                this.canvas.releasePointerCapture(e.pointerId);
++                this.onEnd();
++            }
++            e.preventDefault();
++        }
++        
++        destroy() {
++            if (HAS_POINTER_EVENTS) {
++                this.canvas.removeEventListener('pointerdown', this.handlers.pointerdown);
++                this.canvas.removeEventListener('pointermove', this.handlers.pointermove);
++                this.canvas.removeEventListener('pointerup', this.handlers.pointerup);
++                this.canvas.removeEventListener('pointercancel', this.handlers.pointercancel);
++            }
++        }
++    }
++
++    // --- 4. Facade ---
++    class StylusManagerFacade {
++        constructor(container, blot) {
++            this.container = container;
++            this.blot = blot;
++            this.canvas = container.querySelector('canvas');
++            this.ctx = this.canvas.getContext('2d');
++            
++            this.repo = new DrawingRepository();
++            
++            const existingStrokes = container.getAttribute('data-strokes');
++            if (existingStrokes) {
++                try {
++                    this.repo.load(JSON.parse(existingStrokes));
++                } catch (e) { console.error("Corrupted strokes JSON", e); }
++            }
++            
++            this.currentTool = 'pen';
++            this.currentColor = '#000000';
++            this.strategy = null;
++            
++            this.adapter = new PointerEventAdapter(
++                this.canvas,
++                this._onBegin.bind(this),
++                this._onMove.bind(this),
++                this._onEnd.bind(this)
++            );
++            
++            this.resizeObserver = new ResizeObserver(() => this.renderAll());
++            this.resizeObserver.observe(this.container);
++            
++            this.renderAll();
++            
++            this.keyDownHandler = this._handleKeyDown.bind(this);
++            this.container.addEventListener('keydown', this.keyDownHandler);
++        }
++        
++        _onBegin(x, y, p) {
++            this.repo.beginStroke(this.currentTool, this.currentColor);
++            this.repo.addPoint(x, y, p);
++            
++            if (this.currentTool === 'eraser') {
++                this.strategy = new EraserStrategy(this.ctx, (ex, ey) => {
++                    if (this.repo.eraseAt(ex, ey)) {
++                        this.renderAll();
++                        this._updateBlotData();
++                    }
++                });
++            } else if (this.currentTool === 'highlighter') {
++                this.strategy = new HighlighterStrategy(this.ctx, this.currentColor, 8);
++            } else {
++                this.strategy = new PenStrategy(this.ctx, this.currentColor, 3);
++            }
++            
++            if (this.strategy) this.strategy.begin(x, y, p);
++        }
++        
++        _onMove(x, y, p) {
++            this.repo.addPoint(x, y, p);
++            if (this.strategy) this.strategy.move(x, y, p);
++        }
++        
++        _onEnd() {
++            this.repo.endStroke();
++            if (this.strategy) this.strategy.end();
++            this.strategy = null;
++            this._updateBlotData();
++        }
++        
++        _updateBlotData() {
++            this.container.setAttribute('data-strokes', this.repo.serialize());
++            if (this.blot && this.blot.updateSVG) {
++                this.blot.updateSVG(this.generateSVG());
++            }
++        }
++        
++        _handleKeyDown(e) {
++            // Scope undo/redo specifically to StylusMode
++            if (e.key === 'Escape') {
++                e.preventDefault();
++                window.StylusEngine.deactivate();
++                return;
++            }
++            if (e.ctrlKey && e.key.toLowerCase() === 'z') {
++                e.preventDefault();
++                e.stopPropagation(); // prevent global Quill undo
++                if (e.shiftKey) this.redo();
++                else this.undo();
++            } else if (e.ctrlKey && e.key.toLowerCase() === 'y') {
++                e.preventDefault();
++                e.stopPropagation();
++                this.redo();
++            }
++        }
++        
++        undo() {
++            if (this.repo.undo()) { this.renderAll(); this._updateBlotData(); }
++        }
++        
++        redo() {
++            if (this.repo.redo()) { this.renderAll(); this._updateBlotData(); }
++        }
++        
++        setTool(tool) { this.currentTool = tool; }
++        setColor(color) { this.currentColor = color; }
++        setPenOnly(enabled) { this.adapter.setPenOnly(enabled); }
++        
++        renderAll() {
++            const rect = this.container.getBoundingClientRect();
++            if (this.canvas.width !== rect.width || this.canvas.height !== rect.height) {
++                this.canvas.width = rect.width;
++                this.canvas.height = rect.height;
++            }
++            
++            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
++            this.ctx.lineCap = 'round';
++            this.ctx.lineJoin = 'round';
++            
++            for (const stroke of this.repo.strokes) {
++                if (stroke.points.length === 0) continue;
++                this.ctx.beginPath();
++                this.ctx.strokeStyle = stroke.color;
++                
++                if (stroke.tool === 'highlighter') {
++                    this.ctx.globalCompositeOperation = 'multiply';
++                    this.ctx.lineWidth = 24;
++                } else {
++                    this.ctx.globalCompositeOperation = 'source-over';
++                    this.ctx.lineWidth = 3;
++                }
++                
++                const pts = stroke.points;
++                this.ctx.moveTo(pts[0].x, pts[0].y);
++                
++                if (pts.length === 1) {
++                    this.ctx.lineWidth = (stroke.tool === 'highlighter' ? 24 : 3) * pts[0].p;
++                    this.ctx.lineTo(pts[0].x, pts[0].y);
++                } else {
++                    for (let i = 1; i < pts.length; i++) {
++                        this.ctx.lineWidth = (stroke.tool === 'highlighter' ? 24 : 3) * pts[i].p;
++                        this.ctx.lineTo(pts[i].x, pts[i].y);
++                        this.ctx.stroke();
++                        this.ctx.beginPath();
++                        this.ctx.moveTo(pts[i].x, pts[i].y);
++                    }
++                }
++                this.ctx.stroke();
++            }
++        }
++        
++        generateSVG() {
++            const rect = this.container.getBoundingClientRect();
++            // Build simple SVG for export cache
++            let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${rect.width} ${rect.height}" width="100%" height="${rect.height}" style="background:#fff">`;
++            for (const stroke of this.repo.strokes) {
++                if (stroke.points.length === 0) continue;
++                const pathData = stroke.points.map((p, i) => `${i===0?'M':'L'} ${p.x} ${p.y}`).join(' ');
++                const opacity = stroke.tool === 'highlighter' ? '0.4' : '1.0';
++                const width = stroke.tool === 'highlighter' ? '24' : '3';
++                svg += `<path d="${pathData}" fill="none" stroke="${stroke.color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}" />`;
++            }
++            svg += `</svg>`;
++            return svg;
++        }
++
++        destroy() {
++            this.adapter.destroy();
++            this.resizeObserver.disconnect();
++            this.container.removeEventListener('keydown', this.keyDownHandler);
++        }
++    }
++
++    // --- 5. Quill Blot ---
++    function registerStylusBlot() {
++        if (!window.Quill) return;
++        const BlockEmbed = Quill.import('blots/block/embed');
++        
++        class StylusCanvasBlot extends BlockEmbed {
++            static create(value) {
++                const node = super.create();
++                node.setAttribute('contenteditable', 'false');
++                node.classList.add('ql-stylus-canvas');
++                
++                // Allow it to be focused
++                node.setAttribute('tabindex', '0');
++                
++                // Styling
++                node.style.position = 'relative';
++                node.style.width = '100%';
++                node.style.minHeight = '300px'; 
++                node.style.margin = '16px 0';
++                node.style.border = '1px solid var(--border)';
++                node.style.borderRadius = '8px';
++                node.style.background = '#ffffff'; 
++                node.style.touchAction = 'none'; // Prevent scroll on canvas
++                node.style.overflow = 'hidden';
++                node.style.outline = 'none';
++                
++                if (typeof value === 'object' && value !== null) {
++                    node.setAttribute('data-strokes', value.strokes || '[]');
++                    node.setAttribute('data-version', value.meta?.version || '1');
++                    node.setAttribute('data-svg', value.svg || '');
++                } else if (typeof value === 'string') {
++                    // Fallback for weird parsing
++                    node.setAttribute('data-strokes', '[]');
++                }
++                
++                // Render Canvas
++                const canvas = document.createElement('canvas');
++                canvas.style.position = 'absolute';
++                canvas.style.top = '0';
++                canvas.style.left = '0';
++                canvas.style.width = '100%';
++                canvas.style.height = '100%';
++                node.appendChild(canvas);
++                
++                return node;
++            }
++            
++            static value(node) {
++                return {
++                    strokes: node.getAttribute('data-strokes') || '[]',
++                    svg: node.getAttribute('data-svg') || '',
++                    meta: { version: parseInt(node.getAttribute('data-version') || '1') }
++                };
++            }
++            
++            updateSVG(svgStr) {
++                this.domNode.setAttribute('data-svg', svgStr);
++            }
++        }
++        
++        StylusCanvasBlot.blotName = 'stylus-canvas';
++        StylusCanvasBlot.tagName = 'div';
++        StylusCanvasBlot.className = 'ql-stylus-canvas';
++        
++        Quill.register(StylusCanvasBlot, true);
++    }
++
++    // --- 6. Global Engine ---
++    window.StylusEngine = {
++        isSupported: HAS_POINTER_EVENTS,
++        activeFacade: null,
++        
++        init() {
++            registerStylusBlot();
++            
++            // Listen for focus on .ql-stylus-canvas blocks to activate them
++            document.addEventListener('focusin', (e) => {
++                if (e.target && e.target.classList && e.target.classList.contains('ql-stylus-canvas')) {
++                    this.activate(e.target);
++                } else if (this.activeFacade && !this.activeFacade.container.contains(e.target) && !e.target.closest('#stylus-toolbar')) {
++                    // Clicked away from canvas AND away from toolbar
++                    this.deactivate();
++                }
++            });
++            
++            document.addEventListener('click', (e) => {
++                if (this.activeFacade && !this.activeFacade.container.contains(e.target) && !e.target.closest('#stylus-toolbar')) {
++                    this.deactivate();
++                }
++            });
++        },
++        
++        activate(node) {
++            if (this.activeFacade) {
++                if (this.activeFacade.container === node) return; // Already active
++                this.deactivate();
++            }
++            
++            const blot = window.quillEditor ? window.Quill.find(node) : { updateSVG: () => {} };
++            this.activeFacade = new StylusManagerFacade(node, blot);
++            node.classList.add('active');
++            node.style.boxShadow = '0 0 0 3px var(--accent)';
++            
++            // Lock Quill
++            if (window.quillEditor) window.quillEditor.disable();
++            
++            // Show Toolbar
++            const toolbar = document.getElementById('stylus-toolbar');
++            if (toolbar) toolbar.classList.remove('hidden');
++        },
++        
++        deactivate() {
++            if (this.activeFacade) {
++                this.activeFacade.destroy();
++                this.activeFacade.container.classList.remove('active');
++                this.activeFacade.container.style.boxShadow = 'none';
++                this.activeFacade = null;
++            }
++            
++            // Unlock Quill
++            if (window.quillEditor) window.quillEditor.enable();
++            
++            // Hide Toolbar
++            const toolbar = document.getElementById('stylus-toolbar');
++            if (toolbar) toolbar.classList.add('hidden');
++        },
++        
++        // Toolbar commands
++        setTool(t) { if (this.activeFacade) this.activeFacade.setTool(t); },
++        setColor(c) { if (this.activeFacade) this.activeFacade.setColor(c); },
++        setPenOnly(b) { if (this.activeFacade) this.activeFacade.setPenOnly(b); },
++        undo() { if (this.activeFacade) this.activeFacade.undo(); },
++        redo() { if (this.activeFacade) this.activeFacade.redo(); },
++        close() { this.deactivate(); }
++    };
++    
++    // Auto-init
++    if (document.readyState === 'loading') {
++        document.addEventListener('DOMContentLoaded', () => window.StylusEngine.init());
++    } else {
++        window.StylusEngine.init();
++    }
++
++})(window);
+diff --git a/src/static/reader_enhanced.html b/src/static/reader_enhanced.html
+index db85dbf..24e1127 100644
+--- a/src/static/reader_enhanced.html
++++ b/src/static/reader_enhanced.html
+@@ -1689,6 +1689,7 @@
+         <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
+         <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+         <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
++        <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="window.openStylusDrawing && window.openStylusDrawing()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
+         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
+         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
+         <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
+@@ -1697,6 +1698,30 @@
+       </div>
+     </div>
+     
++    <div id="stylus-toolbar" class="hidden" style="padding:8px 24px; border-bottom:1px solid var(--border); background:var(--bg-body); display:flex; gap:12px; align-items:center;">
++      <span style="font-weight:600; font-size:14px; color:var(--text-1);">Stylus Tools:</span>
++      <button class="tb-btn" onclick="StylusEngine.setTool('pen')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🖋️ Pen</button>
++      <button class="tb-btn" onclick="StylusEngine.setTool('highlighter')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🖍️ Highlighter</button>
++      <button class="tb-btn" onclick="StylusEngine.setTool('eraser')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🧽 Eraser</button>
++      
++      <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
++      
++      <input type="color" onchange="StylusEngine.setColor(this.value)" value="#000000" style="border:none; border-radius:4px; width:30px; height:30px; cursor:pointer;" title="Choose Color">
++      
++      <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
++      
++      <button class="tb-btn" onclick="StylusEngine.undo()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);" title="Undo (Ctrl+Z)">↩️</button>
++      <button class="tb-btn" onclick="StylusEngine.redo()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);" title="Redo (Ctrl+Y)">↪️</button>
++      
++      <div style="flex:1;"></div>
++      
++      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
++        <input type="checkbox" onchange="StylusEngine.setPenOnly(this.checked)"> Pen-Only Mode
++      </label>
++      
++      <button class="tb-btn" onclick="StylusEngine.close()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:var(--bg-panel);">Done</button>
++    </div>
++
+     <div style="display:flex; flex:1; overflow:hidden;">
+       <!-- Sidebar for saved notes list -->
+       <div style="width:280px; border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column;">
+@@ -1721,6 +1746,7 @@
+ <script src="/static/js/notes-repository.js?v=2042"></script>
+ <script src="/static/js/external-editor.js?v=2040"></script>
+ <script src="/static/js/diagram-engine.js?v=12001"></script>
++<script src="/static/js/stylus-engine.js?v=1"></script>
+ <script src="/static/js/components/AuraProfile.js?v=1"></script>
+ 
+   <script>
+diff --git a/tests/stylus-engine.test.js b/tests/stylus-engine.test.js
+new file mode 100644
+index 0000000..ce8d67c
+--- /dev/null
++++ b/tests/stylus-engine.test.js
+@@ -0,0 +1,95 @@
++/**
++ * test_stylus_engine.test.js
++ * Unit tests for PointerEventAdapter, DrawingRepository, etc.
++ */
++
++const fs = require('fs');
++const path = require('path');
++
++describe('StylusEngine', () => {
++    
++    beforeEach(() => {
++        // Mock DOM & Pointer Events
++        window.PointerEvent = class PointerEvent extends window.Event {
++            constructor(type, props) {
++                super(type, props);
++                this.pointerId = props.pointerId || 1;
++                this.pointerType = props.pointerType || 'mouse';
++                this.clientX = props.clientX || 0;
++                this.clientY = props.clientY || 0;
++                this.pressure = props.pressure;
++            }
++        };
++        
++        window.showToast = jest.fn();
++        
++        // Mock Quill
++        window.Quill = {
++            import: jest.fn().mockReturnValue(class BlockEmbed {
++                static create() {
++                    const div = document.createElement('div');
++                    return div;
++                }
++            }),
++            register: jest.fn(),
++            find: jest.fn()
++        };
++        
++        // ResizeObserver
++        window.ResizeObserver = class ResizeObserver {
++            observe() {}
++            unobserve() {}
++            disconnect() {}
++        };
++        
++        // Load stylus-engine.js
++        const code = fs.readFileSync(path.join(__dirname, '../src/static/js/stylus-engine.js'), 'utf8');
++        eval(code);
++    });
++
++    afterEach(() => {
++        jest.clearAllMocks();
++        delete window.PointerEvent;
++        delete window.StylusEngine;
++        delete window.Quill;
++    });
++
++    describe('PointerEventAdapter & Rendering', () => {
++        it('registers stylus-canvas blot', () => {
++            expect(window.Quill.register).toHaveBeenCalled();
++        });
++        
++        it('activates and deactivates Facade correctly', () => {
++            const container = document.createElement('div');
++            container.classList.add('ql-stylus-canvas');
++            document.body.appendChild(container);
++            
++            // Mock canvas context
++            const canvas = document.createElement('canvas');
++            canvas.getContext = () => ({
++                clearRect: jest.fn(),
++                beginPath: jest.fn(),
++                moveTo: jest.fn(),
++                lineTo: jest.fn(),
++                stroke: jest.fn()
++            });
++            container.appendChild(canvas);
++            
++            // Toolbar
++            const toolbar = document.createElement('div');
++            toolbar.id = 'stylus-toolbar';
++            toolbar.classList.add('hidden');
++            document.body.appendChild(toolbar);
++            
++            window.StylusEngine.activate(container);
++            
++            expect(window.StylusEngine.activeFacade).not.toBeNull();
++            expect(toolbar.classList.contains('hidden')).toBe(false);
++            
++            window.StylusEngine.deactivate();
++            
++            expect(window.StylusEngine.activeFacade).toBeNull();
++            expect(toolbar.classList.contains('hidden')).toBe(true);
++        });
++    });
++});

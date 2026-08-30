@@ -100,7 +100,7 @@ def wait_for_server(port, timeout=15):
 def run_server(port):
     """Run the Uvicorn server (blocks the calling thread)."""
     from src.main import app
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 def open_browser(url):
     """Open URL in the default browser using the native Windows Shell API."""

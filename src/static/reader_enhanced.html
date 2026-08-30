@@ -1568,7 +1568,7 @@
   </script>
   <script src="/static/js/brightness-engine.js?v=2"></script>
   <script src="/static/js/theme-engine.js?v=2"></script>
-  <script src="/static/js/reader-core.js?v=6"></script>
+  <script src="/static/js/reader-core.js?v=7"></script>
   <script src="/static/js/ui-components.js?v=2038"></script>
   <script src="/static/js/ai-chat.js?v=12"></script>
   <script src="/static/js/dictionary-tools.js?v=2"></script>
@@ -1685,49 +1685,58 @@
         <h2 style="margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">📝 Notes Editor</h2>
         <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:6px 12px; border-radius:6px; width:300px; outline:none; font-family:var(--font-ui);">
       </div>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
-        <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
-        <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
-        <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="window.openStylusDrawing && window.openStylusDrawing()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
-        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
-        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
-        <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
+      <div style="display:flex; gap:8px;">
+        <span id="text-note-tools" style="display:flex; gap:8px;">
+          <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
+          <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+          <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
+          <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="StylusEngine.insertCanvas()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
+          <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
+            <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
+          <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
+        </span>
+        <div style="position:relative; display:inline-block;" id="tablet-dropdown-wrapper">
+          <button id="tablet-dropdown-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="document.getElementById('tablet-menu-options').style.display = document.getElementById('tablet-menu-options').style.display === 'none' ? 'flex' : 'none';" title="Connect Tablet Devices">📱 Tablet ▼</button>
+          <div id="tablet-menu-options" style="display:none; position:absolute; top:calc(100% + 5px); right:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; flex-direction:column; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:1000; overflow:hidden;">
+            <button class="tb-btn" style="padding:10px 14px; border:none; border-bottom:1px solid var(--border); background:transparent; text-align:left; border-radius:0;" onclick="document.getElementById('tablet-menu-options').style.display='none'; TabletSync.connectTabletA();">🖍️ Remote Stylus</button>
+            <button class="tb-btn" style="padding:10px 14px; border:none; background:transparent; text-align:left; color:var(--accent); border-radius:0;" onclick="document.getElementById('tablet-menu-options').style.display='none'; connectRemoteNotes();">📝 Remote Notes</button>
+          </div>
+        </div>
         <button id="save-external-btn" class="tb-btn" style="padding:6px 16px; border-radius:20px; background:var(--accent); color:#fff; border:none; font-weight:600;" onclick="saveExternalNote()">Save</button>
         <button class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="closeExternalNotes()">Close</button>
       </div>
     </div>
     
-    <div id="stylus-toolbar" class="hidden" style="padding:8px 24px; border-bottom:1px solid var(--border); background:var(--bg-body); display:flex; gap:12px; align-items:center;">
+    <div id="stylus-toolbar" class="hidden" style="position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:var(--bg-panel); padding:10px 20px; border-radius:30px; border: 1px solid var(--border); box-shadow:0 8px 24px rgba(0,0,0,0.4); display:flex; gap:15px; z-index:999999; align-items:center;">
       <span style="font-weight:600; font-size:14px; color:var(--text-1);">Stylus Tools:</span>
-      <button class="tb-btn" onclick="StylusEngine.setTool('pen')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🖋️ Pen</button>
-      <button class="tb-btn" onclick="StylusEngine.setTool('highlighter')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🖍️ Highlighter</button>
-      <button class="tb-btn" onclick="StylusEngine.setTool('eraser')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);">🧽 Eraser</button>
+      <button class="tb-btn" onclick="StylusEngine.setTool('pen')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);">🖋️ Pen</button>
+      <button class="tb-btn" onclick="StylusEngine.setTool('highlighter')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);">🖍️ Highlighter</button>
+      <button class="tb-btn" onclick="StylusEngine.setTool('eraser')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);">🧽 Eraser</button>
       
       <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
       
-      <input type="color" onchange="StylusEngine.setColor(this.value)" value="#000000" style="border:none; border-radius:4px; width:30px; height:30px; cursor:pointer;" title="Choose Color">
+      <input type="color" id="stylus-color" value="#ff7a59" onchange="StylusEngine.setColor(this.value)" style="width:28px; height:28px; padding:0; border:none; border-radius:50%; cursor:pointer; background:transparent;">
       
-      <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
+      <button class="tb-btn" onclick="StylusEngine.undo()" style="padding:4px 8px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);" title="Undo">↩️</button>
+      <button class="tb-btn" onclick="StylusEngine.redo()" style="padding:4px 8px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);" title="Redo">↪️</button>
       
-      <button class="tb-btn" onclick="StylusEngine.undo()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);" title="Undo (Ctrl+Z)">↩️</button>
-      <button class="tb-btn" onclick="StylusEngine.redo()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border);" title="Redo (Ctrl+Y)">↪️</button>
-      
-      <div style="flex:1;"></div>
-      
-      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-1); cursor:pointer;">
         <input type="checkbox" onchange="StylusEngine.setPenOnly(this.checked)"> Pen-Only Mode
       </label>
       
-      <button class="tb-btn" onclick="StylusEngine.close()" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:var(--bg-panel);">Done</button>
+      <button class="tb-btn" onclick="StylusEngine.close()" style="padding:4px 12px; border-radius:15px; background:var(--text-1); color:var(--bg-base); font-weight:bold; border:none;">Done</button>
     </div>
 
     <div style="display:flex; flex:1; overflow:hidden;">
       <!-- Sidebar for saved notes list -->
       <div style="width:280px; border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column;">
-        <div style="padding:16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0; font-size:14px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">Saved Notes</h3>
-          <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px;" onclick="createNewExternalNote()">+ New</button>
+        <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom: 10px;">
+            <button class="notes-tab-btn active" onclick="switchNotesTab('text')" id="tab-text-notes" style="flex:1; padding:10px; border:none; background:transparent; cursor:pointer; font-weight:bold; color:var(--text-1); border-bottom:3px solid var(--accent);">Text Notes</button>
+            <button class="notes-tab-btn" onclick="switchNotesTab('canvas')" id="tab-canvas-notes" style="flex:1; padding:10px; border:none; background:transparent; cursor:pointer; font-weight:bold; color:var(--text-3); border-bottom:3px solid transparent;">Canvas Notes</button>
+        </div>
+        <div style="padding:0 16px 16px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="notes-list-title" style="margin:0; font-size:14px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">TEXT NOTES</h3>
+          <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="createNewExternalNote()">+ New</button>
         </div>
         <div id="external-notes-list" style="flex:1; overflow-y:auto; padding:8px;">
           <!-- Global notes will be listed here -->
@@ -1735,9 +1744,14 @@
       </div>
       
       <!-- Editor Area -->
-      <div style="flex:1; display:flex; flex-direction:column; background:var(--bg-body); position:relative;">
+      <div style="flex:1; display:flex; flex-direction:column; background:var(--bg-body); position:relative; overflow:hidden;">
         <div id="quill-editor" style="flex:1; height:100%; border:none; color:var(--text-1);"></div>
         <textarea id="markdown-source-editor" placeholder="Write or paste Markdown here (supports pipe tables | col 1 | col 2 |, mermaid, etc.)..." style="display:none; flex:1; width:100%; height:100%; box-sizing:border-box; padding:20px; background:var(--bg-body); color:var(--text-1); border:none; outline:none; font-family:var(--font-mono, monospace); font-size:14px; line-height:1.6; resize:none; white-space:pre-wrap;"></textarea>
+        
+        <!-- Pure Canvas Container -->
+        <div id="pure-canvas-container" class="ql-stylus-canvas" data-id="" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgb(255, 255, 255); z-index:100; touch-action:none; cursor:crosshair;">
+            <canvas style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -1746,7 +1760,9 @@
 <script src="/static/js/notes-repository.js?v=2042"></script>
 <script src="/static/js/external-editor.js?v=2040"></script>
 <script src="/static/js/diagram-engine.js?v=12001"></script>
-<script src="/static/js/stylus-engine.js?v=1"></script>
+<script src="/static/js/stylus-engine.js?v=5"></script>
+<script src="/static/js/sync/remote-notes-engine.js?v=1"></script>
+<script src="/static/js/remote-stylus-sync.js?v=1"></script>
 <script src="/static/js/components/AuraProfile.js?v=1"></script>
 
   <script>
@@ -1761,5 +1777,97 @@
     window.addEventListener('focus', sendHeartbeat);
   </script>
   <script src="/static/js/drag-drop-reader.js?v=3"></script>
+<script>
+  function connectRemoteNotes() {
+    // Ensure the external notes panel is open so Quill is initialized
+    if (typeof window.openExternalNotes === 'function') {
+        window.openExternalNotes();
+    }
+
+    fetch('/api/system/local-ip')
+      .then(r => r.json())
+      .then(data => {
+        let roomId = sessionStorage.getItem('remote_notes_room_id');
+        if (!roomId) {
+            roomId = 'notes-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+            sessionStorage.setItem('remote_notes_room_id', roomId);
+        }
+        const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+        const url = `http://${data.ip}:${port}/remote-notes?roomId=${roomId}`;
+        
+        if (!window.RemoteNotesEngineInstance) {
+            window.RemoteNotesEngineInstance = new RemoteNotesEngine(roomId);
+        } else if (window.RemoteNotesEngineInstance.roomId !== roomId) {
+            window.RemoteNotesEngineInstance.ws.close();
+            window.RemoteNotesEngineInstance = new RemoteNotesEngine(roomId);
+        }
+        
+        // Show QR Code Modal
+        const existing = document.getElementById('remote-notes-qr-modal');
+        if (existing) document.body.removeChild(existing);
+
+        const modal = document.createElement('div');
+        modal.id = 'remote-notes-qr-modal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:9999999;display:flex;align-items:center;justify-content:center;';
+        
+        const content = document.createElement('div');
+        content.style.cssText = 'background:var(--bg-panel);border:1px solid var(--accent);border-radius:12px;padding:30px;text-align:center;color:white;box-shadow:0 10px 40px rgba(0,0,0,0.8);max-width:400px;';
+        
+        const title = document.createElement('h3');
+        title.textContent = '📱 Remote Notes Editor';
+        title.style.cssText = 'margin:0 0 15px;color:var(--accent);font-size:18px;';
+        
+        const qr = document.createElement('img');
+        qr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(url);
+        qr.style.cssText = 'width:200px;height:200px;margin-bottom:15px;border-radius:8px;background:white;padding:10px;';
+        
+        const text = document.createElement('p');
+        text.textContent = 'Scan this QR code with your tablet or phone to access the full Remote Notes UI.';
+        text.style.cssText = 'font-size:14px;color:var(--text-2);line-height:1.5;margin-bottom:20px;';
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.textContent = 'Or click here to open in new tab';
+        link.style.cssText = 'display:block;margin-bottom:20px;color:var(--accent);font-size:13px;text-decoration:none;';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Close';
+        closeBtn.style.cssText = 'padding:8px 24px;background:var(--accent);color:white;border:none;border-radius:20px;cursor:pointer;font-weight:600;font-size:14px;';
+        closeBtn.onclick = () => document.body.removeChild(modal);
+        
+        content.appendChild(title);
+        content.appendChild(qr);
+        content.appendChild(text);
+        content.appendChild(link);
+        content.appendChild(closeBtn);
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+      })
+      .catch(e => {
+        console.error('Error fetching local IP for Remote Notes:', e);
+        alert('Could not determine local IP. Check network.');
+      });
+  }
+  
+  // Close tablet dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+      const menu = document.getElementById('tablet-menu-options');
+      const wrapper = document.getElementById('tablet-dropdown-wrapper');
+      if (menu && wrapper && !wrapper.contains(e.target)) {
+          menu.style.display = 'none';
+      }
+  });
+
+  // Auto-reconnect if the user was previously connected in this session
+  document.addEventListener('DOMContentLoaded', () => {
+      const savedRoomId = sessionStorage.getItem('remote_notes_room_id');
+      if (savedRoomId && !window.RemoteNotesEngineInstance) {
+          console.log("Auto-reconnecting to Remote Notes Room:", savedRoomId);
+          window.RemoteNotesEngineInstance = new RemoteNotesEngine(savedRoomId);
+      }
+  });
+</script>
+
 </body>
 </html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura Remote Stylus</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f4f4f4;
+        }
+
+        /* ── Canvas ──────────────────────────────────────────────── */
+        #canvas-container { width: calc(100% - 24px); height: calc(100% - 90px); margin: 75px auto 15px auto; position: relative; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; background: transparent; }
+
+        /* ── Tablet Toolbar ──────────────────────────────────────── */
+        #tablet-toolbar {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(20,20,30,0.96);
+            padding: 10px 18px; border-radius: 32px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            display: flex; gap: 8px; z-index: 1000; align-items: center;
+        }
+        .tool-btn {
+            background: none; border: none; font-size: 24px; cursor: pointer;
+            padding: 5px 7px; border-radius: 8px; transition: background 0.15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .tool-btn:hover, .tool-btn.active { background: rgba(255,122,89,0.25); }
+        .color-picker {
+            width: 28px; height: 28px; border: 2px solid rgba(255,255,255,0.2);
+            padding: 0; cursor: pointer; border-radius: 50%; overflow: hidden; background: none;
+        }
+        #tb-size { width: 70px; accent-color: #ff7a59; cursor: pointer; }
+        #tb-size-label { font-size: 11px; color: rgba(255,255,255,0.6); min-width: 28px; }
+        .tb-sep { width: 1px; height: 24px; background: rgba(255,255,255,0.15); margin: 0 4px; }
+
+        /* ── Hamburger Button ────────────────────────────────────── */
+        #hamburger-btn {
+            position: fixed; top: 16px; left: 16px; z-index: 1003;
+            background: rgba(20,20,30,0.92); border: none; border-radius: 10px;
+            padding: 9px 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            cursor: pointer; font-size: 20px; color: #fff; line-height: 1;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ── Hamburger Sidebar ───────────────────────────────────── */
+        #hamburger-sidebar {
+            position: fixed; top: 0; left: -300px; width: 300px; height: 100%;
+            background: #13131f; color: #ddd;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+            z-index: 1002; transition: left 0.28s cubic-bezier(0.4,0,0.2,1);
+            overflow-y: auto; overflow-x: hidden;
+            padding-top: 58px;
+        }
+        #hamburger-sidebar::-webkit-scrollbar { width: 4px; }
+        #hamburger-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+        #hamburger-sidebar.open { left: 0; }
+
+        /* ── Top Nav ─────────────────────────────────────────────── */
+        #top-nav {
+            position: fixed; top: 16px; right: 16px; z-index: 1001;
+            background: rgba(20,20,30,0.92); padding: 8px 14px; border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            display: flex; align-items: center; gap: 10px;
+        }
+        #nav-label { font-weight: bold; font-family: monospace; color: #ff7a59; font-size: 13px; }
+        .nav-btn {
+            background: rgba(255,122,89,0.2); color: #ff7a59;
+            border: 1px solid rgba(255,122,89,0.4); border-radius: 6px;
+            padding: 5px 12px; font-weight: bold; cursor: pointer; font-size: 12px;
+            transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+        }
+        .nav-btn:hover, .nav-btn:active { background: rgba(255,122,89,0.4); }
+        .nav-btn.green { background: rgba(40,167,69,0.2); color: #28a745; border-color: rgba(40,167,69,0.4); }
+        .nav-btn.green:hover { background: rgba(40,167,69,0.4); }
+
+        /* ══════════════════════════════════════════════════════════
+           Sidebar inner styles — used by renderHamburgerMenu()
+           ══════════════════════════════════════════════════════════ */
+
+        /* new sb-* classes */
+        .sb-note-group { padding: 4px 8px 2px; }
+        .sb-note-header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; border-radius: 8px; }
+        .sb-note-icon { font-size: 14px; flex-shrink: 0; }
+        .sb-note-title { font-size: 13px; font-weight: 600; color: #e0e0e0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sb-note-meta { font-size: 10px; color: #555; white-space: nowrap; }
+        .sb-note-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .sb-action-btn { font-size: 10px; padding: 2px 7px; border-radius: 5px; cursor: pointer; border: 1px solid; font-weight: 600; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+        .sb-action-btn.refresh { color: #8ecdf7; border-color: rgba(142,205,247,0.4); background: rgba(142,205,247,0.08); }
+        .sb-action-btn.refresh:hover { background: rgba(142,205,247,0.2); }
+        .sb-action-btn.del { color: #f47474; border-color: rgba(244,116,116,0.4); background: rgba(244,116,116,0.08); }
+        .sb-action-btn.del:hover { background: rgba(244,116,116,0.2); }
+        .sb-draw-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 24px; border-radius: 7px; cursor: pointer; margin: 2px 8px; transition: background 0.15s; -webkit-tap-highlight-color: transparent; }
+        .sb-draw-item:hover, .sb-draw-item:active { background: rgba(255,255,255,0.06); }
+        .sb-draw-item.active { background: rgba(255,122,89,0.12); }
+        .sb-draw-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); flex-shrink: 0; }
+        .sb-draw-item.active .sb-draw-dot { background: #ff7a59; }
+        .sb-draw-name { flex: 1; font-size: 12px; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sb-draw-item.active .sb-draw-name { color: #ff7a59; font-weight: 600; }
+        .sb-draw-actions { display: flex; gap: 3px; }
+        .sb-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 2px 10px 4px; }
+        .sb-standalone-item { display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; transition: background 0.15s; -webkit-tap-highlight-color: transparent; }
+        .sb-standalone-item:hover { background: rgba(255,255,255,0.05); }
+        .sb-standalone-item.active { background: rgba(255,122,89,0.12); }
+        .sb-standalone-name { flex: 1; font-size: 13px; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sb-standalone-item.active .sb-standalone-name { color: #ff7a59; font-weight: 600; }
+        .sb-empty { padding: 24px 16px; text-align: center; color: #555; font-size: 13px; }
+
+        /* legacy compat (in case cached JS uses old class names) */
+        .hamburger-tabs { display: flex; border-bottom: 1px solid #2a2a3a; margin-bottom: 6px; }
+        .hamburger-tab-btn { flex: 1; padding: 10px; border: none; background: transparent; cursor: pointer; font-weight: bold; color: #888; font-size: 12px; }
+        .hamburger-tab-btn.active { color: #ff7a59; border-bottom: 2px solid #ff7a59; }
+        .sidebar-section { padding: 8px 14px; border-bottom: 1px solid #1e1e2e; }
+        .sidebar-item { padding: 7px 10px; margin: 3px 0; border-radius: 6px; cursor: pointer; font-size: 13px; color: #ccc; transition: background 0.15s; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.05); }
+        .sidebar-item.active { background: rgba(255,122,89,0.12); color: #ff7a59; font-weight: bold; }
+        .tb-btn { cursor: pointer; }
+        .tb-btn:hover { opacity: 0.8; }
+        .refresh-btn { font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <button id="hamburger-btn" onclick="document.getElementById('hamburger-sidebar').classList.toggle('open')">☰</button>
+    <div id="hamburger-sidebar"></div>
+
+    <div id="top-nav">
+        <button id="btn-prev" class="nav-btn" onclick="window.RemoteStylusSyncInstance.switchCanvas(-1)">◀ Prev</button>
+        <span id="nav-label">Canvas</span><button id="btn-rename" class="nav-btn" onclick="renameCurrentCanvas()">✏️</button>
+        <button id="btn-next" class="nav-btn" onclick="window.RemoteStylusSyncInstance.switchCanvas(1)">Next ▶</button>
+        <button class="nav-btn green" onclick="window.RemoteStylusSyncInstance.sendDoneBatch()">✓ Done &amp; Sync</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="drawing-surface"></canvas>
+    </div>
+
+    <div id="tablet-toolbar" style="z-index: 999999; pointer-events: auto;">
+        <button class="tool-btn active" id="tb-pen" onclick="setStylusTool('pen')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+        </button>
+        <button class="tool-btn" id="tb-highlighter" onclick="setStylusTool('highlighter')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+        </button>
+        <button class="tool-btn" id="tb-eraser" onclick="setStylusTool('eraser')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"></path><path d="M17.5 11.5L6.5 22.5"></path></svg>
+        </button>
+        <div class="tb-sep"></div>
+        <input type="color" class="color-picker" id="tb-color" value="#000000" onchange="StylusEngine.setColor(this.value)">
+        <div class="tb-sep"></div>
+        <input type="range" id="tb-size" min="1" max="20" value="3" step="1"
+            oninput="StylusEngine.setSize(this.value); document.getElementById('tb-size-label').textContent = this.value + 'px';">
+        <span id="tb-size-label">3px</span>
+        <div class="tb-sep"></div>
+        <button class="tool-btn" onclick="StylusEngine.undo()">↩️</button>
+        <button class="tool-btn" onclick="StylusEngine.redo()">↪️</button>
+    </div>
+
+    <script>
+        function renameCurrentCanvas() {
+        if (!window.RemoteStylusSyncInstance || window.RemoteStylusSyncInstance.canvases.length === 0) return;
+        var canvasInfo = window.RemoteStylusSyncInstance.canvases[window.RemoteStylusSyncInstance.currentCanvasIndex];
+        if (!canvasInfo || !canvasInfo.id) return;
+        var currentName = canvasInfo.title || 'Draw';
+        
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);z-index:9999999;display:flex;align-items:center;justify-content:center;';
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#1a1a2e;border:1px solid #ff7a59;border-radius:12px;padding:20px 24px;width:280px;box-shadow:0 10px 40px rgba(0,0,0,0.6);';
+        box.innerHTML = `
+            <h3 style="margin:0 0 12px;color:#fff;font-size:15px;">Rename Drawing</h3>
+            <input id="_rename_inp_remote" type="text" value="${currentName}" style="width:100%;box-sizing:border-box;padding:8px 10px;background:#111;border:1px solid #ff7a59;color:#fff;border-radius:6px;font-size:14px;outline:none;">
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+                <button id="_rename_cancel_remote" style="padding:6px 14px;background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;cursor:pointer;">Cancel</button>
+                <button id="_rename_save_remote" style="padding:6px 14px;background:#ff7a59;border:none;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Save</button>
+            </div>`;
+        ov.appendChild(box);
+        document.body.appendChild(ov);
+        var inp = box.querySelector('#_rename_inp_remote');
+        inp.focus(); inp.select();
+        
+        var doSave = () => {
+            var newTitle = inp.value.trim() || currentName;
+            document.body.removeChild(ov);
+            
+            if (newTitle !== currentName) {
+                if (window.RemoteStylusSyncInstance.isConnected) {
+                    window.RemoteStylusSyncInstance.ws.send(JSON.stringify({
+                        type: 'rename-canvas',
+                        canvasId: canvasInfo.id,
+                        title: newTitle
+                    }));
+                }
+                canvasInfo.title = newTitle;
+                window.RemoteStylusSyncInstance.updateNavUI();
+                window.RemoteStylusSyncInstance.renderHamburgerMenu();
+            }
+        };
+        box.querySelector('#_rename_save_remote').addEventListener('click', doSave);
+        box.querySelector('#_rename_cancel_remote').addEventListener('click', () => document.body.removeChild(ov));
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); if (e.key === 'Escape') document.body.removeChild(ov); });
+    }
+    function setStylusTool(tool) {
+        if (!window.StylusEngine) return;
+        StylusEngine.setTool(tool);
+        ['pen','highlighter','eraser'].forEach(function(t) {
+            var btn = document.getElementById('tb-' + t);
+            if (btn) btn.classList.toggle('active', t === tool);
+        });
+    }
+    </script>
+
+    <script src="/static/js/stylus-engine.js?v=4"></script>
+    <script src="/static/js/remote-stylus-sync.js?v=4"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var roomId = urlParams.get('roomId');
+            if (roomId) {
+                window.RemoteStylusSyncInstance = new RemoteStylusSync(roomId, false);
+            } else {
+                alert('No Room ID provided.');
+            }
+            var container = document.getElementById('canvas-container');
+            window.StylusEngine.activate(container);
+        });
+    </script>
+</body>
+</html>

@@ -1,7 +1,34 @@
 window.quillEditor = null;
 let currentExternalNoteId = null; // Used for global notes
+window.currentExternalNoteId = null;
 let currentSessionNoteId = null;  // Used for highlight notes
 let saveTimeout = null;
+window.currentNotesTab = window.currentNotesTab || 'text';
+
+window.switchNotesTab = function(tab) {
+    window.currentNotesTab = tab;
+    const tabText = document.getElementById('tab-text-notes');
+    const tabCanvas = document.getElementById('tab-canvas-notes');
+    const title = document.getElementById('notes-list-title');
+    
+    if (tabText && tabCanvas) {
+        tabText.classList.toggle('active', tab === 'text');
+        tabText.style.borderBottom = tab === 'text' ? '3px solid var(--accent)' : '3px solid transparent';
+        tabText.style.color = tab === 'text' ? 'var(--text-1)' : 'var(--text-3)';
+        
+        tabCanvas.classList.toggle('active', tab === 'canvas');
+        tabCanvas.style.borderBottom = tab === 'canvas' ? '3px solid var(--accent)' : '3px solid transparent';
+        tabCanvas.style.color = tab === 'canvas' ? 'var(--text-1)' : 'var(--text-3)';
+    }
+    
+    if (title) {
+        title.textContent = tab === 'text' ? 'TEXT NOTES' : 'CANVAS NOTES';
+    }
+    
+    if (typeof loadExternalNotesList === 'function') {
+        loadExternalNotesList();
+    }
+};
 
 // Register Custom Table Blot for Quill so tables are preserved and not stripped
 if (typeof Quill !== 'undefined') {
@@ -92,6 +119,12 @@ function initQuillEditor() {
     window.quillEditor.on('text-change', function(delta, oldDelta, source) {
       // FIX R4: Ignore programmatic/API text changes to prevent phantom auto-save loops
       if (source !== 'user') return;
+      
+      // Push Deltas to the Tablet Sync Engine if connected
+      if (window.RemoteNotesEngineInstance) {
+          window.RemoteNotesEngineInstance.broadcastLocalDelta(delta);
+      }
+      
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(saveExternalNote, 5000); // Auto-save every 5 seconds
     });
@@ -511,6 +544,7 @@ window.openExternalEditorWithContent = async function(title, htmlContent) {
   }
   
   currentExternalNoteId = null;
+  window.currentExternalNoteId = null;
   currentSessionNoteId = null;
   
   const titleInput = document.getElementById('external-note-title');
@@ -541,14 +575,22 @@ function closeExternalNotes() {
 async function loadExternalNotesList() {
   if (!window.notesRepo) return;
   try {
-    const notes = await window.notesRepo.getAllNotes();
+    const allNotes = await window.notesRepo.getAllNotes();
+    let notes = [];
+    if (window.currentNotesTab === 'text') {
+        notes = allNotes.filter(n => !n.isCanvasNote && n.itemType !== 'canvas');
+    } else {
+        notes = allNotes.filter(n => n.isCanvasNote || n.itemType === 'canvas');
+    }
+
     const listEl = document.getElementById('external-notes-list');
     if (!listEl) return;
     
     listEl.innerHTML = '';
     
     if (notes.length === 0) {
-      listEl.innerHTML = '<div style="color:var(--text-3); font-size:12px; padding:10px;">No saved notes.</div>';
+      const msg = window.currentNotesTab === 'canvas' ? 'No saved canvases.' : 'No saved notes.';
+      listEl.innerHTML = `<div style="color:var(--text-3); font-size:12px; padding:10px;">${msg}</div>`;
       return;
     }
     
@@ -567,15 +609,45 @@ async function loadExternalNotesList() {
       const title = note.title || 'Untitled Note';
       const date = new Date(note.updatedAt).toLocaleString();
       
+      let canvasesHtml = '';
+      if (window.currentNotesTab === 'text' && note.html) {
+          const regex = /class=['"][^'"]*ql-stylus-canvas[^'"]*['"][^>]*data-id=['"]([^'"]+)['"]/g;
+          const canvasIds = [];
+          let match;
+          while ((match = regex.exec(note.html)) !== null) {
+              canvasIds.push(match[1]);
+          }
+          if (canvasIds.length > 0) {
+              canvasIds.forEach((cId, idx) => {
+                  const isLast = idx === canvasIds.length - 1;
+                  const prefix = isLast ? '└─' : '├─';
+                  canvasesHtml += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 4px 0 4px 16px; font-size:13px; color:var(--text-2);">
+                      <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="color:var(--text-3); font-family:monospace;">${prefix}</span> 
+                        <span>Canvas ${idx + 1}</span>
+                      </div>
+                      <div style="display:flex; gap:4px;">
+                        <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); if(window.StylusEngine && window.StylusEngine.activeFacade){ window.StylusEngine.activeFacade.repo.clear(); } loadExternalNote('${note.id}'); setTimeout(() => { const el = document.querySelector('.ql-stylus-canvas[data-id=\\'${cId}\\']'); if(el) el.scrollIntoView({behavior:'smooth', block:'center'}); }, 500);">Open</button>
+                      </div>
+                    </div>
+                  `;
+              });
+          }
+      }
+
       div.innerHTML = `
-        <div style="font-weight:600; font-size:14px; margin-bottom:4px; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${title}</div>
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-weight:600; font-size:14px; margin-bottom:4px; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          <span style="margin-right:4px;">${window.currentNotesTab === 'canvas' ? '🎨' : '📚'}</span>${title}
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: ${canvasesHtml ? '8px' : '0'};">
           <div style="font-size:11px; color:var(--text-3);">${date}</div>
           <div style="display:flex; gap:4px;">
-            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid transparent; border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${note.id}')">Read</button>
-            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid transparent; border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>
+            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${note.id}')">Read</button>
+            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>
           </div>
         </div>
+        ${canvasesHtml}
       `;
       listEl.appendChild(div);
     });
@@ -731,22 +803,95 @@ function updateMarkdownUI() {
 }
 window.updateMarkdownUI = updateMarkdownUI;
 
-function createNewExternalNote() {
+async function createNewExternalNote() {
   currentExternalNoteId = null;
+  window.currentExternalNoteId = null;
   currentSessionNoteId = null;
   const titleInput = document.getElementById('external-note-title');
   if (titleInput) {
-    titleInput.value = '';
+    titleInput.value = window.currentNotesTab === 'canvas' ? 'Untitled Canvas' : 'Untitled Note';
     setTimeout(() => titleInput.focus(), 50);
   }
-  // FIX R3: Reset Delta model properly using setText('\n') instead of .root.innerHTML = ''
-  if (window.quillEditor) window.quillEditor.setText('\n');
-  const rawEditor = document.getElementById('markdown-source-editor');
-  if (rawEditor) rawEditor.value = '';
-  if (window.editorModeController && window.editorModeController.mode === 'markdown') {
-    window.editorModeController.switchToVisual();
+  
+  const newId = Date.now();
+  currentExternalNoteId = newId;
+  window.currentExternalNoteId = newId;
+  
+  if (window.currentNotesTab === 'canvas') {
+      document.getElementById('quill-editor').style.display = 'none';
+      document.getElementById('markdown-source-editor').style.display = 'none';
+      const qlToolbar = document.querySelector('.ql-toolbar');
+      if (qlToolbar) qlToolbar.style.display = 'none';
+      
+      const txtTools = document.getElementById('text-note-tools');
+      if (txtTools) txtTools.style.display = 'none';
+      const canvasTools = document.getElementById('canvas-note-tools');
+      if (canvasTools) canvasTools.style.display = 'flex';
+      
+      const canvasContainer = document.getElementById('pure-canvas-container');
+      if (canvasContainer) {
+          canvasContainer.style.display = 'block';
+          canvasContainer.dataset.id = newId;
+          if (window.StylusEngine) window.StylusEngine.activate(canvasContainer);
+      }
+  } else {
+      document.getElementById('quill-editor').style.display = 'block';
+      const qlToolbar = document.querySelector('.ql-toolbar');
+      if (qlToolbar) qlToolbar.style.display = 'block';
+      
+      const txtTools = document.getElementById('text-note-tools');
+      if (txtTools) txtTools.style.display = 'flex';
+      const canvasTools = document.getElementById('canvas-note-tools');
+      if (canvasTools) canvasTools.style.display = 'none';
+      
+      const canvasContainer = document.getElementById('pure-canvas-container');
+      if (canvasContainer) {
+          canvasContainer.style.display = 'none';
+          if (window.StylusEngine) window.StylusEngine.deactivate();
+      }
+      
+      if (window.quillEditor) {
+          window.quillEditor.setText('\n');
+      }
+      const rawEditor = document.getElementById('markdown-source-editor');
+      if (rawEditor) rawEditor.value = '';
+      if (window.editorModeController && window.editorModeController.mode === 'markdown') {
+        window.editorModeController.switchToVisual();
+      }
   }
+  
+  await saveExternalNote(true); // Silent auto-save to guarantee it exists in the list immediately
   loadExternalNotesList();
+}
+
+/**
+ * ToolbarStateAdapter — reads current toolbar DOM state and re-applies it
+ * to the active StylusEngine facade after every canvas activation.
+ * Bug 9 fix: StylusEngine.activate() creates a new Facade each time, which
+ * resets currentSize/currentColor/currentTool to defaults. This adapter
+ * bridges DOM state → Engine API without coupling them (Adapter Pattern).
+ * Backward compatible: gracefully no-ops if elements or engine are absent.
+ */
+function _restoreToolbarStateToEngine() {
+    if (!window.StylusEngine || !window.StylusEngine.activeFacade) return;
+    
+    // Read from both tablet toolbar IDs and desktop toolbar IDs
+    const sizeEl = document.getElementById('tb-size') || document.getElementById('stylus-size');
+    const colorEl = document.getElementById('tb-color') || document.getElementById('stylus-color');
+    const activeToolBtn = document.querySelector('.tool-btn.active[id^="tb-"]');
+    
+    if (sizeEl && sizeEl.value) {
+        window.StylusEngine.setSize(parseFloat(sizeEl.value));
+    }
+    if (colorEl && colorEl.value) {
+        window.StylusEngine.setColor(colorEl.value);
+    }
+    if (activeToolBtn) {
+        const tool = activeToolBtn.id.replace('tb-', '');
+        if (['pen', 'highlighter', 'eraser'].includes(tool)) {
+            window.StylusEngine.setTool(tool);
+        }
+    }
 }
 
 async function loadExternalNote(id) {
@@ -756,24 +901,80 @@ async function loadExternalNote(id) {
     const note = await window.notesRepo.getNote(parsedId);
     if (note) {
       currentExternalNoteId = note.id;
+      window.currentExternalNoteId = note.id;
       currentSessionNoteId = null; // Clear session note context
       document.getElementById('external-note-title').value = note.title || '';
-      if (window.quillEditor) {
-        // FIX Bug 8: Use dangerouslyPasteHTML to go through Quill's Delta model.
-        // Direct .root.innerHTML assignment bypasses undo history — Ctrl+Z after load shows garbage.
-        const html = note.content || '';
-        if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-          window.quillEditor.setText('\n');
-          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
-        } else {
-          window.quillEditor.root.innerHTML = html;
-        }
+      
+      const isCanvas = note.isCanvasNote || note.itemType === 'canvas';
+      
+      if (isCanvas) {
+          document.getElementById('quill-editor').style.display = 'none';
+          document.getElementById('markdown-source-editor').style.display = 'none';
+          const qlToolbar = document.querySelector('.ql-toolbar');
+          if (qlToolbar) qlToolbar.style.display = 'none';
+          
+          const txtTools = document.getElementById('text-note-tools');
+          if (txtTools) txtTools.style.display = 'none';
+          const canvasTools = document.getElementById('canvas-note-tools');
+          if (canvasTools) canvasTools.style.display = 'flex';
+          
+          const canvasContainer = document.getElementById('pure-canvas-container');
+          if (canvasContainer) {
+              canvasContainer.style.display = 'block';
+              canvasContainer.dataset.id = note.id;
+              
+              if (note.content && window.StylusStore) {
+                  try {
+                      const strokes = JSON.parse(note.content);
+                      if (Array.isArray(strokes)) {
+                          window.StylusStore.set(note.id, strokes);
+                      }
+                  } catch (e) {}
+              }
+              
+              if (window.StylusEngine) {
+                  window.StylusEngine.activate(canvasContainer);
+                  // Bug 9 fix: restore toolbar state after activate() creates a new facade
+                  _restoreToolbarStateToEngine();
+              }
+          }
+      } else {
+          document.getElementById('quill-editor').style.display = 'block';
+          const qlToolbar = document.querySelector('.ql-toolbar');
+          if (qlToolbar) qlToolbar.style.display = 'block';
+          
+          const txtTools = document.getElementById('text-note-tools');
+          if (txtTools) txtTools.style.display = 'flex';
+          const canvasTools = document.getElementById('canvas-note-tools');
+          if (canvasTools) canvasTools.style.display = 'none';
+          
+          const canvasContainer = document.getElementById('pure-canvas-container');
+          if (canvasContainer) {
+              canvasContainer.style.display = 'none';
+              if (window.StylusEngine) window.StylusEngine.deactivate();
+          }
+          
+          if (window.quillEditor) {
+            const html = note.content || '';
+            if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+              window.quillEditor.setText('\n');
+              window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+            } else {
+              window.quillEditor.root.innerHTML = html;
+            }
+          }
+          const rawEditor = document.getElementById('markdown-source-editor');
+          if (rawEditor) {
+            rawEditor.value = htmlToMarkdown(note.content || '');
+          }
       }
-      const rawEditor = document.getElementById('markdown-source-editor');
-      if (rawEditor) {
-        rawEditor.value = htmlToMarkdown(note.content || '');
-      }
+      
       loadExternalNotesList(); // Refresh list to update selection highlight
+      
+      // Notify Tablet that the active note has changed
+      if (window.RemoteNotesEngineInstance) {
+          window.RemoteNotesEngineInstance.broadcastNoteSwitch();
+      }
     }
   } catch(e) {
     console.error("Failed to load note:", e);
@@ -785,10 +986,20 @@ async function saveExternalNote(silent = false) {
   if (window.editorModeController) window.editorModeController.syncBeforeSave();
   
   const title = document.getElementById('external-note-title').value.trim();
-  const content = window.quillEditor.root.innerHTML;
+  let content = window.quillEditor.root.innerHTML;
+  
+  if (window.currentNotesTab === 'canvas') {
+      const canvasContainer = document.getElementById('pure-canvas-container');
+      const canvasId = canvasContainer ? canvasContainer.dataset.id : null;
+      if (canvasId && window.StylusStore) {
+          const strokes = window.StylusStore.get(canvasId) || [];
+          content = JSON.stringify(strokes);
+      }
+  }
+  
   const rawText = window.quillEditor.getText().trim();
   
-  if (!content || content === '<p><br></p>') {
+  if ((!content || content === '<p><br></p>') && window.currentNotesTab !== 'canvas') {
     if (!silent) alert("Cannot save an empty note.");
     return;
   }
@@ -830,14 +1041,17 @@ async function saveExternalNote(silent = false) {
 
   const noteToSave = {
     id: currentExternalNoteId || Date.now(), // Create new ID if it's a new global note
-    title: title || 'Untitled Note',
+    title: title || (window.currentNotesTab === 'canvas' ? 'Untitled Canvas' : 'Untitled Note'),
     content: content,
-    rawText: rawText
+    rawText: rawText,
+    itemType: window.currentNotesTab === 'canvas' ? 'canvas' : 'text',
+    isCanvasNote: window.currentNotesTab === 'canvas'
   };
   
   try {
     const saved = await window.notesRepo.saveNote(noteToSave);
     currentExternalNoteId = saved.id;
+    window.currentExternalNoteId = saved.id;
     if (!silent) {
       // FIX Bug 3: Guard btn — overlay may be hidden when silent auto-save fires
       const btn = document.getElementById('save-external-btn');
@@ -956,6 +1170,13 @@ function htmlToMarkdown(htmlOrNode) {
             ? `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`
             : `\n<!-- diagram -->\n`;
         }
+        // Handle Canvas drawings: emit the raw SVG so it isn't lost
+        if (node.classList && node.classList.contains('ql-stylus-canvas')) {
+          const svg = node.getAttribute('data-svg') || '';
+          if (svg) {
+            return `\n${svg}\n\n`;
+          }
+        }
         // Custom table containers: let the inner <table> case handle the content
         if (node.classList && node.classList.contains('ql-custom-table-container')) {
           return childrenText;
@@ -1061,6 +1282,7 @@ window.editSessionNoteInFullEditor = async function(id) {
 
   currentSessionNoteId = note.id;
   currentExternalNoteId = null; // Clear global context
+  window.currentExternalNoteId = null;
 
   // FIX R2: Direct overlay display without redundant openExternalNotes() call
   const overlay = document.getElementById('external-notes-overlay');
