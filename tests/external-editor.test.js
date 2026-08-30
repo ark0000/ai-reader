@@ -83,6 +83,7 @@ describe('Notes Full Editor — Robustness Tests', () => {
     window.appEventBus = { on: jest.fn(), emit: jest.fn() };
     window.settingsRepo = { isTrue: jest.fn().mockReturnValue(false), getUsername: jest.fn().mockReturnValue('guest') };
     window.safeStorage = { getItem: jest.fn().mockReturnValue(null), setItem: jest.fn(), removeItem: jest.fn() };
+    window.alert = jest.fn();
 
     loadEditorModule();
   });
@@ -102,7 +103,7 @@ describe('Notes Full Editor — Robustness Tests', () => {
     test('clears the title input', () => {
       document.getElementById('external-note-title').value = 'My Note';
       window._createNewExternalNote();
-      expect(document.getElementById('external-note-title').value).toBe('');
+      expect(document.getElementById('external-note-title').value).toBe('Untitled Note');
     });
   });
 

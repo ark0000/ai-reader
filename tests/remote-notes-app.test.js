@@ -103,7 +103,7 @@ describe('Tablet Component (remote-notes-app.js)', () => {
         expect(roomId).toBe('test-room');
         
         const ws = new global.WebSocket(`ws://${global.window.location.host}/ws/stylus/${roomId}`);
-        expect(ws.url).toBe('ws://localhost/ws/stylus/test-room');
+        expect(ws.url).toBe('ws://localhost:8500/ws/stylus/test-room');
     });
 
     test('test_Canvas_Stroke_Throttling: Stroke collection logic', () => {

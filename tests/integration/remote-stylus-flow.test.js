@@ -63,6 +63,7 @@ function stubDOM(canvasDefs = []) {
     const node = document.createElement('div');
     node.className = 'ql-stylus-canvas';
     node.dataset.id = id; node.dataset.title = title || 'Draw';
+    node.scrollIntoView = jest.fn();
     document.body.appendChild(node);
   });
 }
@@ -77,15 +78,13 @@ function stubGlobals({ notes = [] } = {}) {
     setTool: jest.fn(), setColor: jest.fn(), setSize: jest.fn(),
     getFacadeForId: jest.fn().mockReturnValue(null),
   };
+  window.fetch = jest.fn().mockResolvedValue({ json: () => Promise.resolve({}) });
+  global.fetch = window.fetch;
   window.TabletSync = { setActiveCanvas: jest.fn(), broadcastCanvasInfo: jest.fn() };
   window.notesRepo = {
     getAllNotes: jest.fn().mockResolvedValue(notes)
   };
-  delete window.location;
-  window.location = {
-    protocol:'http:', host:'localhost:8500',
-    search:'?roomId=r1&mode=A', href:'http://localhost:8500/remote-stylus?roomId=r1&mode=A'
-  };
+  window.history.pushState({}, '', '?roomId=r1&mode=A');
 }
 
 function teardown() {
@@ -107,7 +106,7 @@ describe('Flow: canvas switch (Desktop side)', () => {
     stubDOM([{ id:'cv1', title:'Draw 1' }, { id:'cv2', title:'Draw 2' }]);
     loadSync();
     // Set up as desktop sync
-    const sync = new RemoteStylusSync('room-desktop', true);
+    window.TabletSync.connectTabletA('room-desktop');
     ws = MockWebSocket.lastInstance; ws._open();
   });
   afterEach(teardown);
@@ -149,11 +148,9 @@ describe('Flow: strokes sync (Tablet → Desktop)', () => {
     stubGlobals();
     stubDOM([{ id:'canvas-A' }]);
     loadSync();
-    desktopSync = new RemoteStylusSync('room-sync', true);
+    global.fetch = jest.fn().mockResolvedValue({ json: () => Promise.resolve({}) });
+    window.TabletSync.connectTabletA();
     ws = MockWebSocket.lastInstance; ws._open();
-    // Register desktop listener via TabletSync (simulates connectTabletA)
-    global.fetch = jest.fn().mockRejectedValue(new Error('no-net'));
-    window.TabletSync.connectTabletA = window.TabletSync.connectTabletA || function() {};
   });
   afterEach(teardown);
 

@@ -81,9 +81,7 @@ function stubGlobals() {
     getFacadeForId: jest.fn().mockReturnValue(null),
   };
   window.TabletSync = { setActiveCanvas: jest.fn(), broadcastCanvasInfo: jest.fn() };
-  delete window.location;
-  window.location = { protocol:'http:', host:'localhost:8500',
-    search:'?roomId=r1&mode=A', href:'http://localhost:8500/remote-stylus?roomId=r1&mode=A' };
+  // Removed window.location mock since it's globally set in package.json
 }
 
 function teardown() {
