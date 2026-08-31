@@ -125,3 +125,50 @@ def test_document_storage_isolation():
     
     assert res1["scrollState"]["page"] == 5
     assert res2["scrollState"]["page"] == 10
+
+def test_soft_delete_and_restore():
+    headers = get_auth_headers("testuser_999")
+    user_id = get_user_id("testuser_999")
+    
+    note_payload = {
+        "id": int(time.time() * 1000) + 1,
+        "title": "Trash Test Note",
+        "content": "<p>Content to be trashed</p>",
+        "rawText": "Content to be trashed",
+        "createdAt": time.time() * 1000,
+        "updatedAt": time.time() * 1000
+    }
+    
+    # 1. Create a note
+    response = client.post("/api/notes/global", json=note_payload, headers=headers)
+    assert response.status_code == 200
+    
+    # 2. Soft delete it
+    response = client.delete(f"/api/notes/global/{note_payload['id']}", headers=headers)
+    assert response.status_code == 200
+    
+    # 3. Verify it is gone from active notes
+    response = client.get(f"/api/notes/global/{note_payload['id']}", headers=headers)
+    assert response.status_code == 404
+    
+    # 4. Verify it exists in trash bin via Admin endpoint
+    response = client.get(f"/api/admin/users/{user_id}/deleted_notes")
+    assert response.status_code == 200
+    trash_data = response.json()
+    assert "deleted_notes" in trash_data
+    assert any(n["id"] == note_payload["id"] for n in trash_data["deleted_notes"])
+    
+    # 5. Restore it via Admin endpoint
+    response = client.post(f"/api/admin/users/{user_id}/notes/{note_payload['id']}/restore")
+    assert response.status_code == 200
+    
+    # 6. Verify it is back in active notes
+    response = client.get(f"/api/notes/global/{note_payload['id']}", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["title"] == "Trash Test Note"
+    
+    # 7. Verify it is gone from trash bin
+    response = client.get(f"/api/admin/users/{user_id}/deleted_notes")
+    assert response.status_code == 200
+    trash_data = response.json()
+    assert not any(n["id"] == note_payload["id"] for n in trash_data["deleted_notes"])

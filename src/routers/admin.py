@@ -407,6 +407,24 @@ async def dump_user_notes(target_user_id: int, _: None = Depends(require_dev_mod
             "document_storage": doc_storage
         }
 
+@router.get("/users/{target_user_id}/deleted_notes")
+async def get_deleted_user_notes(target_user_id: int, _: None = Depends(require_dev_mode)):
+    """Fetch the trash bin (deleted global notes) for a specific user, after cleaning up 30+ day old items."""
+    from src.database import GlobalNotesRepository
+    GlobalNotesRepository.cleanup_old_deleted()
+    deleted_notes = GlobalNotesRepository.get_deleted(target_user_id)
+    return {"deleted_notes": deleted_notes}
+
+@router.post("/users/{target_user_id}/notes/{note_id}/restore")
+async def restore_user_note(target_user_id: int, note_id: int, _: None = Depends(require_dev_mode)):
+    """Restore a deleted global note."""
+    from src.database import GlobalNotesRepository
+    success = GlobalNotesRepository.restore(target_user_id, note_id)
+    if success:
+        return {"status": "success", "message": "Note restored successfully."}
+    else:
+        raise HTTPException(status_code=404, detail="Note not found or could not be restored.")
+
 class DeleteNoteRequest(BaseModel):
     type: str # 'global' or 'doc'
     docOrGlobalIdx: int
@@ -418,11 +436,13 @@ async def delete_user_note(target_user_id: int, req: DeleteNoteRequest, _: None 
     with get_db_connection() as conn:
         cursor = conn.cursor()
         if req.type == 'global':
-            cursor.execute("SELECT id FROM global_notes WHERE user_id = ?", (target_user_id,))
+            # Support soft delete
+            cursor.execute("SELECT id FROM global_notes WHERE user_id = ? AND deleted_at IS NULL", (target_user_id,))
             global_notes = cursor.fetchall()
             if 0 <= req.docOrGlobalIdx < len(global_notes):
                 note_id = global_notes[req.docOrGlobalIdx]['id']
-                cursor.execute("DELETE FROM global_notes WHERE id = ?", (note_id,))
+                from src.database import GlobalNotesRepository
+                GlobalNotesRepository.delete(target_user_id, note_id)
         elif req.type == 'doc':
             cursor.execute("SELECT id, data_json FROM document_storage WHERE user_id = ?", (target_user_id,))
             docs = cursor.fetchall()

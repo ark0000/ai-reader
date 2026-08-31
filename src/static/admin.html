@@ -936,7 +936,9 @@ function renderUsers(d) {
       + '<td class="num-cell">' + (u.total_documents||0) + '</td>'
       + '<td class="num-cell">' + (u.total_pages||0) + '</td>'
       + '<td class="muted-cell">' + ts(u.last_activity||u.last_seen) + '</td>'
-      + '<td style="display:flex; gap:6px;"><button class="refresh-btn" style="padding:2px 8px;font-size:10px" onclick="dumpUserNotes(' + u.id + ', \'' + esc(u.username) + '\')">View Notes</button>'
+      + '<td style="display:flex; gap:6px; align-items:center;">'
+      + '<button class="refresh-btn" style="padding:2px 8px;font-size:10px" onclick="dumpUserNotes(' + u.id + ', \'' + esc(u.username) + '\')">View Notes</button>'
+      + '<button class="refresh-btn" style="padding:2px 8px;font-size:10px" onclick="viewUserTrash(' + u.id + ', \'' + esc(u.username) + '\')">🗑️ Trash</button>'
       + '<button class="refresh-btn" style="padding:2px 8px;font-size:10px;color:var(--danger);border-color:var(--danger);" onclick="deleteUser(' + u.id + ', \'' + esc(u.username) + '\')">Delete</button></td>'
       + '</tr>';
   }).join('');
@@ -950,6 +952,8 @@ async function dumpUserNotes(userId, username) {
         if(!resp.ok) throw new Error("Failed to fetch dump");
         const data = await resp.json();
         
+        _isTrashView = false;
+        _currentUserId = userId;
         window._currentNotesData = data;
         
         document.getElementById('notes-modal-title').innerHTML = `📝 Notes Viewer <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">(${esc(username)})</span>`;
@@ -1018,6 +1022,52 @@ async function dumpUserNotes(userId, username) {
 }
 
 let _currentSelectedNote = null;
+let _isTrashView = false;
+let _currentUserId = null;
+
+async function viewUserTrash(userId, username) {
+    try {
+        const resp = await fetch(`/api/admin/users/${userId}/deleted_notes`);
+        if(!resp.ok) throw new Error("Failed to fetch trash");
+        const data = await resp.json();
+        
+        window._currentNotesData = { global_notes: data.deleted_notes || [], document_storage: [] };
+        _isTrashView = true;
+        _currentUserId = userId;
+        
+        document.getElementById('notes-modal-title').innerHTML = `🗑️ Trash Bin (30 Days) <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">(${esc(username)})</span>`;
+        
+        let listHtml = '';
+        
+        if (data.deleted_notes && data.deleted_notes.length > 0) {
+            data.deleted_notes.forEach((note, idx) => {
+                const title = note.title || 'Untitled Global Note';
+                const date = new Date(note.deleted_at * 1000).toLocaleString();
+                listHtml += `
+                <div onclick="viewNoteDetail('global', ${idx})" style="padding:12px 16px; border-bottom:1px solid var(--border); cursor:pointer; background:var(--surface2);">
+                    <div style="font-weight:600; font-size:14px; margin-bottom:4px; color:var(--danger); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(title)}</div>
+                    <div style="font-size:11px; color:var(--text-muted);">Deleted: ${date}</div>
+                </div>`;
+            });
+        }
+        
+        if (!listHtml) {
+            listHtml = '<div style="padding:20px; color:var(--text-muted); text-align:center; font-size:13px;">Trash is empty.</div>';
+        }
+        
+        document.getElementById('notes-list-sidebar').innerHTML = listHtml;
+        document.getElementById('note-view-title').textContent = 'Select a Note';
+        document.getElementById('note-view-type').style.display = 'none';
+        document.getElementById('note-view-content').innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:100px;">Click a note on the left to view its content.</div>';
+        
+        document.getElementById('note-delete-btn').style.display = 'none';
+        document.getElementById('notes-modal').style.display = 'flex';
+        
+    } catch(err) {
+        console.error(err);
+        alert('Error fetching user trash: ' + err.message);
+    }
+}
 
 function viewNoteDetail(type, docOrGlobalIdx, noteIdx) {
     if (!window._currentNotesData) return;
@@ -1053,9 +1103,6 @@ function viewNoteDetail(type, docOrGlobalIdx, noteIdx) {
             displayContent += note.txt || note.text || note.content;
         }
         
-        if (!displayContent) displayContent = JSON.stringify(note, null, 2);
-        
-        content += displayContent;
         meta = 'Document Note';
         document.getElementById('note-view-type').className = 'pill';
         document.getElementById('note-view-type').textContent = 'Document';
@@ -1072,7 +1119,38 @@ function viewNoteDetail(type, docOrGlobalIdx, noteIdx) {
     }
     
     _currentSelectedNote = { type, docOrGlobalIdx, noteIdx };
-    document.getElementById('note-delete-btn').style.display = 'inline-block';
+    
+    const actionBtn = document.getElementById('note-delete-btn');
+    actionBtn.style.display = 'inline-block';
+    
+    if (_isTrashView) {
+        actionBtn.innerHTML = '✅ Restore Note';
+        actionBtn.style.background = 'var(--accent)';
+        actionBtn.style.borderColor = 'var(--accent)';
+        actionBtn.onclick = async () => {
+            if (!confirm("Restore this note to the user's active library?")) return;
+            try {
+                const noteId = window._currentNotesData.global_notes[docOrGlobalIdx].id;
+                const resp = await fetch(`/api/admin/users/${_currentUserId}/notes/${noteId}/restore`, {
+                    method: 'POST'
+                });
+                if(resp.ok) {
+                    alert("Note restored successfully!");
+                    document.getElementById('notes-modal').style.display = 'none';
+                } else {
+                    alert("Failed to restore.");
+                }
+            } catch(e) {
+                alert(e);
+            }
+        };
+    } else {
+        actionBtn.innerHTML = '🗑 Delete Note';
+        actionBtn.style.background = 'none';
+        actionBtn.style.borderColor = 'var(--danger)';
+        actionBtn.style.color = 'var(--danger)';
+        actionBtn.onclick = deleteSelectedNote;
+    }
 }
 
 async function deleteSelectedNote() {

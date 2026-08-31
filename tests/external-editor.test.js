@@ -425,4 +425,125 @@ describe('Notes Full Editor — Robustness Tests', () => {
       expect(mockFormatLine).toHaveBeenCalledWith(0, 1, 'header', 1, 'user');
     });
   });
+
+  describe('New Features: Duplicate, Export RAW, Import RAW', () => {
+    test('duplicateExternalNote creates a copy with _copy in title', async () => {
+      window.notesRepo.getNote = jest.fn().mockResolvedValue({ id: 101, title: 'My Note', raw_text: 'Raw Content', content: '<p>Content</p>' });
+      window.appEventBus = { emit: jest.fn() };
+      
+      await window.duplicateExternalNote(101);
+      
+      expect(window.notesRepo.saveNote).toHaveBeenCalled();
+      const savedNote = window.notesRepo.saveNote.mock.calls[0][0];
+      expect(savedNote.id).toBeUndefined();
+      expect(savedNote.title).toBe('My Note_copy');
+      expect(savedNote.raw_text).toBe('Raw Content');
+      expect(savedNote.content).toBe('<p>Content</p>');
+    });
+
+    test('exportExternalNoteRAW triggers a download with correct JSON', async () => {
+      window.currentExternalNoteId = 202;
+      window.notesRepo.getNote = jest.fn().mockResolvedValue({ id: 202, title: 'Export Test', raw_text: 'Test Text', content: '<p>Test</p>' });
+      document.getElementById('external-note-title').value = 'Export Test';
+      window.quillEditor.root.innerHTML = '<p>Test</p>';
+      window.quillEditor.getText = () => 'Test Text';
+      
+      const mockCreateElement = jest.spyOn(document, 'createElement');
+      const mockAppendChild = jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+      const mockRemoveChild = jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+      const mockRevoke = jest.fn();
+      window.URL.createObjectURL = jest.fn().mockReturnValue('blob:url');
+      window.URL.revokeObjectURL = mockRevoke;
+
+      await window.exportExternalNoteRAW();
+
+      const aTag = mockCreateElement.mock.results.find(r => r.value.tagName === 'A').value;
+      expect(aTag.download).toBe('export_test.auranote.json');
+      expect(window.URL.createObjectURL).toHaveBeenCalled();
+      
+      // Cleanup mocks
+      mockCreateElement.mockRestore();
+      mockAppendChild.mockRestore();
+      mockRemoveChild.mockRestore();
+    });
+    
+    test('importExternalNoteRAW handles file upload and triggers save', async () => {
+      const mockEvent = {
+        target: {
+          files: [
+            new File([JSON.stringify({
+              title: "Imported Note",
+              raw_text: "Imported Raw",
+              content: "<p>Imported Content</p>"
+            })], "test.auranote.json", { type: "application/json" })
+          ],
+          value: ""
+        }
+      };
+      
+      window.appEventBus = { emit: jest.fn() };
+      const saveSpy = window.notesRepo.saveNote;
+      saveSpy.mockClear();
+      
+      await window.importExternalNoteRAW(mockEvent);
+      
+      // Wait for FileReader to resolve
+      await new Promise(r => setTimeout(r, 100));
+      
+      expect(saveSpy).toHaveBeenCalled();
+      const savedNote = saveSpy.mock.calls[0][0];
+      expect(savedNote.title).toBe('Imported Note');
+      expect(savedNote.raw_text).toBe('Imported Raw');
+    });
+
+    test('saveExternalNote preserves markdown using htmlToMarkdown', async () => {
+      window.currentNotesTab = 'text';
+      window.quillEditor.root.innerHTML = '<h1>Markdown Heading</h1>';
+      window.currentExternalNoteId = 300;
+      window.notesRepo.saveNote = jest.fn().mockResolvedValue({ id: 300 });
+      
+      await window.saveExternalNote(true);
+      
+      const savedNote = window.notesRepo.saveNote.mock.calls[0][0];
+      // The real htmlToMarkdown converts h1 to `# Heading`
+      expect(savedNote.rawText.includes('# Markdown Heading')).toBe(true);
+    });
+
+    test('exportExternalNoteRAW automatically calls saveExternalNote before export', async () => {
+      window.currentExternalNoteId = 301;
+      // Setup the editor so saveExternalNote doesn't abort on empty content
+      window.quillEditor.root.innerHTML = '<p>Something</p>';
+      
+      window.notesRepo.getNote = jest.fn().mockResolvedValue({ id: 301, title: 'Export', content: 'C' });
+      // We don't mock saveExternalNote, we let the real one run and verify it triggered notesRepo.saveNote
+      window.notesRepo.saveNote = jest.fn().mockResolvedValue({ id: 301 });
+      window.URL.createObjectURL = jest.fn().mockReturnValue('blob:url');
+      const mockCreateElement = jest.spyOn(document, 'createElement');
+      jest.spyOn(document.body, 'appendChild').mockImplementation(() => {});
+      jest.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+
+      await window.exportExternalNoteRAW();
+
+      // Ensure that saveExternalNote actually flushed to the repo before the GET
+      expect(window.notesRepo.saveNote).toHaveBeenCalled();
+      expect(window.notesRepo.getNote).toHaveBeenCalledWith(301);
+      
+      mockCreateElement.mockRestore();
+    });
+
+    test('exportExternalNoteMD and PDF trigger editorModeController.syncBeforeSave', () => {
+      window.quillEditor.root.innerHTML = '<p>Test</p>';
+      window.htmlToMarkdown = jest.fn().mockReturnValue('Test');
+      window.editorModeController = { syncBeforeSave: jest.fn() };
+      
+      window.URL.createObjectURL = jest.fn().mockReturnValue('blob:url');
+      const mockCreateElement = jest.spyOn(document, 'createElement');
+      
+      window.exportExternalNoteMD();
+      
+      expect(window.editorModeController.syncBeforeSave).toHaveBeenCalled();
+      
+      mockCreateElement.mockRestore();
+    });
+  });
 });

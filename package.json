@@ -20,6 +20,9 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
+    "testEnvironmentOptions": {
+      "url": "http://localhost:8500/remote-stylus?roomId=r1&mode=A"
+    },
     "testMatch": [
       "<rootDir>/tests/**/*.test.js"
     ],

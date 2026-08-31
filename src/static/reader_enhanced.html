@@ -1574,6 +1574,7 @@
   <script src="/static/js/dictionary-tools.js?v=2"></script>
   <script src="/static/js/notes-tts.js?v=4"></script>
   <script src="/static/js/markdown-handler.js?v=8"></script>
+  <script src="/static/js/auranote-handler.js?v=1"></script>
   <script src="/static/js/epub-handler.js?v=5"></script>
   <script src="/static/js/pdf-handler.js?v=7"></script>
   <script src="/static/js/desktop-updater.js?v=2026"></script>
@@ -1692,7 +1693,7 @@
           <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
           <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="StylusEngine.insertCanvas()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
           <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
-            <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteTXT()">Export TXT</button>
+            <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteRAW()">Export RAW</button>
           <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
         </span>
         <div style="position:relative; display:inline-block;" id="tablet-dropdown-wrapper">
@@ -1736,7 +1737,11 @@
         </div>
         <div style="padding:0 16px 16px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
           <h3 id="notes-list-title" style="margin:0; font-size:14px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">TEXT NOTES</h3>
-          <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="createNewExternalNote()">+ New</button>
+          <div style="display:flex; gap:4px;">
+            <input type="file" id="raw-note-upload-input" accept=".json" style="display:none;" onchange="importExternalNoteRAW(event)">
+            <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="document.getElementById('raw-note-upload-input').click()" title="Upload RAW note">⬆️ Upload</button>
+            <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="createNewExternalNote()">+ New</button>
+          </div>
         </div>
         <div id="external-notes-list" style="flex:1; overflow-y:auto; padding:8px;">
           <!-- Global notes will be listed here -->
@@ -1758,7 +1763,7 @@
 </div>
 
 <script src="/static/js/notes-repository.js?v=2042"></script>
-<script src="/static/js/external-editor.js?v=2040"></script>
+<script src="/static/js/external-editor.js?v=2046"></script>
 <script src="/static/js/diagram-engine.js?v=12001"></script>
 <script src="/static/js/stylus-engine.js?v=5"></script>
 <script src="/static/js/sync/remote-notes-engine.js?v=1"></script>

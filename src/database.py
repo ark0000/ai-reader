@@ -127,11 +127,18 @@ def init_db():
             raw_text TEXT,
             created_at REAL,
             updated_at REAL,
+            deleted_at REAL DEFAULT NULL,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )
     """)
     
-    # 8. Create Document Storage Table
+    # 8b. Run schema migration for deleted_at if table already existed without it
+    try:
+        cursor.execute("ALTER TABLE global_notes ADD COLUMN deleted_at REAL DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass # Column likely already exists
+    
+    # 9. Create Document Storage Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS document_storage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -440,14 +447,14 @@ class GlobalNotesRepository:
     def get_all(user_id: int) -> List[dict]:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
+            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC", (user_id,))
             return [dict(r) for r in cursor.fetchall()]
 
     @staticmethod
     def get(user_id: int, note_id: int) -> Optional[dict]:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? AND id = ?", (user_id, note_id))
+            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? AND id = ? AND deleted_at IS NULL", (user_id, note_id))
             row = cursor.fetchone()
             return dict(row) if row else None
 
@@ -470,8 +477,30 @@ class GlobalNotesRepository:
     def delete(user_id: int, note_id: int) -> bool:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM global_notes WHERE user_id = ? AND id = ?", (user_id, note_id))
+            cursor.execute("UPDATE global_notes SET deleted_at = ? WHERE user_id = ? AND id = ?", (time.time(), user_id, note_id))
             return cursor.rowcount > 0
+
+    @staticmethod
+    def get_deleted(user_id: int) -> List[dict]:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM global_notes WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC", (user_id,))
+            return [dict(r) for r in cursor.fetchall()]
+
+    @staticmethod
+    def restore(user_id: int, note_id: int) -> bool:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE global_notes SET deleted_at = NULL WHERE user_id = ? AND id = ?", (user_id, note_id))
+            return cursor.rowcount > 0
+
+    @staticmethod
+    def cleanup_old_deleted():
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            thirty_days_ago = time.time() - (30 * 24 * 60 * 60)
+            cursor.execute("DELETE FROM global_notes WHERE deleted_at IS NOT NULL AND deleted_at < ?", (thirty_days_ago,))
+            conn.commit()
 
 class DocumentStorageRepository:
     @staticmethod

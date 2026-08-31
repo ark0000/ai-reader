@@ -643,6 +643,7 @@ async function loadExternalNotesList() {
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: ${canvasesHtml ? '8px' : '0'};">
           <div style="font-size:11px; color:var(--text-3);">${date}</div>
           <div style="display:flex; gap:4px;">
+            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); duplicateExternalNote('${note.id}')">Copy</button>
             <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${note.id}')">Read</button>
             <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>
           </div>
@@ -997,7 +998,12 @@ async function saveExternalNote(silent = false) {
       }
   }
   
-  const rawText = window.quillEditor.getText().trim();
+  let rawText = '';
+    if (window.currentNotesTab !== 'canvas' && typeof htmlToMarkdown === 'function') {
+        rawText = htmlToMarkdown(content);
+    } else {
+        rawText = window.quillEditor.getText().trim();
+    }
   
   if ((!content || content === '<p><br></p>') && window.currentNotesTab !== 'canvas') {
     if (!silent) alert("Cannot save an empty note.");
@@ -1071,6 +1077,7 @@ async function saveExternalNote(silent = false) {
     if (!silent) alert("Failed to save note. Check console for details.");
   }
 }
+window.saveExternalNote = saveExternalNote;
 
 async function deleteExternalNote(id) {
     const parsedId = isNaN(Number(id)) ? id : Number(id);
@@ -1192,8 +1199,9 @@ function htmlToMarkdown(htmlOrNode) {
 window.htmlToMarkdown = htmlToMarkdown;
 
 function exportExternalNoteMD() {
-  if (!window.quillEditor) return;
-  const content = window.quillEditor.root.innerHTML;
+    if (!window.quillEditor) return;
+    if (window.editorModeController) window.editorModeController.syncBeforeSave();
+    const content = window.quillEditor.root.innerHTML;
   if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
   
   const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
@@ -1246,8 +1254,9 @@ function exportExternalNoteTXT() {
 }
 
 function exportExternalNotePDF() {
-  if (!window.quillEditor) return;
-  const content = window.quillEditor.root.innerHTML;
+    if (!window.quillEditor) return;
+    if (window.editorModeController) window.editorModeController.syncBeforeSave();
+    const content = window.quillEditor.root.innerHTML;
   if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
   
   const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
@@ -1434,4 +1443,89 @@ window.openStylusDrawing = function() {
     } else {
         console.warn("Cannot insert drawing, quillEditor is not initialized.");
     }
+};
+
+window.duplicateExternalNote = async function(id) {
+    if (!window.notesRepo) return;
+    const note = await window.notesRepo.getNote(id);
+    if (!note) return;
+    
+    // Deep clone to safely alter properties
+    const newNote = JSON.parse(JSON.stringify(note));
+    delete newNote.id; // ensure we get a new ID in saveNote logic
+    newNote.title = (newNote.title || 'Untitled') + '_copy';
+    newNote.updatedAt = Date.now();
+    newNote.createdAt = Date.now();
+
+    await window.notesRepo.saveNote(newNote);
+    if (typeof loadExternalNotesList === 'function') {
+        loadExternalNotesList();
+    }
+    if (window.showToast) window.showToast('Note duplicated');
+};
+
+window.exportExternalNoteRAW = async function() {
+    if (!window.notesRepo) return;
+    const id = window.currentExternalNoteId || (typeof currentExternalNoteId !== 'undefined' ? currentExternalNoteId : null);
+    if (!id) {
+        alert("No note is currently open.");
+        return;
+    }
+    
+    // Auto-save any pending typing in the editor before grabbing it from the DB
+    if (typeof saveExternalNote === 'function') {
+        await saveExternalNote(true);
+    }
+    
+    const note = await window.notesRepo.getNote(id);
+    if (!note) return;
+    
+    const dataStr = JSON.stringify(note, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    const safeTitle = (note.title || 'Untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    a.download = `${safeTitle}.auranote.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+window.importExternalNoteRAW = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const parsedNote = JSON.parse(e.target.result);
+            if (typeof parsedNote !== 'object' || !parsedNote) throw new Error("Invalid note format");
+            
+            parsedNote.id = Date.now().toString(); // Always assign new ID to avoid overwriting existing
+            parsedNote.updatedAt = Date.now();
+            parsedNote.createdAt = Date.now();
+            
+            if (!window.notesRepo) {
+                alert("Notes repository not initialized.");
+                return;
+            }
+            
+            await window.notesRepo.saveNote(parsedNote);
+            if (typeof loadExternalNotesList === 'function') {
+                loadExternalNotesList();
+            }
+            if (window.showToast) window.showToast('Note imported successfully');
+            
+        } catch (err) {
+            console.error(err);
+            alert("Failed to parse RAW note file. Make sure it is a valid .auranote.json file.");
+        }
+        
+        // Reset input so the same file can be selected again
+        event.target.value = '';
+    };
+    reader.readAsText(file);
 };
