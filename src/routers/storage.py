@@ -133,7 +133,14 @@ async def raw_notes_dump(user_id: int = Depends(get_current_user)):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM global_notes WHERE user_id = ?", (user_id,))
-            global_notes = [dict(r) for r in cursor.fetchall()]
+            import re
+            global_notes = []
+            for r in cursor.fetchall():
+                d = dict(r)
+                if d.get('title'):
+                    # Strip book and chapter prefixes for clean admin dump
+                    d['title'] = re.sub(r'^\[book:[^\]]+\](?:\[ch:\d+\]\s*)?', '', d['title'])
+                global_notes.append(d)
             
             cursor.execute("SELECT * FROM document_storage WHERE user_id = ?", (user_id,))
             doc_storage = []

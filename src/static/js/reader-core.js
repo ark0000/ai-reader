@@ -56,7 +56,8 @@ window.StateRegistry = {
   'aura-notes-state':            { label: 'Remember Notes',        category: 'reading', saveable: true },
   'aura-ai-streaming':           { label: 'Real-Time Streaming AI Chat', category: 'ai', saveable: true },
   'aura-rag-citations':          { label: 'Interactive Page Citations in RAG', category: 'ai', saveable: true },
-  'aura-rag-topk':               { label: 'RAG Context Depth', category: 'ai', saveable: true }
+  'aura-rag-topk':               { label: 'RAG Context Depth', category: 'ai', saveable: true },
+  'aura-book-mode':              { label: 'Book Mode (Restart Required)', category: 'perf', saveable: true }
 };
 
 window.jumpToCitation = function(target) {
@@ -70,7 +71,7 @@ window.jumpToCitation = function(target) {
 
 window.safeStorage = {
   _mem: {},
-  _criticalKeys: new Set(['token', 'username', 'auraVersion', 'aura-state-save-prefs']),
+  _criticalKeys: new Set(['token', 'username', 'auraVersion', 'aura-state-save-prefs', 'aura-book-mode']),
   
   _isAllowed(key) {
     if (this._criticalKeys.has(key)) return true;

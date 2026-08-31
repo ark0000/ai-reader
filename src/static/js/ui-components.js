@@ -474,6 +474,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('rag-topk-sel')) {
       document.getElementById('rag-topk-sel').value = window.safeStorage.getItem('aura-rag-topk') || '3';
     }
+    if (document.getElementById('book-mode-cb')) {
+      document.getElementById('book-mode-cb').checked = window.safeStorage.getItem('aura-book-mode') === 'true';
+    }
     if (document.getElementById('disable-editor-md-cb')) {
       const isMdDisabled = window.safeStorage.getItem('aura-disable-editor-markdown') === 'true';
       document.getElementById('disable-editor-md-cb').checked = isMdDisabled;

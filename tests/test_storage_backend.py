@@ -172,3 +172,31 @@ def test_soft_delete_and_restore():
     assert response.status_code == 200
     trash_data = response.json()
     assert not any(n["id"] == note_payload["id"] for n in trash_data["deleted_notes"])
+def test_raw_notes_dump():
+    headers = get_auth_headers("testuser_999")
+    
+    # 1. Create a book note
+    note_payload = {
+        "id": int(time.time() * 1000) + 99,
+        "title": "[book:999][ch:1] The First Chapter",
+        "content": "<p>Content</p>",
+        "rawText": "Content",
+        "createdAt": time.time() * 1000,
+        "updatedAt": time.time() * 1000
+    }
+    client.post("/api/notes/global", json=note_payload, headers=headers)
+    
+    # 2. Call admin dump
+    response = client.get("/api/admin/raw_notes_dump", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    
+    # 3. Verify prefix is stripped
+    found = False
+    for n in data.get("global_notes", []):
+        if n["id"] == note_payload["id"]:
+            assert n["title"] == "The First Chapter"
+            found = True
+            break
+            
+    assert found
