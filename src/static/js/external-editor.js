@@ -2047,18 +2047,21 @@ window.importExternalNoteRAW = function(event) {
                 }
                 
                 if (targetBookId) {
-                    // Find max chapter for this book
-                    const notes = await window.notesRepo.getAllNotes();
-                    let maxCh = 0;
-                    for (const n of notes) {
-                        const m = bookRegex.exec(n.title);
-                        if (m && m[1] === targetBookId && m[2]) {
-                            maxCh = Math.max(maxCh, parseInt(m[2], 10));
+                    const confirmAdd = confirm("You have a project open. Do you want to add this uploaded note to the current project?\n\nClick OK to add as a new chapter, or Cancel to keep it as an Uncategorized note.");
+                    if (confirmAdd) {
+                        // Find max chapter for this book
+                        const notes = await window.notesRepo.getAllNotes();
+                        let maxCh = 0;
+                        for (const n of notes) {
+                            const m = bookRegex.exec(n.title);
+                            if (m && m[1] === targetBookId && m[2]) {
+                                maxCh = Math.max(maxCh, parseInt(m[2], 10));
+                            }
                         }
+                        const newCh = maxCh + 1;
+                        const oldTitle = parsedNote.title || 'Imported Note';
+                        parsedNote.title = `[book:${targetBookId}][ch:${newCh}] ${oldTitle}`;
                     }
-                    const newCh = maxCh + 1;
-                    const oldTitle = parsedNote.title || 'Imported Note';
-                    parsedNote.title = `[book:${targetBookId}][ch:${newCh}] ${oldTitle}`;
                 }
             }
             
