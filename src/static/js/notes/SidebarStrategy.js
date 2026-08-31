@@ -87,7 +87,7 @@ class SidebarRenderStrategy {
     metaEl.style.marginBottom = canvasesHtml ? '8px' : '0';
     if (isChild) metaEl.style.paddingLeft = '8px';
     
-    const isRootOverview = title === 'Book Overview / Root';
+    const isRootOverview = title === 'Book Overview';
     
     metaEl.innerHTML = `
       <div style="font-size:11px; color:var(--text-3);">${date}</div>
@@ -199,7 +199,7 @@ class BookSidebarRenderer extends SidebarRenderStrategy {
       // Render the root note itself so it can be edited/renamed, unless it's an orphan dummy
       if (!book.isOrphan && book.id !== bookId) {
           // Clone it to change its display title slightly
-          const rootDisplay = { ...book, title: "Book Overview / Root" };
+          const rootDisplay = { ...book, title: "Book Overview" };
           this._renderSingleNote(rootDisplay, chaptersContainer, true);
       }
       

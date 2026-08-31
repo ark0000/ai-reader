@@ -425,6 +425,16 @@ async def restore_user_note(target_user_id: int, note_id: int, _: None = Depends
     else:
         raise HTTPException(status_code=404, detail="Note not found or could not be restored.")
 
+@router.delete("/users/{target_user_id}/deleted_notes/{note_id}")
+async def hard_delete_user_note(target_user_id: int, note_id: int, _: None = Depends(require_dev_mode)):
+    """Permanently delete a deleted global note."""
+    from src.database import GlobalNotesRepository
+    success = GlobalNotesRepository.hard_delete(target_user_id, note_id)
+    if success:
+        return {"status": "success", "message": "Note permanently deleted."}
+    else:
+        raise HTTPException(status_code=404, detail="Note not found or could not be deleted.")
+
 class DeleteNoteRequest(BaseModel):
     type: str # 'global' or 'doc'
     docOrGlobalIdx: int

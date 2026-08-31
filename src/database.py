@@ -495,6 +495,13 @@ class GlobalNotesRepository:
             return cursor.rowcount > 0
 
     @staticmethod
+    def hard_delete(user_id: int, note_id: int) -> bool:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM global_notes WHERE user_id = ? AND id = ?", (user_id, note_id))
+            return cursor.rowcount > 0
+
+    @staticmethod
     def cleanup_old_deleted():
         with get_db_connection() as conn:
             cursor = conn.cursor()

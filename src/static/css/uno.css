@@ -27,9 +27,11 @@
 .absolute{position:absolute;}
 .fixed{position:fixed;}
 .relative{position:relative;}
+.sticky{position:sticky;}
 .static{position:static;}
 .isolate{isolation:isolate;}
 .grid{display:grid;}
+.m\[1\]{margin:1;}
 .ms{margin-inline-start:1rem;}
 .inline{display:inline;}
 .block{display:block;}
