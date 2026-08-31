@@ -93,7 +93,39 @@ function initQuillEditor() {
   }
 
   try {
+    // Register inline style-based size attributor BEFORE creating the Quill instance
+    const SizeStyle = Quill.import('attributors/style/size');
+    SizeStyle.whitelist = ['10px', '12px', '14px', '18px', '24px', '32px', '48px', '64px', '80px', '96px', '120px'];
+    Quill.register(SizeStyle, true);
+
+    // Ordered size steps — false means "default/16px"
+    const SIZES = ['10px', '12px', '14px', false, '18px', '24px', '32px', '48px', '64px', '80px', '96px', '120px'];
+    const SIZE_VALUES = ['10px', '12px', '14px', '16px', '18px', '24px', '32px', '48px', '64px', '80px', '96px', '120px']; // resolved px values
+
+    // KEY FIX: Save selection BEFORE the dropdown click steals focus from the editor
+    let _savedRange = null;
+
+    // Helper: apply size to range without touching any other format
+    function applySizeToRange(quill, range, sizeValue) {
+      if (!range) return;
+      quill.setSelection(range, 'silent');
+      if (range.length === 0) {
+        const [line] = quill.getLine(range.index);
+        const lineIndex = quill.getIndex(line);
+        quill.formatText(lineIndex, line.length(), 'size', sizeValue || false, 'user');
+      } else {
+        quill.formatText(range.index, range.length, 'size', sizeValue || false, 'user');
+      }
+    }
+
+    // Helper: get current size of selection (first char)
+    function getCurrentSize(quill, range) {
+      const format = quill.getFormat(range || quill.getSelection() || {index:0,length:0});
+      return format.size || '16px'; // default is 16px
+    }
+
     const toolbarOptions = [
+      [{ 'size': SIZES }, 'size-decrease', 'size-increase'],
       [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
       ['bold', 'italic', 'underline', 'strike'],
       ['blockquote', 'code-block'],
@@ -107,9 +139,59 @@ function initQuillEditor() {
     window.quillEditor = new Quill('#quill-editor', {
       theme: 'snow',
       modules: {
-        toolbar: toolbarOptions
+        toolbar: {
+          container: toolbarOptions,
+          handlers: {
+            // Dropdown handler: restore saved selection then apply exact size
+            'size': function(value) {
+              const quill = window.quillEditor;
+              const range = _savedRange || quill.getSelection();
+              applySizeToRange(quill, range, value);
+              _savedRange = null;
+            },
+            // A- button: step size down one level, keep all other formats
+            'size-decrease': function() {
+              const quill = window.quillEditor;
+              const range = _savedRange || quill.getSelection();
+              if (!range) return;
+              const current = getCurrentSize(quill, range);
+              const idx = SIZE_VALUES.indexOf(current);
+              if (idx > 0) {
+                const next = SIZE_VALUES[idx - 1];
+                applySizeToRange(quill, range, next === '16px' ? false : next);
+              }
+            },
+            // A+ button: step size up one level, keep all other formats
+            'size-increase': function() {
+              const quill = window.quillEditor;
+              const range = _savedRange || quill.getSelection();
+              if (!range) return;
+              const current = getCurrentSize(quill, range);
+              const idx = SIZE_VALUES.indexOf(current);
+              if (idx < SIZE_VALUES.length - 1) {
+                const next = SIZE_VALUES[idx + 1];
+                applySizeToRange(quill, range, next === '16px' ? false : next);
+              }
+            }
+          }
+        }
       },
       placeholder: 'Start writing your note here (Markdown shortcuts supported: #, -, >, ```, **bold**)...'
+    });
+
+    // After toolbar is mounted, replace A+/A- button labels with styled text
+    setTimeout(() => {
+      const toolbar = document.querySelector('.ql-toolbar');
+      if (!toolbar) return;
+      const decBtn = toolbar.querySelector('.ql-size-decrease');
+      const incBtn = toolbar.querySelector('.ql-size-increase');
+      if (decBtn) { decBtn.innerHTML = '<span style="font-size:15px;font-weight:700;font-family:sans-serif;color:var(--text-1);">A-</span>'; decBtn.title = 'Decrease font size'; }
+      if (incBtn) { incBtn.innerHTML = '<span style="font-size:15px;font-weight:700;font-family:sans-serif;color:var(--text-1);">A+</span>'; incBtn.title = 'Increase font size'; }
+    }, 0);
+
+    // Save selection whenever user interacts with editor (before toolbar click steals it)
+    window.quillEditor.on('selection-change', function(range) {
+      if (range) _savedRange = range; // only update when we have a real selection
     });
 
     // Attach Markdown Intelligence Engine

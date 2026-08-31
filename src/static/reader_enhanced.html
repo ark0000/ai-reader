@@ -30,9 +30,26 @@
       top: 0;
       z-index: 100;
     }
-    .ql-snow .ql-toolbar button, .ql-snow .ql-toolbar .ql-picker { height: 32px !important; width: 32px !important; }
-    .ql-snow .ql-toolbar button svg, .ql-snow .ql-toolbar .ql-picker-label svg { height: 20px !important; width: 20px !important; }
-    .ql-snow .ql-toolbar .ql-picker-label { font-size: 15px !important; padding-top: 4px; }
+    .ql-snow .ql-toolbar button { height: 36px !important; width: 36px !important; }
+    .ql-snow .ql-toolbar .ql-picker { height: 36px !important; }
+    .ql-snow .ql-toolbar .ql-picker.ql-size { min-width: 110px !important; }
+    .ql-snow .ql-toolbar .ql-picker.ql-header { min-width: 80px !important; }
+    .ql-snow .ql-toolbar button svg, .ql-snow .ql-toolbar .ql-picker-label svg { height: 22px !important; width: 22px !important; }
+    .ql-snow .ql-toolbar .ql-picker-label { font-size: 13px !important; padding-top: 8px !important; white-space: nowrap !important; overflow: hidden !important; }
+    
+    /* Custom Quill Size Labels */
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="10px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before { content: '10px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { content: '12px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label::before, .ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '16px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="24px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before { content: '24px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="32px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before { content: '32px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="48px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="48px"]::before { content: '48px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="64px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="64px"]::before { content: '64px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="80px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="80px"]::before { content: '80px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="96px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="96px"]::before { content: '96px'; }
+    .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="120px"]::before, .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="120px"]::before { content: '120px'; }
     .ql-snow .ql-container {
       border-color: var(--border) !important;
     }
@@ -1769,7 +1786,7 @@
 </div>
 
 <script src="/static/js/notes-repository.js?v=2042"></script>
-<script src="/static/js/external-editor.js?v=2046"></script>
+<script src="/static/js/external-editor.js?v=2049"></script>
 <script src="/static/js/diagram-engine.js?v=12001"></script>
 <script src="/static/js/stylus-engine.js?v=5"></script>
 <script src="/static/js/sync/remote-notes-engine.js?v=1"></script>
