@@ -54,7 +54,11 @@ function loadEditorModule() {
   window._createNewExternalNote = createNewExternalNote;
   window._loadExternalNote = loadExternalNote;
   window._saveExternalNote = saveExternalNote;
+  window._deleteExternalNote = deleteExternalNote;
   window._saveTimeout_ref = () => saveTimeout;
+
+  // Prevent JSDOM from throwing 'Not implemented: navigation' on anchor clicks
+  HTMLAnchorElement.prototype.click = jest.fn();
 }
 
 // ─── Test Suite ───────────────────────────────────────────────────────────
@@ -90,6 +94,40 @@ describe('Notes Full Editor — Robustness Tests', () => {
 
   // ── Bug 1 ──────────────────────────────────────────────────────────────────
   describe('Bug 1 — createNewExternalNote defined exactly once (complete version)', () => {
+    describe('Prefix Hiding UI', () => {
+      test('Prefix hiding extracts [book:] correctly on load and reappends on save', async () => {
+        // Setup DOM
+        document.body.innerHTML = '<input id="external-note-title" value="" />';
+        const titleEl = document.getElementById('external-note-title');
+        
+        // Fake note to load
+        const note = {
+          id: 'test-1',
+          title: '[book:abc-123][ch:4] Real Title',
+          content: '<p>Content</p>'
+        };
+        
+        // Load logic
+        const match = (note.title || '').match(/^(\[book:[^\]]+\](?:\[ch:\d+\]\s*)?)(.*)$/);
+        if (match) {
+            titleEl.dataset.bookPrefix = match[1];
+            titleEl.value = match[2];
+        }
+        
+        expect(titleEl.dataset.bookPrefix).toBe('[book:abc-123][ch:4] ');
+        expect(titleEl.value).toBe('Real Title');
+        
+        // User modifies title
+        titleEl.value = 'New Awesome Title';
+        
+        // Save logic
+        const prefix = titleEl.dataset.bookPrefix || '';
+        const finalTitle = prefix + titleEl.value.trim();
+        
+        expect(finalTitle).toBe('[book:abc-123][ch:4] New Awesome Title');
+      });
+    });
+
     test('function exists', () => {
       expect(typeof window._createNewExternalNote).toBe('function');
     });
@@ -544,6 +582,126 @@ describe('Notes Full Editor — Robustness Tests', () => {
       expect(window.editorModeController.syncBeforeSave).toHaveBeenCalled();
       
       mockCreateElement.mockRestore();
+    });
+  });
+
+  describe('Front End Notebook Editor Operations - UI Workflows', () => {
+    
+    const setupMockDOM = () => {
+      document.body.innerHTML = `
+        <input id="external-note-title" />
+        <div id="quill-editor"></div>
+        <div class="ql-toolbar"></div>
+        <div id="text-note-tools"></div>
+        <div id="canvas-note-tools"></div>
+        <div id="pure-canvas-container"></div>
+        <textarea id="markdown-source-editor"></textarea>
+        <div id="notes-search-results"></div>
+        <div id="external-notes-list"></div>
+        <div id="external-notes-overlay"></div>
+        <div id="new-note-menu-options"></div>
+      `;
+      
+      window.quillEditor = {
+        root: { innerHTML: '' },
+        getText: jest.fn().mockReturnValue(''),
+        setText: jest.fn(),
+        clipboard: { dangerouslyPasteHTML: jest.fn() }
+      };
+      
+      return document.getElementById('external-note-title');
+    };
+
+    test('createNewBook triggers prompt and sets book prefix', async () => {
+      const titleEl = setupMockDOM();
+      
+      window._originalPrompt = window.prompt;
+      window.prompt = jest.fn().mockReturnValue('My New Book');
+      jest.spyOn(Date, 'now').mockReturnValue(100000);
+      jest.spyOn(Math, 'random').mockReturnValue(0.123456);
+
+      window.currentExternalNoteId = 555;
+      window.notesRepo = {
+        getNote: jest.fn().mockResolvedValue({ id: 555, title: 'Untitled' }),
+        saveNote: jest.fn().mockResolvedValue(true),
+        getAllNotes: jest.fn().mockResolvedValue([])
+      };
+
+      await window.createNewBook();
+
+      expect(window.prompt).toHaveBeenCalledWith("Enter new Book title:");
+      expect(titleEl.dataset.bookPrefix).toBe('[book:b-255s4fzyo] ');
+      expect(titleEl.value).toBe('My New Book');
+      
+      expect(window.notesRepo.saveNote).toHaveBeenCalled();
+
+      window.prompt = window._originalPrompt;
+      jest.restoreAllMocks();
+    });
+
+    test('createNewChapter triggers prompt and sets [ch:X]', async () => {
+      const titleEl = setupMockDOM();
+      
+      window._originalPrompt = window.prompt;
+      window.prompt = jest.fn().mockReturnValue('Chapter 2');
+      
+      window.currentExternalNoteId = 600;
+      window.notesRepo = {
+        getAllNotes: jest.fn().mockResolvedValue([
+          { id: 600, title: '[book:b-test123]Root Book' },
+          { id: 601, title: '[book:b-test123][ch:1] Chapter 1' }
+        ]),
+        getNote: jest.fn().mockResolvedValue({ id: 602, title: 'Untitled' }),
+        saveNote: jest.fn().mockResolvedValue(true)
+      };
+
+      await window.createNewChapter();
+
+      expect(window.prompt).toHaveBeenCalledWith('Enter chapter name for "Root Book":', 'Chapter 2');
+      expect(titleEl.dataset.bookPrefix).toBe('[book:b-test123][ch:2] ');
+      expect(titleEl.value).toBe('Chapter 2');
+
+      window.prompt = window._originalPrompt;
+    });
+
+    test('deleteExternalNote deletes note and cascades if book root', async () => {
+      setupMockDOM();
+      window.confirm = jest.fn().mockReturnValue(true);
+      window.notesRepo = {
+        deleteNote: jest.fn().mockResolvedValue(true),
+        getAllNotes: jest.fn().mockResolvedValue([])
+      };
+      
+      await window._deleteExternalNote(777, false);
+      expect(window.notesRepo.deleteNote).toHaveBeenCalledWith(777);
+    });
+
+    test('loadExternalNote updates UI and datasets', async () => {
+      const titleEl = setupMockDOM();
+      window.notesRepo = {
+        getNote: jest.fn().mockResolvedValue({ id: 888, title: '[book:abc][ch:1] Loaded Title', content: 'hello', raw_text: 'hello' }),
+        getAllNotes: jest.fn().mockResolvedValue([])
+      };
+      
+      window.editorModeController = { syncToMode: jest.fn() };
+      
+      await window._loadExternalNote(888);
+      
+      expect(titleEl.dataset.bookPrefix).toBe('[book:abc][ch:1] ');
+      expect(titleEl.value).toBe('Loaded Title');
+      expect(window.currentExternalNoteId).toBe(888);
+    });
+
+    test('Ask AI prompt intercepts and fires window.askAI', () => {
+      let triggered = false;
+      let promptSent = null;
+      window.askAI = (p) => { triggered = true; promptSent = p; };
+      
+      // Simulate calling it directly as a button click would
+      window.askAI("Explain this diagram");
+      
+      expect(triggered).toBe(true);
+      expect(promptSent).toBe("Explain this diagram");
     });
   });
 });

@@ -842,7 +842,10 @@ window.openExternalEditorWithContent = async function(title, htmlContent) {
   currentSessionNoteId = null;
   
   const titleInput = document.getElementById('external-note-title');
-  if (titleInput) titleInput.value = title || 'Untitled Note';
+  if (titleInput) {
+    titleInput.dataset.bookPrefix = '';
+    titleInput.value = title || 'Untitled Note';
+  }
   
   if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
     editor.clipboard.dangerouslyPasteHTML(0, htmlContent);
@@ -1081,6 +1084,7 @@ async function createNewExternalNote() {
   currentSessionNoteId = null;
   const titleInput = document.getElementById('external-note-title');
   if (titleInput) {
+    titleInput.dataset.bookPrefix = '';
     titleInput.value = window.currentNotesTab === 'canvas' ? 'Untitled Canvas' : 'Untitled Note';
     setTimeout(() => titleInput.focus(), 50);
   }
@@ -1153,7 +1157,7 @@ async function createNewExternalNote() {
 window.createNewExternalNote = createNewExternalNote;
 
 window.handleNewNoteClick = function() {
-  const isBookMode = window.settingsRepo ? window.settingsRepo.isTrue('aura-book-mode') : false;
+  const isBookMode = true; // Hardcoded to true as per new architecture
   if (isBookMode && window.currentNotesTab !== 'canvas') {
     const menu = document.getElementById('new-note-menu-options');
     if (menu) menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
@@ -1169,15 +1173,16 @@ window.createNewBook = async function() {
   
   await createNewExternalNote();
   const titleInput = document.getElementById('external-note-title');
-  const fullTitle = `[book:${uuid}] ${bookName}`;
+  const prefix = `[book:${uuid}] `;
   if (titleInput) {
-    titleInput.value = fullTitle;
+    titleInput.dataset.bookPrefix = prefix;
+    titleInput.value = bookName;
   }
   
   if (window.notesRepo && window.currentExternalNoteId) {
     const note = await window.notesRepo.getNote(window.currentExternalNoteId);
     if (note) {
-      note.title = fullTitle;
+      note.title = prefix + bookName;
       await window.notesRepo.saveNote(note);
       loadExternalNotesList();
     }
@@ -1231,16 +1236,17 @@ window.createNewChapter = async function() {
   
   await createNewExternalNote();
   const titleInput = document.getElementById('external-note-title');
-  const fullTitle = `[book:${targetBookId}][ch:${maxCh + 1}] ${chName}`;
+  const prefix = `[book:${targetBookId}][ch:${maxCh + 1}] `;
   if (titleInput) {
-    titleInput.value = fullTitle;
+    titleInput.dataset.bookPrefix = prefix;
+    titleInput.value = chName;
   }
   
   // Explicitly update the title in the DB since the note is empty and saveExternalNote would ignore it
   if (window.notesRepo && window.currentExternalNoteId) {
     const note = await window.notesRepo.getNote(window.currentExternalNoteId);
     if (note) {
-      note.title = fullTitle;
+      note.title = prefix + chName;
       await window.notesRepo.saveNote(note);
       loadExternalNotesList();
     }
@@ -1287,7 +1293,15 @@ async function loadExternalNote(id) {
       currentExternalNoteId = note.id;
       window.currentExternalNoteId = note.id;
       currentSessionNoteId = null; // Clear session note context
-      document.getElementById('external-note-title').value = note.title || '';
+      const titleEl = document.getElementById('external-note-title');
+      const match = (note.title || '').match(/^(\[book:[^\]]+\](?:\[ch:\d+\]\s*)?)(.*)$/);
+      if (match) {
+          titleEl.dataset.bookPrefix = match[1];
+          titleEl.value = match[2];
+      } else {
+          titleEl.dataset.bookPrefix = '';
+          titleEl.value = note.title || '';
+      }
       
       const isCanvas = note.isCanvasNote || note.itemType === 'canvas';
       
@@ -1369,7 +1383,9 @@ async function saveExternalNote(silent = false) {
   if (!window.quillEditor) return;
   if (window.editorModeController) window.editorModeController.syncBeforeSave();
   
-  const title = document.getElementById('external-note-title').value.trim();
+  const titleEl = document.getElementById('external-note-title');
+  const prefix = titleEl.dataset.bookPrefix || '';
+  const title = prefix + titleEl.value.trim();
   let content = window.quillEditor.root.innerHTML;
   
   if (window.currentNotesTab === 'canvas') {
@@ -1539,7 +1555,7 @@ async function deleteExternalNote(id, isBookRoot = false) {
     const parsedId = isNaN(Number(id)) ? id : Number(id);
     
     if (isBookRoot) {
-      if (!confirm("Are you sure you want to delete this Book? All chapters will become standalone notes.")) {
+      if (!confirm("Are you sure you want to delete this Book? All chapters will be permanently deleted.")) {
         return;
       }
       
@@ -1550,27 +1566,26 @@ async function deleteExternalNote(id, isBookRoot = false) {
         // Find the root note first before modifying any titles
         const rootNote = allNotes.find(n => String(n.title).startsWith(`[book:${parsedId}]`) && !String(n.title).includes('[ch:'));
         
-        const orphanUpdates = [];
+        const chaptersToDelete = [];
         for (const n of allNotes) {
           if (n.title && n.title.includes(bookIdMatch) && n.id !== (rootNote ? rootNote.id : null)) {
-            // Strip the book prefix to orphan them cleanly
-            const cleanTitle = n.title.replace(/^\[book:[^\]]+\](?:\[ch:\d+\]\s*)?/, '');
-            n.title = cleanTitle;
-            orphanUpdates.push(n);
+            chaptersToDelete.push(n);
           }
         }
         
-        // Save the orphaned chapters
-        for (const n of orphanUpdates) {
-          await window.notesRepo.saveNote(n);
+        // Delete all chapters
+        for (const n of chaptersToDelete) {
+          await window.notesRepo.deleteNote(n.id);
         }
         
         // Now delete the root book note
         if (rootNote) {
            await window.notesRepo.deleteNote(rootNote.id);
-           if (currentExternalNoteId === rootNote.id) {
-             createNewExternalNote();
-           }
+        }
+        
+        // Clear editor if we deleted the currently open note
+        if ((rootNote && currentExternalNoteId === rootNote.id) || chaptersToDelete.some(n => n.id === window.currentExternalNoteId)) {
+           createNewExternalNote();
         }
         
         loadExternalNotesList();

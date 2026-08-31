@@ -87,12 +87,14 @@ class SidebarRenderStrategy {
     metaEl.style.marginBottom = canvasesHtml ? '8px' : '0';
     if (isChild) metaEl.style.paddingLeft = '8px';
     
+    const isRootOverview = title === 'Book Overview / Root';
+    
     metaEl.innerHTML = `
       <div style="font-size:11px; color:var(--text-3);">${date}</div>
       <div style="display:flex; gap:4px;">
-        <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); duplicateExternalNote('${note.id}')">Copy</button>
+        ${!isRootOverview ? `<button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); duplicateExternalNote('${note.id}')">Copy</button>` : ''}
         <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${note.id}')">Read</button>
-        <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>
+        ${!isRootOverview ? `<button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>` : ''}
       </div>
     `;
 
@@ -176,8 +178,8 @@ class BookSidebarRenderer extends SidebarRenderStrategy {
           📖 ${book.title}
         </div>
         <div style="display:flex; gap:4px;">
-           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #4299e1; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); downloadBook('${book.id}')">Download</button>
-           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${book.id}', true)">Delete</button>
+           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #4299e1; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); downloadBook('${bookId}')">Download</button>
+           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${bookId}', true)">Delete</button>
         </div>
       `;
       
@@ -193,6 +195,13 @@ class BookSidebarRenderer extends SidebarRenderStrategy {
       
       bookDiv.appendChild(headerDiv);
       bookDiv.appendChild(chaptersContainer);
+      
+      // Render the root note itself so it can be edited/renamed, unless it's an orphan dummy
+      if (!book.isOrphan && book.id !== bookId) {
+          // Clone it to change its display title slightly
+          const rootDisplay = { ...book, title: "Book Overview / Root" };
+          this._renderSingleNote(rootDisplay, chaptersContainer, true);
+      }
       
       book.chapters.forEach(chapter => {
         this._renderSingleNote(chapter, chaptersContainer, true);

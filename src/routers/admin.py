@@ -441,6 +441,23 @@ async def delete_user_note(target_user_id: int, req: DeleteNoteRequest, _: None 
             global_notes = cursor.fetchall()
             if 0 <= req.docOrGlobalIdx < len(global_notes):
                 note_id = global_notes[req.docOrGlobalIdx]['id']
+                
+                # Check if this is a root book note to cascade orphaning to chapters
+                cursor.execute("SELECT title FROM global_notes WHERE id = ? AND user_id = ?", (note_id, target_user_id))
+                row = cursor.fetchone()
+                if row and row['title']:
+                    import re
+                    m = re.match(r'^\[book:([^\]]+)\](?!.*\[ch:\d+\])', str(row['title']))
+                    if m:
+                        book_id = m.group(1)
+                        cursor.execute("SELECT id, title FROM global_notes WHERE user_id = ? AND title LIKE ?", (target_user_id, f"%[book:{book_id}]%"))
+                        chapters = cursor.fetchall()
+                        for chap in chapters:
+                            if chap['id'] != note_id:
+                                clean_title = re.sub(r'^\[book:[^\]]+\](?:\[ch:\d+\]\s*)?', '', str(chap['title']))
+                                cursor.execute("UPDATE global_notes SET title = ? WHERE id = ?", (clean_title, chap['id']))
+                        conn.commit()
+
                 from src.database import GlobalNotesRepository
                 GlobalNotesRepository.delete(target_user_id, note_id)
         elif req.type == 'doc':

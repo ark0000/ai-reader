@@ -296,7 +296,7 @@ class NotesRepository {
   async saveNote(note) {
     await this.init();
     const parsedId = isNaN(Number(note.id)) ? note.id : Number(note.id);
-    note.id = parsedId;
+    note.id = parsedId || Date.now();
     note.updatedAt = Date.now();
     if (!note.createdAt) note.createdAt = note.updatedAt;
     note.title = note.title || 'Untitled Note';

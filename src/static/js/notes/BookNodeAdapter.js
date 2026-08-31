@@ -27,7 +27,7 @@ class BookNodeAdapter {
       } else {
         if (!books.has(bookId)) {
           // Orphan chapter, create a dummy root
-          books.set(bookId, { id: `orphan-${bookId}`, title: `Unknown Book (${bookId})`, chapters: [], isOrphan: true });
+          books.set(bookId, { id: bookId, title: `Unknown Book (${bookId})`, chapters: [], isOrphan: true });
         }
         books.get(bookId).chapters.push({ ...note, title: title, order: parseInt(chIdx, 10) });
       }
