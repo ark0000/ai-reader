@@ -2029,6 +2029,39 @@ window.importExternalNoteRAW = function(event) {
                 return;
             }
             
+            // AUTO-CATEGORIZATION LOGIC
+            // If the note doesn't already have a book prefix, and we have a book open, attach it
+            if (!/^\[book:[^\]]+\]/.test(parsedNote.title || '')) {
+                let targetBookId = null;
+                const bookRegex = /^\[book:([^\]]+)\](?:\[ch:(\d+)\]\s*)?(.*)$/;
+                
+                if (window.currentExternalNoteId) {
+                    const notes = await window.notesRepo.getAllNotes();
+                    const currentNote = notes.find(n => String(n.id) === String(window.currentExternalNoteId));
+                    if (currentNote) {
+                        const m = bookRegex.exec(currentNote.title);
+                        if (m) {
+                            targetBookId = m[1];
+                        }
+                    }
+                }
+                
+                if (targetBookId) {
+                    // Find max chapter for this book
+                    const notes = await window.notesRepo.getAllNotes();
+                    let maxCh = 0;
+                    for (const n of notes) {
+                        const m = bookRegex.exec(n.title);
+                        if (m && m[1] === targetBookId && m[2]) {
+                            maxCh = Math.max(maxCh, parseInt(m[2], 10));
+                        }
+                    }
+                    const newCh = maxCh + 1;
+                    const oldTitle = parsedNote.title || 'Imported Note';
+                    parsedNote.title = `[book:${targetBookId}][ch:${newCh}] ${oldTitle}`;
+                }
+            }
+            
             await window.notesRepo.saveNote(parsedNote);
             if (typeof loadExternalNotesList === 'function') {
                 loadExternalNotesList();
