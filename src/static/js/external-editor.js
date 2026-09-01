@@ -1858,7 +1858,8 @@ async function readNoteInReader(id) {
   try {
     const note = await window.notesRepo.getNote(parsedId);
     if (note && window.openFile) {
-      const blob = new Blob([note.content], { type: 'text/markdown' });
+      const mdContent = note.rawText || (typeof htmlToMarkdown === 'function' ? htmlToMarkdown(note.content || '') : note.content);
+      const blob = new Blob([mdContent], { type: 'text/markdown' });
       const file = new File([blob], (note.title || 'Untitled Note') + '.md', { type: 'text/markdown' });
       
       closeExternalNotes(); // Close the modal
