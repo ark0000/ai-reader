@@ -240,16 +240,47 @@ function initQuillEditor() {
     // Attach Markdown Intelligence Engine
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
-    // Click listener for Diagram editing
+    // Click listener for Diagram editing via Popup Menu
     document.getElementById('quill-editor').addEventListener('click', function(e) {
       const diagramBlot = e.target.closest('.ql-diagram-container');
       if (diagramBlot) {
+        e.stopPropagation();
         const mermaidEnc = diagramBlot.getAttribute('data-mermaid');
         if (mermaidEnc) {
           try {
             const mermaidSrc = decodeURIComponent(mermaidEnc);
+            const prompt = 'Please explain this diagram:\\n\\n```mermaid\\n' + mermaidSrc + '\\n```';
+            
+            const actions = [];
+            actions.push({
+              label: '&#10024; Explain with AI',
+              actionFn: function() {
+                if (window.askAI) window.askAI(prompt);
+              }
+            });
+            
+            actions.push({
+              label: '&#9651; Enlarge',
+              actionFn: function() {
+                if (window.showEnlargedMedia) {
+                  var clone = diagramBlot.cloneNode(true);
+                  clone.style.cursor = 'default';
+                  window.showEnlargedMedia(clone);
+                }
+              }
+            });
+            
             if (window.DiagramBuilder && typeof window.DiagramBuilder.open === 'function') {
-              window.DiagramBuilder.open(mermaidSrc);
+              actions.push({
+                label: '&#11041; Open in Diagram Builder',
+                actionFn: function() {
+                  window.DiagramBuilder.open(mermaidSrc);
+                }
+              });
+            }
+            
+            if (window.showActionPopup) {
+              window.showActionPopup(e, actions);
             }
           } catch(err) {
             console.error("Failed to decode mermaid source", err);
