@@ -1060,11 +1060,17 @@
     }
 
     // ── Open / Close ──────────────────────────────────────────────────────────
-    open() {
+    open(codeToLoad = null) {
       if (!this._panel) this.bootstrap();
       this._panel.classList.add('dgb-open');
       this._panel.setAttribute('aria-hidden', 'false');
       this._isOpen = true;
+      if (typeof codeToLoad === 'string') {
+        if (this._editor) {
+          this._editor.value = codeToLoad;
+          this._handleCodeChange(); // Re-render diagram with the passed code
+        }
+      }
       setTimeout(() => { if (this._editor) this._editor.focus(); }, 120);
     }
 
@@ -1105,7 +1111,7 @@
   }
 
   window.DiagramBuilder = Object.freeze({
-    open:   () => _controller.open(),
+    open:   (code) => _controller.open(code),
     close:  () => _controller.close(),
     toggle: () => _controller.toggle()
   });

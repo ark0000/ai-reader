@@ -240,6 +240,24 @@ function initQuillEditor() {
     // Attach Markdown Intelligence Engine
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
+    // Click listener for Diagram editing
+    document.getElementById('quill-editor').addEventListener('click', function(e) {
+      const diagramBlot = e.target.closest('.ql-diagram-container');
+      if (diagramBlot) {
+        const mermaidEnc = diagramBlot.getAttribute('data-mermaid');
+        if (mermaidEnc) {
+          try {
+            const mermaidSrc = decodeURIComponent(mermaidEnc);
+            if (window.DiagramBuilder && typeof window.DiagramBuilder.open === 'function') {
+              window.DiagramBuilder.open(mermaidSrc);
+            }
+          } catch(err) {
+            console.error("Failed to decode mermaid source", err);
+          }
+        }
+      }
+    });
+
     // Auto-save logic
     window.quillEditor.on('text-change', function(delta, oldDelta, source) {
       // FIX R4: Ignore programmatic/API text changes to prevent phantom auto-save loops
