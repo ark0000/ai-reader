@@ -637,7 +637,10 @@ class MarkdownDocumentHandler {
     
     if (typeof mermaid !== 'undefined') {
       setTimeout(() => {
-        try { mermaid.init(undefined, document.querySelectorAll('.mermaid')); } catch(e){ console.error('Mermaid error', e); }
+        try { 
+          mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+          mermaid.init(undefined, document.querySelectorAll('.mermaid')); 
+        } catch(e){ console.error('Mermaid error', e); }
       }, 50);
     }
     
