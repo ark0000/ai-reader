@@ -1889,7 +1889,8 @@ async function readNoteInReader(id) {
   try {
     const note = await window.notesRepo.getNote(parsedId);
     if (note && window.openFile) {
-      const mdContent = note.rawText || (typeof htmlToMarkdown === 'function' ? htmlToMarkdown(note.content || '') : note.content);
+      // Always prefer re-generating markdown from the HTML source of truth to handle legacy corrupted rawText
+      const mdContent = (typeof htmlToMarkdown === 'function' ? htmlToMarkdown(note.content || '') : note.rawText || note.content);
       const blob = new Blob([mdContent], { type: 'text/markdown' });
       const file = new File([blob], (note.title || 'Untitled Note') + '.md', { type: 'text/markdown' });
       
