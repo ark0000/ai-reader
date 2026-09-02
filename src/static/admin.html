@@ -1153,6 +1153,75 @@ function viewNoteDetail(type, docOrGlobalIdx, noteIdx) {
     }
 }
 
+
+window.toggleAllNotes = function(cb) {
+    const cbs = document.querySelectorAll('.note-bulk-cb');
+    cbs.forEach(c => c.checked = cb.checked);
+    updateBulkCount();
+};
+
+window.updateBulkCount = function() {
+    const checked = document.querySelectorAll('.note-bulk-cb:checked').length;
+    const countEl = document.getElementById('bulk-select-count');
+    if (countEl) countEl.textContent = checked + ' selected';
+};
+
+window.bulkDeleteSelected = async function() {
+    const checked = Array.from(document.querySelectorAll('.note-bulk-cb:checked'));
+    if (checked.length === 0) {
+        alert('Please select at least one note to delete.');
+        return;
+    }
+    if (!confirm(Are you sure you want to delete  selected notes?)) return;
+
+    // Sort to delete in reverse order to prevent index shifting issues in the backend
+    const items = checked.map(cb => ({
+        type: cb.getAttribute('data-type'),
+        docIdx: parseInt(cb.getAttribute('data-doc-idx')),
+        noteIdx: parseInt(cb.getAttribute('data-note-idx'))
+    }));
+    
+    items.sort((a, b) => {
+        if (a.type !== b.type) return a.type.localeCompare(b.type);
+        if (a.docIdx !== b.docIdx) return b.docIdx - a.docIdx;
+        return b.noteIdx - a.noteIdx;
+    });
+
+    const userId = window._currentNotesData.target_user_id || _currentUserId;
+    const btns = document.querySelectorAll('#notes-list-sidebar .action-btn');
+    btns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+    
+    let successCount = 0;
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        try {
+            const countEl = document.getElementById('bulk-select-count');
+            if (countEl) countEl.textContent = Deleting /...;
+            
+            const resp = await fetch(/api/admin/users//notes, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: item.type, docOrGlobalIdx: item.docIdx, noteIdx: item.noteIdx })
+            });
+            if (resp.ok) successCount++;
+        } catch(e) {
+            console.error(e);
+        }
+    }
+    
+    dumpUserNotes(userId, document.getElementById('notes-modal-title').innerText.match(/\(([^)]+)\)/)?.[1] || 'User');
+};
+
+window.bulkDeleteAll = function() {
+    const cb = document.getElementById('bulk-select-all');
+    if (cb) {
+        cb.checked = true;
+        toggleAllNotes(cb);
+        bulkDeleteSelected();
+    }
+};
+
+
 async function deleteSelectedNote() {
     if (!_currentSelectedNote || !window._currentNotesData) return;
     if (!confirm("Are you sure you want to delete this note?")) return;
@@ -1388,3 +1457,6 @@ startAutoRefresh();
 </script>
 </body>
 </html>
+
+
+
