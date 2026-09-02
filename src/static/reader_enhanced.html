@@ -169,6 +169,9 @@
     }
 
     /* Hide noisy Notion SVGs and reset browser-default white tags */
+    #stylus-toolbar.hidden { display: none !important; }
+    #stylus-toolbar { display: none; }
+
     .ql-snow .ql-editor table svg { display: none !important; }
     .ql-snow .ql-editor table kbd, .ql-snow .ql-editor table button, .ql-snow .ql-editor table mark {
       background: transparent !important; border: none !important; color: inherit !important; box-shadow: none !important;
@@ -1750,7 +1753,7 @@
       <!-- Populated dynamically -->
     </div>
   </div>
-</div></div>
+</div>
 
 <!-- FULL EDITOR MODAL -->
 <div id="external-notes-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; flex-direction:column; padding:20px; box-sizing:border-box;">
@@ -1787,34 +1790,35 @@
   <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; width:100%; height:100%; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.6); overflow:hidden;">
     
     <!-- Top Header -->
-    <div style="padding:12px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); flex-wrap:wrap; gap:12px;">
-      <div style="display:flex; align-items:center; gap:16px;">
-        <button class="tb-btn" onclick="document.getElementById('external-notes-sidebar').style.display = document.getElementById('external-notes-sidebar').style.display === 'none' ? 'flex' : 'none';" style="padding:6px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text-1); cursor:pointer;" title="Toggle Sidebar">☰</button> <h2 style="white-space:nowrap; flex-shrink:0; margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">📝 Notes Editor</h2>
-        <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:6px 12px; border-radius:6px; width:100%; max-width:300px; min-width:120px; outline:none; font-family:var(--font-ui);">
+    <div style="padding:8px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); flex-wrap:nowrap; gap:10px; overflow-x:auto;">
+      <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <button class="tb-btn" onclick="document.getElementById('external-notes-sidebar').style.display = document.getElementById('external-notes-sidebar').style.display === 'none' ? 'flex' : 'none';" style="padding:5px 8px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text-1); cursor:pointer;" title="Toggle Sidebar">☰</button> 
+        <h2 style="white-space:nowrap; flex-shrink:0; margin:0; font-size:15px; font-weight:600; display:flex; align-items:center; gap:6px;">📝 Notes Editor</h2>
+        <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:4px 8px; border-radius:6px; width:150px; max-width:200px; min-width:90px; outline:none; font-family:var(--font-ui); font-size:12px;">
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <span id="text-note-tools" style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
-          <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
-          <button id="btn-diagram-ext" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Build Mermaid Diagram">📊 Diagram</button>
-          <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="StylusEngine.insertCanvas()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
-          <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
-            <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteRAW()">Export RAW</button>
-          <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNotePDF()">Export PDF</button>
+      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center; flex-shrink:0;">
+        <span id="text-note-tools" style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center;">
+          <button id="mode-toggle-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
+          <button id="md-convert-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+          <button id="btn-diagram-ext" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="openDiagramBuilderForExternalEditor()" title="Build Mermaid Diagram">📊 Diagram</button>
+          <button id="external-draw-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="StylusEngine.insertCanvas()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
+          <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="exportExternalNoteMD()">Export MD</button>
+          <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="exportExternalNoteRAW()">Export RAW</button>
+          <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="exportExternalNotePDF()">Export PDF</button>
         </span>
         <div style="position:relative; display:inline-block;" id="tablet-dropdown-wrapper">
-          <button id="tablet-dropdown-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="document.getElementById('tablet-menu-options').style.display = document.getElementById('tablet-menu-options').style.display === 'none' ? 'flex' : 'none';" title="Connect Tablet Devices">📱 Tablet ▼</button>
+          <button id="tablet-dropdown-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="document.getElementById('tablet-menu-options').style.display = document.getElementById('tablet-menu-options').style.display === 'none' ? 'flex' : 'none';" title="Connect Tablet Devices">📱 Tablet ▼</button>
           <div id="tablet-menu-options" style="display:none; position:absolute; top:calc(100% + 5px); right:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; flex-direction:column; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:1000; overflow:hidden;">
             <button class="tb-btn" style="padding:10px 14px; border:none; border-bottom:1px solid var(--border); background:transparent; text-align:left; border-radius:0;" onclick="document.getElementById('tablet-menu-options').style.display='none'; TabletSync.connectTabletA();">🖍️ Remote Stylus</button>
             <button class="tb-btn" style="padding:10px 14px; border:none; background:transparent; text-align:left; color:var(--accent); border-radius:0;" onclick="document.getElementById('tablet-menu-options').style.display='none'; connectRemoteNotes();">📝 Remote Notes</button>
           </div>
         </div>
-        <button id="save-external-btn" class="tb-btn" style="padding:6px 16px; border-radius:20px; background:var(--accent); color:#fff; border:none; font-weight:600;" onclick="saveExternalNote()">Save</button>
-        <button id="close-external-btn" class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="closeExternalNotes()">Close</button>
+        <button id="save-external-btn" class="tb-btn" style="padding:4px 14px; font-size:11.5px; border-radius:20px; background:var(--accent); color:#fff; border:none; font-weight:600; white-space:nowrap;" onclick="saveExternalNote()">Save</button>
+        <button id="close-external-btn" class="tb-btn" style="padding:4px 14px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="closeExternalNotes()">Close</button>
       </div>
     </div>
     
-    <div id="stylus-toolbar" class="hidden" style="position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:var(--bg-panel); padding:10px 20px; border-radius:30px; border: 1px solid var(--border); box-shadow:0 8px 24px rgba(0,0,0,0.4); display:flex; gap:15px; z-index:999999; align-items:center;">
+    <div id="stylus-toolbar" class="hidden" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:var(--bg-panel); padding:10px 20px; border-radius:30px; border: 1px solid var(--border); box-shadow:0 8px 24px rgba(0,0,0,0.4); gap:15px; z-index:999999; align-items:center;">
       <span style="font-weight:600; font-size:14px; color:var(--text-1);">Stylus Tools:</span>
       <button class="tb-btn" onclick="StylusEngine.setTool('pen')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);">🖋️ Pen</button>
       <button class="tb-btn" onclick="StylusEngine.setTool('highlighter')" style="padding:4px 10px; border-radius:15px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-1);">🖍️ Highlighter</button>
