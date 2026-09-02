@@ -5,6 +5,13 @@ let currentSessionNoteId = null;  // Used for highlight notes
 let saveTimeout = null;
 window.currentNotesTab = window.currentNotesTab || 'text';
 
+// Globally hide broken images (e.g. from pasted content with inaccessible icons)
+window.addEventListener('error', function(e) {
+  if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'img') {
+    e.target.style.display = 'none';
+  }
+}, true);
+
 window.switchNotesTab = function (tab) {
   window.currentNotesTab = tab;
   const tabText = document.getElementById('tab-text-notes');
