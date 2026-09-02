@@ -2135,3 +2135,42 @@ window.importExternalNoteRAW = function(event) {
 if (typeof Worker !== 'undefined') {
   window.MarkdownWorker = new Worker('/static/js/workers/markdown-worker.js');
 }
+
+// --- Template Manager Integration ---
+(function initTemplateManager() {
+    console.log('[TemplateManager] initTemplateManager called!');
+    const menuContainer = document.getElementById('tools-dropdown-menu');
+    const btnTools = document.getElementById('btn-tools');
+    
+    if (menuContainer && btnTools && typeof TemplateManager !== 'undefined' && typeof EditorAdapter !== 'undefined') {
+        const adapter = new EditorAdapter(window.quillEditor, document.getElementById('quill-editor-container'), document.getElementById('external-notes-editor-md'));
+        
+        TemplateManager.renderDropdown(menuContainer, (strategy) => {
+            console.log('[TemplateManager] Clicked strategy:', strategy.id);
+            menuContainer.style.display = 'none'; // Close menu on select
+            adapter.insertStrategy(strategy);
+        });
+
+        let dropdownOpen = false;
+        
+        // Expose toggle function globally so the onclick can call it
+        window.toggleToolsMenu = function() {
+            dropdownOpen = !dropdownOpen;
+            menuContainer.style.display = dropdownOpen ? 'flex' : 'none';
+        };
+
+        btnTools.onclick = (e) => {
+            e.stopPropagation();
+            window.toggleToolsMenu();
+        };
+
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if (dropdownOpen && !btnTools.contains(e.target) && !menuContainer.contains(e.target)) {
+                dropdownOpen = false;
+                menuContainer.style.display = 'none';
+            }
+        });
+    }
+})();
+

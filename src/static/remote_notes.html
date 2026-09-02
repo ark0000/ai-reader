@@ -178,6 +178,11 @@
         <div id="toolbar">
             <button class="tb-btn" id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.add('open')">☰ Menu</button>
             <input type="text" style="font-weight: bold; margin-right: 10px; color: var(--text-2); background: transparent; border: 1px solid transparent; padding: 4px 8px; border-radius: 4px; outline: none; transition: background 0.2s, border 0.2s;" id="active-note-title" value="Connecting..." onfocus="this.style.background='var(--bg-lighter)'; this.style.border='1px solid var(--border-color)';" onblur="this.style.background='transparent'; this.style.border='1px solid transparent';" />
+                        <div class="notes-tools-container" style="position:relative; display:inline-block;">
+                <button class="tb-btn" onclick="const d=document.getElementById('tools-dropdown'); d.style.display=d.style.display==='none'?'flex':'none';">Tools ▼</button>
+                <div id="tools-dropdown" class="tools-dropdown" style="display:none; position:absolute; top:calc(100% + 5px); left:0; width:220px; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:1000; flex-direction:column; max-height:400px; overflow-y:auto; padding:5px 0;">
+                </div>
+            </div>
             <button class="tb-btn" id="btn-md-source">📝 Source</button>
             <button class="tb-btn" id="btn-diagram">📊 Diagram</button>
             <button class="tb-btn" id="btn-draw">🖍️ Draw</button>
@@ -205,6 +210,8 @@
 </div>
 
 <!-- Custom Scripts -->
+<script src="/static/js/notes/template-manager.js?v=2"></script>
+<script src="/static/js/notes/EditorAdapter.js?v=1"></script>
 <script src="/static/js/stylus-engine.js?v=5"></script>
 <script src="/static/js/remote-notes-app.js"></script>
 
@@ -226,6 +233,18 @@
         const roomId = urlParams.get('roomId');
         if (roomId) {
             window.RemoteNotesApp = new RemoteNotesClient(roomId);
+            
+            // Initialize Template Manager
+            setTimeout(() => {
+                const menuContainer = document.getElementById('tools-dropdown');
+                if (menuContainer && typeof TemplateManager !== 'undefined') {
+                                        TemplateManager.renderDropdown(menuContainer, (strategy) => {
+                        menuContainer.style.display = 'none';
+                        const adapter = new EditorAdapter(window.RemoteNotesApp.quill, document.getElementById('quill-editor'), document.getElementById('markdown-editor'));
+                        adapter.insertStrategy(strategy);
+                    });
+                }
+            }, 500); // Give quill time to init
         } else {
             document.getElementById('connection-status').textContent = 'Error: No Room ID';
             document.getElementById('connection-status').className = 'status-disconnected';
@@ -235,3 +254,5 @@
 
 </body>
 </html>
+
+

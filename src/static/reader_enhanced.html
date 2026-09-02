@@ -1317,7 +1317,23 @@
         </div>
         <div style="padding:10px; border-top:1px solid var(--border);">
           <button class="upload-big-btn" style="width:100%; padding:10px; font-size:14px; margin-bottom: 8px;" onclick="openRteModal()">+ Add Note</button>
-          <button class="upload-big-btn" style="width:100%; padding:10px; font-size:14px; background:var(--bg-panel); color:var(--text-1); border:1px solid var(--border);" onclick="openExternalNotes()">📝 Open Full Editor</button>
+          <div id="dynamic-editor-btn-container" style="position:relative; width:100%; height:44px; display:flex; gap:8px; align-items:center;">
+            
+            <button id="btn-editor-main" class="upload-big-btn" data-expanded="false" style="flex:1; padding:0; height:44px; font-size:14px; background:var(--bg-panel); color:var(--text-1); border:1px solid var(--border); display:flex; justify-content:center; align-items:center; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); white-space:nowrap; overflow:hidden;" onclick="toggleEditorOptions()">
+              <span id="btn-editor-icon" style="transition: transform 0.35s ease; font-size:16px;">📝</span>
+              <span id="btn-editor-text" style="margin-left:8px; transition: opacity 0.2s ease;">Open Full Editor</span>
+            </button>
+            
+            <div id="editor-options-container" style="display:flex; gap:8px; width:0; opacity:0; overflow:hidden; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events:none; transform: translateX(10px) scaleX(0.9); transform-origin: left; height:44px;">
+              <button class="upload-big-btn" style="flex:1; height:44px; padding:0 8px; font-size:13px; background:var(--bg-panel); color:var(--text-1); border:1px solid var(--border); display:flex; justify-content:center; align-items:center; white-space:nowrap; transition: background 0.2s;" onclick="openExternalNotes(); toggleEditorOptions();" title="Open in Overlay">
+                🪟 Overlay
+              </button>
+              <button class="upload-big-btn" style="flex:1; height:44px; padding:0 8px; font-size:13px; background:var(--bg-panel); color:var(--text-1); border:1px solid var(--border); display:flex; justify-content:center; align-items:center; white-space:nowrap; transition: background 0.2s;" onclick="openNotesInNewTab(); toggleEditorOptions();" title="Open in New Tab">
+                🌍 New Tab
+              </button>
+            </div>
+            
+          </div>
         </div>
       </div>
 
@@ -1731,7 +1747,7 @@
         <span id="text-note-tools" style="display:flex; gap:8px;">
           <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
           <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
-          <button id="external-diagram-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Open Diagram Builder to create and insert Mermaid charts into this note">📊 Diagram</button>
+          <div id="tools-dropdown-wrapper" style="position: relative; display: inline-block;"><button class="tb-btn" id="btn-tools" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);">Tools ▾</button><div id="tools-dropdown-menu" style="display:none; position:absolute; z-index: 1000; top:calc(100% + 5px); left:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; flex-direction:column; min-width:180px; box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div></div>
           <button id="external-draw-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="StylusEngine.insertCanvas()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
           <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteMD()">Export MD</button>
             <button class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border);" onclick="exportExternalNoteRAW()">Export RAW</button>
@@ -1745,7 +1761,7 @@
           </div>
         </div>
         <button id="save-external-btn" class="tb-btn" style="padding:6px 16px; border-radius:20px; background:var(--accent); color:#fff; border:none; font-weight:600;" onclick="saveExternalNote()">Save</button>
-        <button class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="closeExternalNotes()">Close</button>
+        <button id="close-external-btn" class="tb-btn" style="padding:6px 16px; border-radius:20px; border:1px solid var(--border);" onclick="closeExternalNotes()">Close</button>
       </div>
     </div>
     
@@ -1834,15 +1850,16 @@
   </div>
 </div>
 
-<script src="/static/js/notes/BookNodeAdapter.js?v=2"></script>
-<script src="/static/js/notes/SidebarStrategy.js?v=2"></script>
-<script src="/static/js/notes-repository.js?v=2042"></script>
-<script src="/static/js/external-editor.js?v=2052"></script>
-<script src="/static/js/diagram-engine.js?v=12001"></script>
-<script src="/static/js/stylus-engine.js?v=5"></script>
-<script src="/static/js/sync/remote-notes-engine.js?v=1"></script>
-<script src="/static/js/remote-stylus-sync.js?v=1"></script>
-<script src="/static/js/components/AuraProfile.js?v=1"></script>
+<script src="/static/js/notes/BookNodeAdapter.js?v=3"></script>
+<script src="/static/js/notes/SidebarStrategy.js?v=3"></script>
+<script src="/static/js/notes-repository.js?v=2043"></script>
+<script src="/static/js/notes/template-manager.js?v=3"></script>
+<script src="/static/js/external-editor.js?v=2054"></script>
+<script src="/static/js/diagram-engine.js?v=12002"></script>
+<script src="/static/js/stylus-engine.js?v=6"></script>
+<script src="/static/js/sync/remote-notes-engine.js?v=2"></script>
+<script src="/static/js/remote-stylus-sync.js?v=2"></script>
+<script src="/static/js/components/AuraProfile.js?v=2"></script>
 
   <script>
     // Heartbeat to keep desktop backend alive. If closed, backend shuts down automatically.
@@ -1857,6 +1874,61 @@
   </script>
   <script src="/static/js/drag-drop-reader.js?v=3"></script>
 <script>
+  function toggleEditorOptions() {
+    const mainBtn = document.getElementById('btn-editor-main');
+    const textSpan = document.getElementById('btn-editor-text');
+    const iconSpan = document.getElementById('btn-editor-icon');
+    const optionsCont = document.getElementById('editor-options-container');
+    
+    if (!mainBtn || !optionsCont) return;
+    
+    const isExpanded = mainBtn.dataset.expanded === 'true';
+    
+    if (!isExpanded) {
+      mainBtn.dataset.expanded = 'true';
+      mainBtn.style.flex = '0 0 44px';
+      mainBtn.style.borderRadius = '50%';
+      mainBtn.style.background = 'var(--accent)';
+      mainBtn.style.borderColor = 'var(--accent)';
+      
+      textSpan.style.opacity = '0';
+      textSpan.style.width = '0';
+      textSpan.style.marginLeft = '0';
+      
+      iconSpan.innerText = '✖';
+      iconSpan.style.transform = 'rotate(90deg)';
+      iconSpan.style.color = '#ffffff';
+      
+      optionsCont.style.width = 'calc(100% - 52px)';
+      optionsCont.style.opacity = '1';
+      optionsCont.style.pointerEvents = 'auto';
+      optionsCont.style.transform = 'translateX(0) scaleX(1)';
+    } else {
+      mainBtn.dataset.expanded = 'false';
+      mainBtn.style.flex = '1';
+      mainBtn.style.borderRadius = '';
+      mainBtn.style.background = 'var(--bg-panel)';
+      mainBtn.style.borderColor = 'var(--border)';
+      
+      textSpan.style.opacity = '1';
+      textSpan.style.width = 'auto';
+      textSpan.style.marginLeft = '8px';
+      
+      iconSpan.innerText = '📝';
+      iconSpan.style.transform = 'rotate(0deg)';
+      iconSpan.style.color = 'var(--text-1)';
+      
+      optionsCont.style.width = '0';
+      optionsCont.style.opacity = '0';
+      optionsCont.style.pointerEvents = 'none';
+      optionsCont.style.transform = 'translateX(10px) scaleX(0.9)';
+    }
+  }
+
+  function openNotesInNewTab() {
+    window.open(window.location.pathname + '?standalone=1', '_blank');
+  }
+
   function connectRemoteNotes() {
     // Ensure the external notes panel is open so Quill is initialized
     if (typeof window.openExternalNotes === 'function') {
@@ -1953,5 +2025,45 @@
   });
 </script>
 
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(window.location.search).get('standalone') === '1') {
+      // Setup the overlay for fullscreen standalone
+      const overlay = document.getElementById('external-notes-overlay');
+      if (overlay) {
+        // Keep it fixed but remove padding so it spans edge to edge
+        overlay.style.display = 'flex';
+        overlay.style.padding = '0';
+        overlay.style.background = 'var(--bg-body)';
+        
+        // Remove border radius and borders from inner container
+        const inner = overlay.querySelector('div');
+        if (inner) {
+          inner.style.borderRadius = '0';
+          inner.style.border = 'none';
+          inner.style.boxShadow = 'none';
+        }
+      }
+      
+      // Hide the Close button
+      const closeBtn = document.getElementById('close-external-btn');
+      if (closeBtn) closeBtn.style.display = 'none';
+      
+      // Open the notes right away
+      if (typeof window.openExternalNotes === 'function') {
+        window.openExternalNotes();
+      } else {
+        setTimeout(() => { if (typeof window.openExternalNotes === 'function') window.openExternalNotes(); }, 500);
+      }
+    }
+  });
+</script>
 </body>
 </html>
+
+
+
+
+
+
+
