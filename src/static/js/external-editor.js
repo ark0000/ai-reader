@@ -254,7 +254,7 @@ function initQuillEditor() {
         let html = node.outerHTML;
         
         // Identify elements that were originally styled as pills/boxes and mark them
-        html = html.replace(/<(span|a|code|strong|em|div|p)([^>]*)style="([^"]*(?:background|border)[^"]*)"/gi, '< data-pill="true"=""');
+        html = html.replace(/<(span|a|code|strong|em|div|p)([^>]*)style="([^"]*(?:background|border)[^"]*)"/gi, '<$1 data-pill="true"$2style="$3"');
 
         // Strip ALL inline background and text colors from pasted tables 
         // to ensure they don't clash with the app's dark theme
