@@ -958,8 +958,25 @@ async function dumpUserNotes(userId, username) {
         
         document.getElementById('notes-modal-title').innerHTML = `📝 Notes Viewer <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">(${esc(username)})</span>`;
         
+        let hasAnyNotes = (data.global_notes && data.global_notes.length > 0) || (data.document_storage && data.document_storage.length > 0);
         let listHtml = '';
         
+        if (hasAnyNotes) {
+            listHtml += `
+            <div style="padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; background: var(--bg); position: sticky; top: 0; z-index: 5;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--text); user-select: none;">
+                        <input type="checkbox" id="bulk-select-all" onchange="toggleAllNotes(this)" style="cursor: pointer;"> Select All
+                    </label>
+                    <span id="bulk-select-count" style="font-size: 11px; color: var(--text-muted);">0 selected</span>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                    <button class="action-btn" style="flex: 1; font-size: 11px; padding: 4px 6px; color: #f85149; border-color: rgba(248,81,73,0.3);" onclick="bulkDeleteSelected()">Delete Selected</button>
+                    <button class="action-btn" style="flex: 1; font-size: 11px; padding: 4px 6px; color: #ff7b72; border-color: #ff7b72;" onclick="bulkDeleteAll()">Delete All</button>
+                </div>
+            </div>`;
+        }
+
         // Global Notes
         if (data.global_notes && data.global_notes.length > 0) {
             listHtml += '<div style="padding:12px 16px; font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; background:var(--surface);">Global Notes</div>';
@@ -967,9 +984,12 @@ async function dumpUserNotes(userId, username) {
                 const title = note.title || 'Untitled Note';
                 const date = new Date(note.updated_at).toLocaleString();
                 listHtml += `
-                <div onclick="viewNoteDetail('global', ${idx})" style="padding:12px 16px; border-bottom:1px solid var(--border); cursor:pointer;">
-                    <div style="font-weight:600; font-size:14px; margin-bottom:4px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(title)}</div>
-                    <div style="font-size:11px; color:var(--text-muted);">${date}</div>
+                <div style="padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:8px;">
+                    <input type="checkbox" class="note-bulk-cb" data-type="global" data-doc-idx="${idx}" data-note-idx="-1" style="margin-top:3px; cursor:pointer;" onclick="event.stopPropagation()" onchange="updateBulkCount()">
+                    <div onclick="viewNoteDetail('global', ${idx})" style="flex:1; cursor:pointer; min-width:0;">
+                        <div style="font-weight:600; font-size:13px; margin-bottom:2px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(title)}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${date}</div>
+                    </div>
                 </div>`;
             });
         }
@@ -996,8 +1016,11 @@ async function dumpUserNotes(userId, username) {
                     }
                     textContent = textContent || 'Note item';
                     listHtml += `
-                    <div onclick="viewNoteDetail('doc', ${docIdx}, ${noteIdx})" style="padding:10px 16px 10px 32px; border-bottom:1px solid var(--border); cursor:pointer;">
-                        <div style="font-weight:600; font-size:13px; margin-bottom:4px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(textContent)}</div>
+                    <div style="padding:8px 14px 8px 24px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:8px;">
+                        <input type="checkbox" class="note-bulk-cb" data-type="doc" data-doc-idx="${docIdx}" data-note-idx="${noteIdx}" style="margin-top:3px; cursor:pointer;" onclick="event.stopPropagation()" onchange="updateBulkCount()">
+                        <div onclick="viewNoteDetail('doc', ${docIdx}, ${noteIdx})" style="flex:1; cursor:pointer; min-width:0;">
+                            <div style="font-weight:600; font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(textContent)}</div>
+                        </div>
                     </div>`;
                 });
             });
@@ -1163,7 +1186,7 @@ window.toggleAllNotes = function(cb) {
 window.updateBulkCount = function() {
     const checked = document.querySelectorAll('.note-bulk-cb:checked').length;
     const countEl = document.getElementById('bulk-select-count');
-    if (countEl) countEl.textContent = checked + ' selected';
+    if (countEl) countEl.textContent = `${checked} selected`;
 };
 
 window.bulkDeleteSelected = async function() {
@@ -1172,7 +1195,7 @@ window.bulkDeleteSelected = async function() {
         alert('Please select at least one note to delete.');
         return;
     }
-    if (!confirm(Are you sure you want to delete  selected notes?)) return;
+    if (!confirm(`Are you sure you want to delete ${checked.length} selected notes?`)) return;
 
     // Sort to delete in reverse order to prevent index shifting issues in the backend
     const items = checked.map(cb => ({
@@ -1196,9 +1219,9 @@ window.bulkDeleteSelected = async function() {
         const item = items[i];
         try {
             const countEl = document.getElementById('bulk-select-count');
-            if (countEl) countEl.textContent = Deleting /...;
+            if (countEl) countEl.textContent = `Deleting ${i + 1}/${items.length}...`;
             
-            const resp = await fetch(/api/admin/users//notes, {
+            const resp = await fetch(`/api/admin/users/${userId}/notes`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: item.type, docOrGlobalIdx: item.docIdx, noteIdx: item.noteIdx })
@@ -1217,8 +1240,12 @@ window.bulkDeleteAll = function() {
     if (cb) {
         cb.checked = true;
         toggleAllNotes(cb);
-        bulkDeleteSelected();
+    } else {
+        const cbs = document.querySelectorAll('.note-bulk-cb');
+        cbs.forEach(c => c.checked = true);
+        updateBulkCount();
     }
+    bulkDeleteSelected();
 };
 
 
