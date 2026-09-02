@@ -720,6 +720,11 @@ class MarkdownIntelligenceEngine {
     if (!this.isEnabled()) return; // Native Quill paste executes cleanly without interception
     const clipboardData = e.clipboardData || window.clipboardData;
     if (!clipboardData) return;
+    
+    const htmlData = clipboardData.getData('text/html');
+    if (htmlData && (htmlData.includes('<table') || htmlData.includes('<TABLE'))) {
+      return; // Let Quill handle rich HTML tables directly
+    }
 
     const textData = clipboardData.getData('text/plain');
     if (!textData || textData.trim().length < 3) return;
