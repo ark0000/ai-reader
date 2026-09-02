@@ -240,6 +240,20 @@ function initQuillEditor() {
     // Attach Markdown Intelligence Engine
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
+    // Add clipboard matcher for tables so pasting preserves them instead of squishing text
+    if (window.quillEditor && window.quillEditor.clipboard) {
+      window.quillEditor.clipboard.addMatcher('TABLE', function(node, delta) {
+        const Delta = Quill.import('delta');
+        let html = node.outerHTML;
+        
+        // Strip light-mode inline styles from the pasted table that clash with dark theme
+        html = html.replace(/\s*style="[^"]*background(?:-color)?:\s*(?:white|#fff|#ffffff|rgb\(255,\s*255,\s*255\))[^"]*"/gi, '');
+        html = html.replace(/\s*style="[^"]*color:\s*(?:black|#000|#000000)[^"]*"/gi, '');
+        
+        return new Delta().insert({ 'custom-table': html });
+      });
+    }
+
     // Click listener for Diagram editing via Popup Menu
     document.getElementById('quill-editor').addEventListener('click', function (e) {
       const diagramBlot = e.target.closest('.ql-diagram-container');
@@ -2187,6 +2201,7 @@ if (!initTemplateManager()) {
     }
   });
 }
+
 
 
 
