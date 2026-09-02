@@ -651,7 +651,7 @@ window.loadPdf = async function (buf, isConverted, skipReloadBuf) {
           var fullText = window.pdfParts.join('\n\n');
           if (!window.currentFileId) {
             var docName = window.currentFileName || 'document.pdf';
-            var fSize = (file && file.size) ? file.size : fullText.length;
+            var fSize = (typeof file !== 'undefined' && file && file.size) ? file.size : fullText.length;
             window.currentFileId = 'doc_' + btoa(encodeURIComponent(docName + '_' + fSize)).replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
           }
           try {

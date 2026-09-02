@@ -2137,40 +2137,55 @@ if (typeof Worker !== 'undefined') {
 }
 
 // --- Template Manager Integration ---
-(function initTemplateManager() {
-    console.log('[TemplateManager] initTemplateManager called!');
-    const menuContainer = document.getElementById('tools-dropdown-menu');
-    const btnTools = document.getElementById('btn-tools');
+function initTemplateManager() {
+    console.log('[TemplateManager] initTemplateManager called for Sidebar!');
+    const menuContainer = document.getElementById('templates-sidebar-content') || document.getElementById('tools-dropdown-menu');
     
-    if (menuContainer && btnTools && typeof TemplateManager !== 'undefined' && typeof EditorAdapter !== 'undefined') {
-        const adapter = new EditorAdapter(window.quillEditor, document.getElementById('quill-editor-container'), document.getElementById('external-notes-editor-md'));
-        
-        TemplateManager.renderDropdown(menuContainer, (strategy) => {
-            console.log('[TemplateManager] Clicked strategy:', strategy.id);
-            menuContainer.style.display = 'none'; // Close menu on select
-            adapter.insertStrategy(strategy);
-        });
-
-        let dropdownOpen = false;
-        
-        // Expose toggle function globally so the onclick can call it
-        window.toggleToolsMenu = function() {
-            dropdownOpen = !dropdownOpen;
-            menuContainer.style.display = dropdownOpen ? 'flex' : 'none';
-        };
-
-        btnTools.onclick = (e) => {
-            e.stopPropagation();
-            window.toggleToolsMenu();
-        };
-
-        // Close when clicking outside
-        document.addEventListener('click', (e) => {
-            if (dropdownOpen && !btnTools.contains(e.target) && !menuContainer.contains(e.target)) {
-                dropdownOpen = false;
-                menuContainer.style.display = 'none';
-            }
-        });
+    if (!menuContainer) {
+        console.warn('[TemplateManager] Missing menuContainer!');
+        return false;
     }
-})();
+    if (typeof TemplateManager === 'undefined') {
+        console.warn('[TemplateManager] Missing TemplateManager class!');
+        return false;
+    }
+    if (typeof EditorAdapter === 'undefined') {
+        console.warn('[TemplateManager] Missing EditorAdapter class!');
+        return false;
+    }
+
+    TemplateManager.renderDropdown(menuContainer, (strategy) => {
+        console.log('[TemplateManager] Clicked strategy:', strategy.id);
+        const quillContainer = document.getElementById('quill-editor') || document.getElementById('quill-editor-container');
+        const mdEditor = document.getElementById('markdown-source-editor') || document.getElementById('external-notes-editor-md');
+        
+        const adapter = new EditorAdapter(window.quillEditor, quillContainer, mdEditor);
+        adapter.insertStrategy(strategy);
+        
+        const sidebar = document.getElementById('templates-sidebar');
+        if (sidebar) sidebar.style.right = '-250px';
+    });
+    return true;
+}
+
+// Try initializing immediately, if fail, try when DOM loaded, if fail, poll a few times
+if (!initTemplateManager()) {
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!initTemplateManager()) {
+            let retries = 5;
+            let timer = setInterval(() => {
+                if (initTemplateManager() || retries <= 0) {
+                    clearInterval(timer);
+                }
+                retries--;
+            }, 500);
+        }
+    });
+}
+
+
+
+
+
+
 

@@ -4,7 +4,7 @@ class TemplateManager {
             label: 'Function Deep-Dive',
             icon: '🧩',
             type: 'text',
-            getContent: () => `\n# 🧩 Module / Function: \n\n### 1. Theory vs Code\n* **Theory:** \n* **What is the code:** \n\n### 2. Execution Context\n*How does this run?*\n- **Type**: \n- **Concurrency**: \n\n### 3. The Contract (I/O)\n* **Inputs (Args / Payload):**\n  - \n* **Outputs (Returns / Side-effects):**\n  - \n\n### 4. Processing Steps\n1. \n\n### 5. Connections (The Web)\n* **Called By (Upstream):** \n* **Calls (Downstream):** \n\n\`\`\`mermaid\ngraph LR\n    A[Caller] --> B([This Function])\n    B --> C[Downstream API]\n\`\`\`\n`
+            getContent: () => `\n# 🧩 Module / Function: \n\n### 1. Theory vs Code\n* **Theory:** \n* **What is the code:** \n\n### 2. The Contract (I/O)\n* **Inputs (Args / Payload):**\n  - \n* **Outputs (Returns / Side-effects):**\n  - \n\n### 3. Processing Steps\n1. \n`
         },
         'data_journey': {
             label: 'State Mutation',
@@ -23,21 +23,6 @@ class TemplateManager {
             icon: '📖',
             type: 'text',
             getContent: () => `\n# 📖 Glossary: \n\n* **Definition:** \n* **Used In:** \n* **Example:** \n* **Synonyms / Related Concepts:** \n`
-        },
-
-        'diagram_builder': {
-            label: 'Diagram Builder',
-            icon: '📐',
-            type: 'action',
-            execute: () => {
-                if (window.openDiagramBuilderForExternalEditor) {
-                    window.openDiagramBuilderForExternalEditor();
-                } else if (window.DiagramBuilder && typeof window.DiagramBuilder.open === 'function') {
-                    window.DiagramBuilder.open();
-                } else {
-                    console.error("Diagram Builder not found in current context.");
-                }
-            }
         },
         'mindmap': {
             label: 'Mindmap',
@@ -108,3 +93,6 @@ class TemplateManager {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = TemplateManager;
 }
+
+
+
