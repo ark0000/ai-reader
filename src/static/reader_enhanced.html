@@ -153,6 +153,25 @@
       color: #81e6d9 !important;
       font-family: 'JetBrains Mono', 'Source Code Pro', monospace !important;
       font-size: 0.88em !important;
+      text-decoration: none !important;
+      display: inline-block;
+    }
+
+    /* Prevent nested pills from drawing multiple borders/backgrounds */
+    .ql-snow .ql-editor [data-pill="true"] [data-pill="true"],
+    .ql-snow .ql-editor [data-pill="true"] code,
+    .ql-snow .ql-editor code [data-pill="true"],
+    .ql-snow .ql-editor code code {
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+      display: inline;
+    }
+
+    /* Hide noisy Notion SVGs and reset browser-default white tags */
+    .ql-snow .ql-editor table svg { display: none !important; }
+    .ql-snow .ql-editor table kbd, .ql-snow .ql-editor table button, .ql-snow .ql-editor table mark {
+      background: transparent !important; border: none !important; color: inherit !important; box-shadow: none !important;
     }
     /* Editor container itself */
     .ql-container, .ql-snow.ql-container {
