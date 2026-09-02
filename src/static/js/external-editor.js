@@ -240,6 +240,14 @@ function initQuillEditor() {
     // Attach Markdown Intelligence Engine
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
+    // Add clipboard matcher for tables so pasting preserves them
+    if (window.quillEditor && window.quillEditor.clipboard) {
+      window.quillEditor.clipboard.addMatcher('TABLE', function(node, delta) {
+        const Delta = Quill.import('delta');
+        return new Delta().insert({ 'custom-table': node.outerHTML });
+      });
+    }
+
     // Click listener for Diagram editing via Popup Menu
     document.getElementById('quill-editor').addEventListener('click', function(e) {
       const diagramBlot = e.target.closest('.ql-diagram-container');
