@@ -257,6 +257,8 @@ function initQuillEditor() {
         // to ensure they don't clash with the app's dark theme
         html = html.replace(/background(?:-color)?:\s*[^;"]+;?/gi, '');
         html = html.replace(/color:\s*[^;"]+;?/gi, '');
+        html = html.replace(/border(?:-[a-z]+)?:\s*[^;"]+;?/gi, ''); // Strip weird borders
+        html = html.replace(/<img[^>]*>/gi, ''); // Strip broken inline icons
         
         return new Delta().insert({ 'custom-table': html });
       });
@@ -2209,6 +2211,7 @@ if (!initTemplateManager()) {
     }
   });
 }
+
 
 
 
