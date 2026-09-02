@@ -5,29 +5,29 @@ let currentSessionNoteId = null;  // Used for highlight notes
 let saveTimeout = null;
 window.currentNotesTab = window.currentNotesTab || 'text';
 
-window.switchNotesTab = function(tab) {
-    window.currentNotesTab = tab;
-    const tabText = document.getElementById('tab-text-notes');
-    const tabCanvas = document.getElementById('tab-canvas-notes');
-    const title = document.getElementById('notes-list-title');
-    
-    if (tabText && tabCanvas) {
-        tabText.classList.toggle('active', tab === 'text');
-        tabText.style.borderBottom = tab === 'text' ? '3px solid var(--accent)' : '3px solid transparent';
-        tabText.style.color = tab === 'text' ? 'var(--text-1)' : 'var(--text-3)';
-        
-        tabCanvas.classList.toggle('active', tab === 'canvas');
-        tabCanvas.style.borderBottom = tab === 'canvas' ? '3px solid var(--accent)' : '3px solid transparent';
-        tabCanvas.style.color = tab === 'canvas' ? 'var(--text-1)' : 'var(--text-3)';
-    }
-    
-    if (title) {
-        title.textContent = tab === 'text' ? 'TEXT NOTES' : 'CANVAS NOTES';
-    }
-    
-    if (typeof loadExternalNotesList === 'function') {
-        loadExternalNotesList();
-    }
+window.switchNotesTab = function (tab) {
+  window.currentNotesTab = tab;
+  const tabText = document.getElementById('tab-text-notes');
+  const tabCanvas = document.getElementById('tab-canvas-notes');
+  const title = document.getElementById('notes-list-title');
+
+  if (tabText && tabCanvas) {
+    tabText.classList.toggle('active', tab === 'text');
+    tabText.style.borderBottom = tab === 'text' ? '3px solid var(--accent)' : '3px solid transparent';
+    tabText.style.color = tab === 'text' ? 'var(--text-1)' : 'var(--text-3)';
+
+    tabCanvas.classList.toggle('active', tab === 'canvas');
+    tabCanvas.style.borderBottom = tab === 'canvas' ? '3px solid var(--accent)' : '3px solid transparent';
+    tabCanvas.style.color = tab === 'canvas' ? 'var(--text-1)' : 'var(--text-3)';
+  }
+
+  if (title) {
+    title.textContent = tab === 'text' ? 'TEXT NOTES' : 'CANVAS NOTES';
+  }
+
+  if (typeof loadExternalNotesList === 'function') {
+    loadExternalNotesList();
+  }
 };
 
 // Register Custom Table Blot for Quill so tables are preserved and not stripped
@@ -77,7 +77,7 @@ if (typeof Quill !== 'undefined') {
     CustomDiagramBlot.tagName = 'div';
     CustomDiagramBlot.className = 'ql-diagram-container';
     Quill.register(CustomDiagramBlot, true);
-  } catch(e) {
+  } catch (e) {
     console.warn("CustomTableBlot registration:", e);
   }
 }
@@ -85,7 +85,7 @@ if (typeof Quill !== 'undefined') {
 // Wait for Quill to be ready
 function initQuillEditor() {
   if (window.quillEditor) return; // already initialized
-  
+
   if (typeof Quill === 'undefined') {
     console.error("Quill is not loaded.");
     alert("The Rich Text Editor failed to load because the Quill library is missing. Please check your internet connection.");
@@ -109,10 +109,10 @@ function initQuillEditor() {
     function applySizeToRange(quill, range, sizeValue) {
       if (!range || _isFormatting) return;
       quill.setSelection(range, 'silent');
-      
+
       const val = sizeValue || false;
       const CHUNK_SIZE = 5000; // chars per chunk
-      
+
       if (range.length <= CHUNK_SIZE) {
         if (range.length === 0) {
           quill.format('size', val, 'user');
@@ -121,18 +121,18 @@ function initQuillEditor() {
         }
         return;
       }
-      
+
       _isFormatting = true;
       // For huge selections (100+ pages), format in chunks via requestAnimationFrame
       const overlay = document.createElement('div');
       overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;';
       overlay.innerHTML = 'Formatting... <span id="fmt-pct">0</span>%';
       document.getElementById('quill-editor').appendChild(overlay);
-      
+
       let currentIdx = range.index;
       const endIdx = range.index + range.length;
       const pctEl = overlay.querySelector('#fmt-pct');
-      
+
       function formatNextChunk() {
         const len = Math.min(CHUNK_SIZE, endIdx - currentIdx);
         if (len <= 0) {
@@ -142,24 +142,24 @@ function initQuillEditor() {
           quill.setSelection(range, 'user');
           return;
         }
-        
+
         // Trigger 'user' event on the very last chunk so auto-save and toolbar resync fire
         const isLastChunk = (currentIdx + len >= endIdx);
         quill.formatText(currentIdx, len, 'size', val, isLastChunk ? 'user' : 'silent');
         currentIdx += len;
-        
+
         pctEl.textContent = Math.round(((currentIdx - range.index) / range.length) * 100);
         requestAnimationFrame(formatNextChunk);
       }
-      
+
       requestAnimationFrame(formatNextChunk);
     }
 
     // Helper: get current size of selection
     function getCurrentSize(quill, range) {
-      const format = quill.getFormat(range || quill.getSelection() || {index:0,length:0});
+      const format = quill.getFormat(range || quill.getSelection() || { index: 0, length: 0 });
       let size = format.size || '16px';
-      
+
       // If selection spans multiple sizes, getFormat returns an array. Use the most prominent/first one.
       if (Array.isArray(size)) {
         size = size[0] || '16px';
@@ -172,11 +172,11 @@ function initQuillEditor() {
       [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
       ['bold', 'italic', 'underline', 'strike'],
       ['blockquote', 'code-block'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      [{ 'script': 'sub'}, { 'script': 'super' }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+      [{ 'script': 'sub' }, { 'script': 'super' }],
       [{ 'align': [] }],
       ['link', 'image', 'video', 'formula'],
-      ['clean'] 
+      ['clean']
     ];
 
     window.quillEditor = new Quill('#quill-editor', {
@@ -186,14 +186,14 @@ function initQuillEditor() {
           container: toolbarOptions,
           handlers: {
             // Dropdown handler: restore saved selection then apply exact size
-            'size': function(value) {
+            'size': function (value) {
               const quill = window.quillEditor;
               const range = _savedRange || quill.getSelection();
               applySizeToRange(quill, range, value);
               _savedRange = null;
             },
             // A- button: step size down one level, keep all other formats
-            'size-decrease': function() {
+            'size-decrease': function () {
               const quill = window.quillEditor;
               const range = _savedRange || quill.getSelection();
               if (!range) return;
@@ -205,7 +205,7 @@ function initQuillEditor() {
               }
             },
             // A+ button: step size up one level, keep all other formats
-            'size-increase': function() {
+            'size-increase': function () {
               const quill = window.quillEditor;
               const range = _savedRange || quill.getSelection();
               if (!range) return;
@@ -233,23 +233,15 @@ function initQuillEditor() {
     }, 0);
 
     // Save selection whenever user interacts with editor (before toolbar click steals it)
-    window.quillEditor.on('selection-change', function(range) {
+    window.quillEditor.on('selection-change', function (range) {
       if (range) _savedRange = range; // only update when we have a real selection
     });
 
     // Attach Markdown Intelligence Engine
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
-    // Add clipboard matcher for tables so pasting preserves them
-    if (window.quillEditor && window.quillEditor.clipboard) {
-      window.quillEditor.clipboard.addMatcher('TABLE', function(node, delta) {
-        const Delta = Quill.import('delta');
-        return new Delta().insert({ 'custom-table': node.outerHTML });
-      });
-    }
-
     // Click listener for Diagram editing via Popup Menu
-    document.getElementById('quill-editor').addEventListener('click', function(e) {
+    document.getElementById('quill-editor').addEventListener('click', function (e) {
       const diagramBlot = e.target.closest('.ql-diagram-container');
       if (diagramBlot) {
         e.stopPropagation();
@@ -258,18 +250,18 @@ function initQuillEditor() {
           try {
             const mermaidSrc = decodeURIComponent(mermaidEnc);
             const prompt = 'Please explain this diagram:\\n\\n```mermaid\\n' + mermaidSrc + '\\n```';
-            
+
             const actions = [];
             actions.push({
               label: '&#10024; Explain with AI',
-              actionFn: function() {
+              actionFn: function () {
                 if (window.askAI) window.askAI(prompt);
               }
             });
-            
+
             actions.push({
               label: '&#9651; Enlarge',
-              actionFn: function() {
+              actionFn: function () {
                 if (window.showEnlargedMedia) {
                   var clone = diagramBlot.cloneNode(true);
                   clone.style.cursor = 'default';
@@ -277,20 +269,20 @@ function initQuillEditor() {
                 }
               }
             });
-            
+
             if (window.DiagramBuilder && typeof window.DiagramBuilder.open === 'function') {
               actions.push({
                 label: '&#11041; Open in Diagram Builder',
-                actionFn: function() {
+                actionFn: function () {
                   window.DiagramBuilder.open(mermaidSrc);
                 }
               });
             }
-            
+
             if (window.showActionPopup) {
               window.showActionPopup(e, actions);
             }
-          } catch(err) {
+          } catch (err) {
             console.error("Failed to decode mermaid source", err);
           }
         }
@@ -298,15 +290,15 @@ function initQuillEditor() {
     });
 
     // Auto-save logic
-    window.quillEditor.on('text-change', function(delta, oldDelta, source) {
+    window.quillEditor.on('text-change', function (delta, oldDelta, source) {
       // FIX R4: Ignore programmatic/API text changes to prevent phantom auto-save loops
       if (source !== 'user') return;
-      
+
       // Push Deltas to the Tablet Sync Engine if connected
       if (window.RemoteNotesEngineInstance) {
-          window.RemoteNotesEngineInstance.broadcastLocalDelta(delta);
+        window.RemoteNotesEngineInstance.broadcastLocalDelta(delta);
       }
-      
+
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(saveExternalNote, 5000); // Auto-save every 5 seconds
     });
@@ -322,7 +314,7 @@ function initQuillEditor() {
 window.searchMatchCase = false;
 window.searchWholeWord = false;
 
-window.toggleSearchOption = function(option) {
+window.toggleSearchOption = function (option) {
   if (option === 'case') {
     window.searchMatchCase = !window.searchMatchCase;
     const el = document.getElementById('search-toggle-case');
@@ -336,52 +328,52 @@ window.toggleSearchOption = function(option) {
   performGlobalSearch(query);
 };
 
-window.performGlobalSearch = async function(query) {
+window.performGlobalSearch = async function (query) {
   const dropdown = document.getElementById('notes-search-dropdown');
   const resultsContainer = document.getElementById('notes-search-results');
   const countEl = document.getElementById('notes-search-count');
-  
+
   if (!query.trim()) {
     dropdown.style.display = 'none';
     return;
   }
-  
+
   if (!window.notesRepo) return;
   const allNotes = await window.notesRepo.getAllNotes();
-  
+
   let matchCount = 0;
   resultsContainer.innerHTML = '';
-  
+
   let flags = window.searchMatchCase ? 'g' : 'gi';
   let escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let regexPattern = window.searchWholeWord ? `\\b${escapedQuery}\\b` : escapedQuery;
-  
+
   let regex;
   try {
     regex = new RegExp(regexPattern, flags);
-  } catch(e) {
+  } catch (e) {
     dropdown.style.display = 'none';
     return;
   }
-  
+
   for (const note of allNotes) {
     const textToSearch = (note.title || '') + '\n' + (note.content || '');
     const matches = [...textToSearch.matchAll(regex)];
-    
+
     if (matches.length > 0) {
       matchCount += matches.length;
-      
+
       const cleanTitle = (note.title || 'Untitled').replace(/^\[book:[^\]]+\](?:\[ch:\d+\]\s*)?/, '').trim();
-      
+
       // Get a snippet around the first match
       const firstMatch = matches[0];
       const startIdx = Math.max(0, firstMatch.index - 40);
       const endIdx = Math.min(textToSearch.length, firstMatch.index + query.length + 40);
       let snippet = textToSearch.substring(startIdx, endIdx);
-      
+
       // Highlight the snippet
       snippet = snippet.replace(regex, match => `<span style="background: rgba(255,165,0,0.4); color: #fff; border-radius: 2px;">${match}</span>`);
-      
+
       const el = document.createElement('div');
       el.style.padding = '8px 12px';
       el.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
@@ -390,44 +382,44 @@ window.performGlobalSearch = async function(query) {
       el.onmouseover = () => el.style.background = 'rgba(255,255,255,0.05)';
       el.onmouseout = () => el.style.background = 'transparent';
       el.onmousedown = () => {
-         // Use mousedown instead of click to prevent onblur hiding it first
-         if (window.loadExternalNote) window.loadExternalNote(note.id);
-         dropdown.style.display = 'none';
+        // Use mousedown instead of click to prevent onblur hiding it first
+        if (window.loadExternalNote) window.loadExternalNote(note.id);
+        dropdown.style.display = 'none';
       };
-      
+
       el.innerHTML = `
         <div style="font-size: 12px; font-weight: bold; color: var(--text-1); margin-bottom: 4px;">${cleanTitle}</div>
         <div style="font-size: 11px; color: var(--text-3); word-wrap: break-word;">...${snippet}...</div>
       `;
-      
+
       resultsContainer.appendChild(el);
     }
   }
-  
+
   countEl.textContent = `${matchCount} result${matchCount !== 1 ? 's' : ''}`;
   dropdown.style.display = 'flex';
 };
 
-window.filterExternalNotes = function(query) {
+window.filterExternalNotes = function (query) {
   const listEl = document.getElementById('external-notes-list');
   if (!listEl) return;
-  
+
   query = (query || '').toLowerCase().trim();
-  
+
   // If empty, reset everything
   if (!query) {
     const allBooks = listEl.querySelectorAll('.sidebar-book-item');
     const allChapters = listEl.querySelectorAll('.sidebar-note-item[data-type="chapter"]');
     const allStandalone = listEl.querySelectorAll('.sidebar-note-item[data-type="standalone"]');
     const allHeaders = listEl.querySelectorAll('.sidebar-standalone-header');
-    
+
     allBooks.forEach(el => el.style.display = 'block');
     allChapters.forEach(el => el.style.display = 'block');
     allStandalone.forEach(el => el.style.display = 'block');
     allHeaders.forEach(el => el.style.display = 'block');
     return;
   }
-  
+
   // Process Standalone Notes
   const standalones = listEl.querySelectorAll('.sidebar-note-item[data-type="standalone"]');
   let standaloneMatchCount = 0;
@@ -440,21 +432,21 @@ window.filterExternalNotes = function(query) {
       el.style.display = 'none';
     }
   });
-  
+
   const standaloneHeader = listEl.querySelector('.sidebar-standalone-header');
   if (standaloneHeader) {
     standaloneHeader.style.display = standaloneMatchCount > 0 ? 'block' : 'none';
   }
-  
+
   // Process Books and Chapters
   const books = listEl.querySelectorAll('.sidebar-book-item');
   books.forEach(bookEl => {
     const bookTitle = bookEl.dataset.title || '';
     const bookMatches = bookTitle.includes(query);
-    
+
     const chapters = bookEl.querySelectorAll('.sidebar-note-item[data-type="chapter"]');
     let chapterMatchCount = 0;
-    
+
     chapters.forEach(chapterEl => {
       const chapterTitle = chapterEl.dataset.title || '';
       // If book matches, show all chapters. If not, check if chapter matches.
@@ -465,11 +457,11 @@ window.filterExternalNotes = function(query) {
         chapterEl.style.display = 'none';
       }
     });
-    
+
     // Show book if the book itself matches, or if any of its chapters match
     if (bookMatches || chapterMatchCount > 0) {
       bookEl.style.display = 'block';
-      
+
       // If we are searching, it's helpful to auto-expand the book if it has matching chapters
       if (query && !bookMatches && chapterMatchCount > 0) {
         const chaptersContainer = bookEl.querySelector('.sidebar-chapters-container');
@@ -720,7 +712,7 @@ class MarkdownIntelligenceEngine {
     if (!this.isEnabled()) return; // Native Quill paste executes cleanly without interception
     const clipboardData = e.clipboardData || window.clipboardData;
     if (!clipboardData) return;
-    
+
     const htmlData = clipboardData.getData('text/html');
     if (htmlData && (htmlData.includes('<table') || htmlData.includes('<TABLE'))) {
       return; // Let Quill handle rich HTML tables directly
@@ -733,9 +725,9 @@ class MarkdownIntelligenceEngine {
     if (this.detectMarkdown(textData)) {
       e.preventDefault();
       e.stopPropagation();
-      
+
       const normalized = SmartMarkdownNormalizer.normalize(textData);
-      
+
       let html = '';
       if (typeof marked !== 'undefined' && marked.parse) {
         try {
@@ -760,7 +752,7 @@ class MarkdownIntelligenceEngine {
       }
 
       const range = this.quill.getSelection() || { index: this.quill.getLength(), length: 0 };
-      
+
       if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
         this.quill.clipboard.dangerouslyPasteHTML(range.index, html, 'user');
         // Fix: advance cursor to end of pasted block so user can keep typing naturally
@@ -786,8 +778,8 @@ class MarkdownIntelligenceEngine {
     if (/^```[\s\S]*?```$/m.test(text) || /\b(mermaid|graph LR|graph TD|subgraph)\b/i.test(text)) score += 4;
     // List items & Unicode bullets
     if (/^(\s*[-*+]|\s*\d+\.|\s*[•●▪◦⁃–])\s+.+$/m.test(text)) score += 2;
-    // Tab-separated tables
-    if (/\t[^\n]+\t/m.test(text) || /^Table\t/m.test(text)) score += 3;
+    // Tab-separated tables (Disabled to prevent corrupting ambiguous clipboard data)
+    // if (/\t[^\n]+\t/m.test(text) || /^Table\t/m.test(text)) score += 3;
     // Blockquotes
     if (/^>\s+.+$/m.test(text)) score += 2;
     // Links / Images
@@ -821,7 +813,7 @@ class MarkdownIntelligenceEngine {
       html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
         return `<div class="ql-custom-table-container">${match}</div>`;
       });
-      
+
       if (this.quill.clipboard && this.quill.clipboard.dangerouslyPasteHTML) {
         this.quill.setText('\n', 'api'); // 'api' source: suppresses auto-save trigger on blank content
         this.quill.clipboard.dangerouslyPasteHTML(0, html, 'user');
@@ -829,7 +821,7 @@ class MarkdownIntelligenceEngine {
         this.quill.root.innerHTML = html;
       }
       this._showToast('✨ Converted Markdown to Rich Text');
-    } catch(err) {
+    } catch (err) {
       console.error('Markdown conversion error:', err);
       alert('Error parsing Markdown: ' + err.message);
     }
@@ -888,33 +880,33 @@ function openExternalNotes() {
   }
 }
 
-window.openExternalEditorWithContent = async function(title, htmlContent) {
+window.openExternalEditorWithContent = async function (title, htmlContent) {
   const overlay = document.getElementById('external-notes-overlay');
   if (overlay) overlay.style.display = 'flex';
   if (typeof updateMarkdownUI === 'function') updateMarkdownUI();
-  
+
   const editor = await ensureQuillEditor();
   if (!editor) {
     console.error("Quill editor is not available.");
     return;
   }
-  
+
   currentExternalNoteId = null;
   window.currentExternalNoteId = null;
   currentSessionNoteId = null;
-  
+
   const titleInput = document.getElementById('external-note-title');
   if (titleInput) {
     titleInput.dataset.bookPrefix = '';
     titleInput.value = title || 'Untitled Note';
   }
-  
+
   if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
     editor.clipboard.dangerouslyPasteHTML(0, htmlContent);
   } else {
     editor.root.innerHTML = htmlContent;
   }
-  
+
   await saveExternalNote(true);
   loadExternalNotesList();
 };
@@ -937,16 +929,16 @@ async function loadExternalNotesList() {
     const allNotes = await window.notesRepo.getAllNotes();
     let notes = [];
     if (window.currentNotesTab === 'text') {
-        notes = allNotes.filter(n => !n.isCanvasNote && n.itemType !== 'canvas');
+      notes = allNotes.filter(n => !n.isCanvasNote && n.itemType !== 'canvas');
     } else {
-        notes = allNotes.filter(n => n.isCanvasNote || n.itemType === 'canvas');
+      notes = allNotes.filter(n => n.isCanvasNote || n.itemType === 'canvas');
     }
 
     const listEl = document.getElementById('external-notes-list');
     if (!listEl) return;
-    
+
     listEl.innerHTML = '';
-    
+
     if (notes.length === 0 && window.currentNotesTab === 'canvas') {
       const msg = 'No saved canvases.';
       listEl.innerHTML = `<div style="color:var(--text-3); font-size:12px; padding:10px;">${msg}</div>`;
@@ -958,7 +950,7 @@ async function loadExternalNotesList() {
     if (window.BookSidebarRenderer && window.BookNodeAdapter) {
       strategy = new window.BookSidebarRenderer(new window.BookNodeAdapter());
     }
-    
+
     if (strategy) {
       strategy.render(notes, listEl);
     } else {
@@ -1016,23 +1008,23 @@ class EditorModeController {
     // Convert current Quill HTML to Markdown
     const html = window.quillEditor.root.innerHTML;
     let md = '';
-    
+
     if (html.length > 50000 && window.MarkdownWorker) {
-        md = await new Promise((resolve) => {
-            const msgId = Date.now() + Math.random();
-            const handler = (e) => {
-                if (e.data.id === msgId) {
-                    window.MarkdownWorker.removeEventListener('message', handler);
-                    resolve(e.data.md);
-                }
-            };
-            window.MarkdownWorker.addEventListener('message', handler);
-            window.MarkdownWorker.postMessage({ id: msgId, html: html });
-        });
+      md = await new Promise((resolve) => {
+        const msgId = Date.now() + Math.random();
+        const handler = (e) => {
+          if (e.data.id === msgId) {
+            window.MarkdownWorker.removeEventListener('message', handler);
+            resolve(e.data.md);
+          }
+        };
+        window.MarkdownWorker.addEventListener('message', handler);
+        window.MarkdownWorker.postMessage({ id: msgId, html: html });
+      });
     } else {
-        md = htmlToMarkdown(html);
+      md = htmlToMarkdown(html);
     }
-    
+
     rawEditor.value = md;
 
     visualEditor.style.display = 'none';
@@ -1116,7 +1108,7 @@ class EditorModeController {
   }
 }
 window.editorModeController = new EditorModeController();
-window.toggleEditorMode = function() {
+window.toggleEditorMode = function () {
   window.editorModeController.toggleMode();
 };
 
@@ -1150,54 +1142,54 @@ async function createNewExternalNote() {
     titleInput.value = window.currentNotesTab === 'canvas' ? 'Untitled Canvas' : 'Untitled Note';
     setTimeout(() => titleInput.focus(), 50);
   }
-  
+
   const newId = Date.now();
   currentExternalNoteId = newId;
   window.currentExternalNoteId = newId;
-  
+
   if (window.currentNotesTab === 'canvas') {
-      document.getElementById('quill-editor').style.display = 'none';
-      document.getElementById('markdown-source-editor').style.display = 'none';
-      const qlToolbar = document.querySelector('.ql-toolbar');
-      if (qlToolbar) qlToolbar.style.display = 'none';
-      
-      const txtTools = document.getElementById('text-note-tools');
-      if (txtTools) txtTools.style.display = 'none';
-      const canvasTools = document.getElementById('canvas-note-tools');
-      if (canvasTools) canvasTools.style.display = 'flex';
-      
-      const canvasContainer = document.getElementById('pure-canvas-container');
-      if (canvasContainer) {
-          canvasContainer.style.display = 'block';
-          canvasContainer.dataset.id = newId;
-          if (window.StylusEngine) window.StylusEngine.activate(canvasContainer);
-      }
+    document.getElementById('quill-editor').style.display = 'none';
+    document.getElementById('markdown-source-editor').style.display = 'none';
+    const qlToolbar = document.querySelector('.ql-toolbar');
+    if (qlToolbar) qlToolbar.style.display = 'none';
+
+    const txtTools = document.getElementById('text-note-tools');
+    if (txtTools) txtTools.style.display = 'none';
+    const canvasTools = document.getElementById('canvas-note-tools');
+    if (canvasTools) canvasTools.style.display = 'flex';
+
+    const canvasContainer = document.getElementById('pure-canvas-container');
+    if (canvasContainer) {
+      canvasContainer.style.display = 'block';
+      canvasContainer.dataset.id = newId;
+      if (window.StylusEngine) window.StylusEngine.activate(canvasContainer);
+    }
   } else {
-      document.getElementById('quill-editor').style.display = 'block';
-      const qlToolbar = document.querySelector('.ql-toolbar');
-      if (qlToolbar) qlToolbar.style.display = 'block';
-      
-      const txtTools = document.getElementById('text-note-tools');
-      if (txtTools) txtTools.style.display = 'flex';
-      const canvasTools = document.getElementById('canvas-note-tools');
-      if (canvasTools) canvasTools.style.display = 'none';
-      
-      const canvasContainer = document.getElementById('pure-canvas-container');
-      if (canvasContainer) {
-          canvasContainer.style.display = 'none';
-          if (window.StylusEngine) window.StylusEngine.deactivate();
-      }
-      
-      if (window.quillEditor) {
-          window.quillEditor.setText('\n');
-      }
-      const rawEditor = document.getElementById('markdown-source-editor');
-      if (rawEditor) rawEditor.value = '';
-      if (window.editorModeController && window.editorModeController.mode === 'markdown') {
-        window.editorModeController.switchToVisual();
-      }
+    document.getElementById('quill-editor').style.display = 'block';
+    const qlToolbar = document.querySelector('.ql-toolbar');
+    if (qlToolbar) qlToolbar.style.display = 'block';
+
+    const txtTools = document.getElementById('text-note-tools');
+    if (txtTools) txtTools.style.display = 'flex';
+    const canvasTools = document.getElementById('canvas-note-tools');
+    if (canvasTools) canvasTools.style.display = 'none';
+
+    const canvasContainer = document.getElementById('pure-canvas-container');
+    if (canvasContainer) {
+      canvasContainer.style.display = 'none';
+      if (window.StylusEngine) window.StylusEngine.deactivate();
+    }
+
+    if (window.quillEditor) {
+      window.quillEditor.setText('\n');
+    }
+    const rawEditor = document.getElementById('markdown-source-editor');
+    if (rawEditor) rawEditor.value = '';
+    if (window.editorModeController && window.editorModeController.mode === 'markdown') {
+      window.editorModeController.switchToVisual();
+    }
   }
-  
+
   // Save the new blank note explicitly to the DB so it appears in the list immediately
   const newNote = {
     id: newId,
@@ -1209,16 +1201,16 @@ async function createNewExternalNote() {
     updatedAt: Date.now(),
     createdAt: Date.now()
   };
-  
+
   if (window.notesRepo) {
-      await window.notesRepo.saveNote(newNote);
+    await window.notesRepo.saveNote(newNote);
   }
-  
+
   loadExternalNotesList();
 }
 window.createNewExternalNote = createNewExternalNote;
 
-window.handleNewNoteClick = function() {
+window.handleNewNoteClick = function () {
   const isBookMode = true; // Hardcoded to true as per new architecture
   if (isBookMode && window.currentNotesTab !== 'canvas') {
     const menu = document.getElementById('new-note-menu-options');
@@ -1228,11 +1220,11 @@ window.handleNewNoteClick = function() {
   }
 };
 
-window.createNewBook = async function() {
+window.createNewBook = async function () {
   const bookName = prompt("Enter new Book title:");
   if (!bookName) return;
   const uuid = 'b-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-  
+
   await createNewExternalNote();
   const titleInput = document.getElementById('external-note-title');
   const prefix = `[book:${uuid}] `;
@@ -1240,7 +1232,7 @@ window.createNewBook = async function() {
     titleInput.dataset.bookPrefix = prefix;
     titleInput.value = bookName;
   }
-  
+
   if (window.notesRepo && window.currentExternalNoteId) {
     const note = await window.notesRepo.getNote(window.currentExternalNoteId);
     if (note) {
@@ -1251,28 +1243,28 @@ window.createNewBook = async function() {
   }
 };
 
-window.createNewChapter = async function() {
+window.createNewChapter = async function () {
   if (!window.notesRepo) return;
-  
+
   // Find which book is currently selected or prompt
   const notes = await window.notesRepo.getAllNotes();
   const books = new Map();
   const bookRegex = /^\[book:([^\]]+)\](?:\[ch:(\d+)\]\s*)?(.*)$/;
-  
+
   for (const n of notes) {
     const m = bookRegex.exec(n.title);
     if (m && !m[2]) books.set(m[1], m[3]); // bookId -> title
   }
-  
+
   if (books.size === 0) {
     alert("No Books found. Please create a Book first.");
     return;
   }
-  
+
   // Determine target bookId (simple heuristic: first book, or currently selected book)
   let targetBookId = null;
   let maxCh = 0;
-  
+
   if (window.currentExternalNoteId) {
     const currentNote = notes.find(n => n.id === window.currentExternalNoteId);
     if (currentNote) {
@@ -1280,11 +1272,11 @@ window.createNewChapter = async function() {
       if (m) targetBookId = m[1];
     }
   }
-  
+
   if (!targetBookId) {
     targetBookId = Array.from(books.keys())[0];
   }
-  
+
   // Find highest chapter number
   for (const n of notes) {
     const m = bookRegex.exec(n.title);
@@ -1292,10 +1284,10 @@ window.createNewChapter = async function() {
       maxCh = Math.max(maxCh, parseInt(m[2], 10));
     }
   }
-  
+
   const chName = prompt(`Enter chapter name for "${books.get(targetBookId)}":`, `Chapter ${maxCh + 1}`);
   if (!chName) return;
-  
+
   await createNewExternalNote();
   const titleInput = document.getElementById('external-note-title');
   const prefix = `[book:${targetBookId}][ch:${maxCh + 1}] `;
@@ -1303,7 +1295,7 @@ window.createNewChapter = async function() {
     titleInput.dataset.bookPrefix = prefix;
     titleInput.value = chName;
   }
-  
+
   // Explicitly update the title in the DB since the note is empty and saveExternalNote would ignore it
   if (window.notesRepo && window.currentExternalNoteId) {
     const note = await window.notesRepo.getNote(window.currentExternalNoteId);
@@ -1325,25 +1317,25 @@ window.createNewChapter = async function() {
  * Backward compatible: gracefully no-ops if elements or engine are absent.
  */
 function _restoreToolbarStateToEngine() {
-    if (!window.StylusEngine || !window.StylusEngine.activeFacade) return;
-    
-    // Read from both tablet toolbar IDs and desktop toolbar IDs
-    const sizeEl = document.getElementById('tb-size') || document.getElementById('stylus-size');
-    const colorEl = document.getElementById('tb-color') || document.getElementById('stylus-color');
-    const activeToolBtn = document.querySelector('.tool-btn.active[id^="tb-"]');
-    
-    if (sizeEl && sizeEl.value) {
-        window.StylusEngine.setSize(parseFloat(sizeEl.value));
+  if (!window.StylusEngine || !window.StylusEngine.activeFacade) return;
+
+  // Read from both tablet toolbar IDs and desktop toolbar IDs
+  const sizeEl = document.getElementById('tb-size') || document.getElementById('stylus-size');
+  const colorEl = document.getElementById('tb-color') || document.getElementById('stylus-color');
+  const activeToolBtn = document.querySelector('.tool-btn.active[id^="tb-"]');
+
+  if (sizeEl && sizeEl.value) {
+    window.StylusEngine.setSize(parseFloat(sizeEl.value));
+  }
+  if (colorEl && colorEl.value) {
+    window.StylusEngine.setColor(colorEl.value);
+  }
+  if (activeToolBtn) {
+    const tool = activeToolBtn.id.replace('tb-', '');
+    if (['pen', 'highlighter', 'eraser'].includes(tool)) {
+      window.StylusEngine.setTool(tool);
     }
-    if (colorEl && colorEl.value) {
-        window.StylusEngine.setColor(colorEl.value);
-    }
-    if (activeToolBtn) {
-        const tool = activeToolBtn.id.replace('tb-', '');
-        if (['pen', 'highlighter', 'eraser'].includes(tool)) {
-            window.StylusEngine.setTool(tool);
-        }
-    }
+  }
 }
 
 async function loadExternalNote(id) {
@@ -1358,85 +1350,85 @@ async function loadExternalNote(id) {
       const titleEl = document.getElementById('external-note-title');
       const match = (note.title || '').match(/^(\[book:[^\]]+\](?:\[ch:\d+\]\s*)?)(.*)$/);
       if (match) {
-          titleEl.dataset.bookPrefix = match[1];
-          titleEl.value = match[2];
+        titleEl.dataset.bookPrefix = match[1];
+        titleEl.value = match[2];
       } else {
-          titleEl.dataset.bookPrefix = '';
-          titleEl.value = note.title || '';
+        titleEl.dataset.bookPrefix = '';
+        titleEl.value = note.title || '';
       }
-      
+
       const isCanvas = note.isCanvasNote || note.itemType === 'canvas';
-      
+
       if (isCanvas) {
-          document.getElementById('quill-editor').style.display = 'none';
-          document.getElementById('markdown-source-editor').style.display = 'none';
-          const qlToolbar = document.querySelector('.ql-toolbar');
-          if (qlToolbar) qlToolbar.style.display = 'none';
-          
-          const txtTools = document.getElementById('text-note-tools');
-          if (txtTools) txtTools.style.display = 'none';
-          const canvasTools = document.getElementById('canvas-note-tools');
-          if (canvasTools) canvasTools.style.display = 'flex';
-          
-          const canvasContainer = document.getElementById('pure-canvas-container');
-          if (canvasContainer) {
-              canvasContainer.style.display = 'block';
-              canvasContainer.dataset.id = note.id;
-              
-              if (note.content && window.StylusStore) {
-                  try {
-                      const strokes = JSON.parse(note.content);
-                      if (Array.isArray(strokes)) {
-                          window.StylusStore.set(note.id, strokes);
-                      }
-                  } catch (e) {}
+        document.getElementById('quill-editor').style.display = 'none';
+        document.getElementById('markdown-source-editor').style.display = 'none';
+        const qlToolbar = document.querySelector('.ql-toolbar');
+        if (qlToolbar) qlToolbar.style.display = 'none';
+
+        const txtTools = document.getElementById('text-note-tools');
+        if (txtTools) txtTools.style.display = 'none';
+        const canvasTools = document.getElementById('canvas-note-tools');
+        if (canvasTools) canvasTools.style.display = 'flex';
+
+        const canvasContainer = document.getElementById('pure-canvas-container');
+        if (canvasContainer) {
+          canvasContainer.style.display = 'block';
+          canvasContainer.dataset.id = note.id;
+
+          if (note.content && window.StylusStore) {
+            try {
+              const strokes = JSON.parse(note.content);
+              if (Array.isArray(strokes)) {
+                window.StylusStore.set(note.id, strokes);
               }
-              
-              if (window.StylusEngine) {
-                  window.StylusEngine.activate(canvasContainer);
-                  // Bug 9 fix: restore toolbar state after activate() creates a new facade
-                  _restoreToolbarStateToEngine();
-              }
+            } catch (e) { }
           }
+
+          if (window.StylusEngine) {
+            window.StylusEngine.activate(canvasContainer);
+            // Bug 9 fix: restore toolbar state after activate() creates a new facade
+            _restoreToolbarStateToEngine();
+          }
+        }
       } else {
-          document.getElementById('quill-editor').style.display = 'block';
-          const qlToolbar = document.querySelector('.ql-toolbar');
-          if (qlToolbar) qlToolbar.style.display = 'block';
-          
-          const txtTools = document.getElementById('text-note-tools');
-          if (txtTools) txtTools.style.display = 'flex';
-          const canvasTools = document.getElementById('canvas-note-tools');
-          if (canvasTools) canvasTools.style.display = 'none';
-          
-          const canvasContainer = document.getElementById('pure-canvas-container');
-          if (canvasContainer) {
-              canvasContainer.style.display = 'none';
-              if (window.StylusEngine) window.StylusEngine.deactivate();
+        document.getElementById('quill-editor').style.display = 'block';
+        const qlToolbar = document.querySelector('.ql-toolbar');
+        if (qlToolbar) qlToolbar.style.display = 'block';
+
+        const txtTools = document.getElementById('text-note-tools');
+        if (txtTools) txtTools.style.display = 'flex';
+        const canvasTools = document.getElementById('canvas-note-tools');
+        if (canvasTools) canvasTools.style.display = 'none';
+
+        const canvasContainer = document.getElementById('pure-canvas-container');
+        if (canvasContainer) {
+          canvasContainer.style.display = 'none';
+          if (window.StylusEngine) window.StylusEngine.deactivate();
+        }
+
+        if (window.quillEditor) {
+          const html = note.content || '';
+          if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+            window.quillEditor.setText('\n');
+            window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+          } else {
+            window.quillEditor.root.innerHTML = html;
           }
-          
-          if (window.quillEditor) {
-            const html = note.content || '';
-            if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-              window.quillEditor.setText('\n');
-              window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
-            } else {
-              window.quillEditor.root.innerHTML = html;
-            }
-          }
-          const rawEditor = document.getElementById('markdown-source-editor');
-          if (rawEditor) {
-            rawEditor.value = htmlToMarkdown(note.content || '');
-          }
+        }
+        const rawEditor = document.getElementById('markdown-source-editor');
+        if (rawEditor) {
+          rawEditor.value = htmlToMarkdown(note.content || '');
+        }
       }
-      
+
       loadExternalNotesList(); // Refresh list to update selection highlight
-      
+
       // Notify Tablet that the active note has changed
       if (window.RemoteNotesEngineInstance) {
-          window.RemoteNotesEngineInstance.broadcastNoteSwitch();
+        window.RemoteNotesEngineInstance.broadcastNoteSwitch();
       }
     }
-  } catch(e) {
+  } catch (e) {
     console.error("Failed to load note:", e);
   }
 }
@@ -1444,48 +1436,48 @@ async function loadExternalNote(id) {
 async function saveExternalNote(silent = false) {
   if (!window.quillEditor) return;
   if (window.editorModeController) window.editorModeController.syncBeforeSave();
-  
+
   const titleEl = document.getElementById('external-note-title');
   const prefix = titleEl.dataset.bookPrefix || '';
   const title = prefix + titleEl.value.trim();
   let content = window.quillEditor.root.innerHTML;
-  
+
   if (window.currentNotesTab === 'canvas') {
-      const canvasContainer = document.getElementById('pure-canvas-container');
-      const canvasId = canvasContainer ? canvasContainer.dataset.id : null;
-      if (canvasId && window.StylusStore) {
-          const strokes = window.StylusStore.get(canvasId) || [];
-          content = JSON.stringify(strokes);
-      }
+    const canvasContainer = document.getElementById('pure-canvas-container');
+    const canvasId = canvasContainer ? canvasContainer.dataset.id : null;
+    if (canvasId && window.StylusStore) {
+      const strokes = window.StylusStore.get(canvasId) || [];
+      content = JSON.stringify(strokes);
+    }
   }
-  
+
   let rawText = '';
   if (window.currentNotesTab !== 'canvas' && typeof htmlToMarkdown === 'function') {
-      if (content.length > 50000 && window.MarkdownWorker) {
-          // Offload to worker for massive documents to avoid main-thread freeze
-          rawText = await new Promise((resolve) => {
-              const msgId = Date.now() + Math.random();
-              const handler = (e) => {
-                  if (e.data.id === msgId) {
-                      window.MarkdownWorker.removeEventListener('message', handler);
-                      resolve(e.data.md);
-                  }
-              };
-              window.MarkdownWorker.addEventListener('message', handler);
-              window.MarkdownWorker.postMessage({ id: msgId, html: content });
-          });
-      } else {
-          rawText = htmlToMarkdown(content);
-      }
+    if (content.length > 50000 && window.MarkdownWorker) {
+      // Offload to worker for massive documents to avoid main-thread freeze
+      rawText = await new Promise((resolve) => {
+        const msgId = Date.now() + Math.random();
+        const handler = (e) => {
+          if (e.data.id === msgId) {
+            window.MarkdownWorker.removeEventListener('message', handler);
+            resolve(e.data.md);
+          }
+        };
+        window.MarkdownWorker.addEventListener('message', handler);
+        window.MarkdownWorker.postMessage({ id: msgId, html: content });
+      });
+    } else {
+      rawText = htmlToMarkdown(content);
+    }
   } else {
-      rawText = window.quillEditor.getText().trim();
+    rawText = window.quillEditor.getText().trim();
   }
-  
+
   if ((!content || content === '<p><br></p>') && window.currentNotesTab !== 'canvas') {
     if (!silent) alert("Cannot save an empty note.");
     return;
   }
-  
+
   // FACADE: Determine where to save based on context
   if (currentSessionNoteId) {
     // Save to the current PDF session highlight notes
@@ -1529,7 +1521,7 @@ async function saveExternalNote(silent = false) {
     itemType: window.currentNotesTab === 'canvas' ? 'canvas' : 'text',
     isCanvasNote: window.currentNotesTab === 'canvas'
   };
-  
+
   try {
     const saved = await window.notesRepo.saveNote(noteToSave);
     currentExternalNoteId = saved.id;
@@ -1548,30 +1540,30 @@ async function saveExternalNote(silent = false) {
       }
       loadExternalNotesList();
     }
-  } catch(e) {
+  } catch (e) {
     console.error("Failed to save note:", e);
     if (!silent) alert("Failed to save note. Check console for details.");
   }
 }
 window.saveExternalNote = saveExternalNote;
 
-window.downloadBook = async function(bookId) {
+window.downloadBook = async function (bookId) {
   try {
     const allNotes = await window.notesRepo.getAllNotes();
     const bookIdMatch = `[book:${bookId}]`;
-    
+
     // Find all notes belonging to the book
     const bookNotes = allNotes.filter(n => n.title && n.title.includes(bookIdMatch));
-    
+
     if (bookNotes.length === 0) {
       alert("Book not found or empty.");
       return;
     }
-    
+
     // Separate root note and chapters
     const rootNote = bookNotes.find(n => !n.title.includes('[ch:'));
     const chapters = bookNotes.filter(n => n.title.includes('[ch:'));
-    
+
     // Sort chapters by order
     chapters.sort((a, b) => {
       const matchA = a.title.match(/\[ch:(\d+)\]/);
@@ -1580,20 +1572,20 @@ window.downloadBook = async function(bookId) {
       const orderB = matchB ? parseInt(matchB[1], 10) : 0;
       return orderA - orderB;
     });
-    
+
     const bookTitle = rootNote ? rootNote.title.replace(/^\[book:[^\]]+\]/, '').trim() : "Untitled_Book";
-    
+
     let combinedMarkdown = `# ${bookTitle}\n\n`;
     if (rootNote && rootNote.content) {
       combinedMarkdown += `${rootNote.content}\n\n`;
     }
-    
+
     for (const ch of chapters) {
       const cleanChTitle = ch.title.replace(/^\[book:[^\]]+\](?:\[ch:\d+\]\s*)?/, '');
       combinedMarkdown += `---\n\n## ${cleanChTitle}\n\n`;
       if (ch.content) combinedMarkdown += `${ch.content}\n\n`;
     }
-    
+
     // Trigger download
     const blob = new Blob([combinedMarkdown], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1606,7 +1598,7 @@ window.downloadBook = async function(bookId) {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     }, 100);
-    
+
   } catch (e) {
     console.error("Failed to download book:", e);
     alert("Error downloading book: " + e.message);
@@ -1614,64 +1606,64 @@ window.downloadBook = async function(bookId) {
 };
 
 async function deleteExternalNote(id, isBookRoot = false) {
-    const parsedId = isNaN(Number(id)) ? id : Number(id);
-    
-    if (isBookRoot) {
-      if (!confirm("Are you sure you want to delete this Book? All chapters will be permanently deleted.")) {
-        return;
-      }
-      
-      try {
-        const allNotes = await window.notesRepo.getAllNotes();
-        const bookIdMatch = `[book:${parsedId}]`;
-        
-        // Find the root note first before modifying any titles
-        const rootNote = allNotes.find(n => String(n.title).startsWith(`[book:${parsedId}]`) && !String(n.title).includes('[ch:'));
-        
-        const chaptersToDelete = [];
-        for (const n of allNotes) {
-          if (n.title && n.title.includes(bookIdMatch) && n.id !== (rootNote ? rootNote.id : null)) {
-            chaptersToDelete.push(n);
-          }
-        }
-        
-        // Delete all chapters
-        for (const n of chaptersToDelete) {
-          await window.notesRepo.deleteNote(n.id);
-        }
-        
-        // Now delete the root book note
-        if (rootNote) {
-           await window.notesRepo.deleteNote(rootNote.id);
-        }
-        
-        // Clear editor if we deleted the currently open note
-        if ((rootNote && currentExternalNoteId === rootNote.id) || chaptersToDelete.some(n => n.id === window.currentExternalNoteId)) {
-           createNewExternalNote();
-        }
-        
-        loadExternalNotesList();
-        return;
-      } catch(e) {
-        console.error("Failed to delete book:", e);
-        alert("Error deleting book: " + e.message);
-        return;
-      }
+  const parsedId = isNaN(Number(id)) ? id : Number(id);
+
+  if (isBookRoot) {
+    if (!confirm("Are you sure you want to delete this Book? All chapters will be permanently deleted.")) {
+      return;
     }
-    
-    // Standard delete
+
     try {
-      await window.notesRepo.deleteNote(parsedId);
-      if (currentExternalNoteId === parsedId) {
-        createNewExternalNote(); // Clear editor if we deleted the currently open note
-      } else {
-        loadExternalNotesList();
+      const allNotes = await window.notesRepo.getAllNotes();
+      const bookIdMatch = `[book:${parsedId}]`;
+
+      // Find the root note first before modifying any titles
+      const rootNote = allNotes.find(n => String(n.title).startsWith(`[book:${parsedId}]`) && !String(n.title).includes('[ch:'));
+
+      const chaptersToDelete = [];
+      for (const n of allNotes) {
+        if (n.title && n.title.includes(bookIdMatch) && n.id !== (rootNote ? rootNote.id : null)) {
+          chaptersToDelete.push(n);
+        }
       }
-    } catch(e) {
-      console.error("Failed to delete note:", e);
-      alert("Error: " + e.message);
+
+      // Delete all chapters
+      for (const n of chaptersToDelete) {
+        await window.notesRepo.deleteNote(n.id);
+      }
+
+      // Now delete the root book note
+      if (rootNote) {
+        await window.notesRepo.deleteNote(rootNote.id);
+      }
+
+      // Clear editor if we deleted the currently open note
+      if ((rootNote && currentExternalNoteId === rootNote.id) || chaptersToDelete.some(n => n.id === window.currentExternalNoteId)) {
+        createNewExternalNote();
+      }
+
+      loadExternalNotesList();
+      return;
+    } catch (e) {
+      console.error("Failed to delete book:", e);
+      alert("Error deleting book: " + e.message);
+      return;
     }
   }
+
+  // Standard delete
+  try {
+    await window.notesRepo.deleteNote(parsedId);
+    if (currentExternalNoteId === parsedId) {
+      createNewExternalNote(); // Clear editor if we deleted the currently open note
+    } else {
+      loadExternalNotesList();
+    }
+  } catch (e) {
+    console.error("Failed to delete note:", e);
+    alert("Error: " + e.message);
+  }
+}
 
 /**
  * Converts Quill HTML DOM structure to clean Markdown text
@@ -1749,7 +1741,7 @@ function htmlToMarkdown(htmlOrNode) {
         if (node.classList && node.classList.contains('ql-diagram-container')) {
           let mermaidSrc = node.getAttribute('data-mermaid') || '';
           if (mermaidSrc) {
-            try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch(e) {}
+            try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch (e) { }
           }
           return mermaidSrc
             ? `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`
@@ -1777,14 +1769,14 @@ function htmlToMarkdown(htmlOrNode) {
 window.htmlToMarkdown = htmlToMarkdown;
 
 function exportExternalNoteMD() {
-    if (!window.quillEditor) return;
-    if (window.editorModeController) window.editorModeController.syncBeforeSave();
-    const content = window.quillEditor.root.innerHTML;
+  if (!window.quillEditor) return;
+  if (window.editorModeController) window.editorModeController.syncBeforeSave();
+  const content = window.quillEditor.root.innerHTML;
   if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
-  
+
   const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
   const mdText = htmlToMarkdown(content);
-  
+
   const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1820,10 +1812,10 @@ function exportExternalNoteTXT() {
   if (window.editorModeController) window.editorModeController.syncBeforeSave();
   const content = window.quillEditor.root.innerHTML;
   if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
-  
+
   const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
   const plainText = htmlToMarkdown(content);
-  
+
   const blob = new Blob([plainText], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1832,37 +1824,37 @@ function exportExternalNoteTXT() {
 }
 
 function exportExternalNotePDF() {
-    if (!window.quillEditor) return;
-    if (window.editorModeController) window.editorModeController.syncBeforeSave();
-    const content = window.quillEditor.root.innerHTML;
+  if (!window.quillEditor) return;
+  if (window.editorModeController) window.editorModeController.syncBeforeSave();
+  const content = window.quillEditor.root.innerHTML;
   if (!content || content === '<p><br></p>') { alert("Note is empty."); return; }
-  
+
   const title = document.getElementById('external-note-title').value.trim() || 'Untitled Note';
-  
+
   var iframe = document.createElement('iframe');
   iframe.style.position = 'absolute';
   iframe.style.width = '0';
   iframe.style.height = '0';
   iframe.style.border = 'none';
   document.body.appendChild(iframe);
-  
+
   var doc = iframe.contentWindow.document;
   doc.open();
-  doc.write('<html><head><title>'+title+'</title><style>body{font-family:sans-serif;padding:20px;line-height:1.6;} img{max-width:100%;height:auto;}</style></head><body>');
+  doc.write('<html><head><title>' + title + '</title><style>body{font-family:sans-serif;padding:20px;line-height:1.6;} img{max-width:100%;height:auto;}</style></head><body>');
   doc.write('<h2>' + title + '</h2><hr>');
   doc.write(content);
   doc.write('</body></html>');
   doc.close();
-  
+
   iframe.contentWindow.focus();
-  setTimeout(function() {
+  setTimeout(function () {
     iframe.contentWindow.print();
-    setTimeout(function() { document.body.removeChild(iframe); }, 1000);
+    setTimeout(function () { document.body.removeChild(iframe); }, 1000);
   }, 250);
 }
 
 // Function to open the Full Editor specifically for a session note (PDF highlight note)
-window.editSessionNoteInFullEditor = async function(id) {
+window.editSessionNoteInFullEditor = async function (id) {
   if (!window.notes) return;
   const note = window.notes.find(n => String(n.id) === String(id));
   if (!note) return;
@@ -1898,7 +1890,7 @@ window.editSessionNoteInFullEditor = async function(id) {
 async function readNoteInReader(id) {
   const parsedId = isNaN(Number(id)) ? id : Number(id);
   if (!window.notesRepo) return;
-  
+
   try {
     const note = await window.notesRepo.getNote(parsedId);
     if (note && window.openFile) {
@@ -1906,17 +1898,17 @@ async function readNoteInReader(id) {
       const mdContent = (typeof htmlToMarkdown === 'function' ? htmlToMarkdown(note.content || '') : note.rawText || note.content);
       const blob = new Blob([mdContent], { type: 'text/markdown' });
       const file = new File([blob], (note.title || 'Untitled Note') + '.md', { type: 'text/markdown' });
-      
+
       closeExternalNotes(); // Close the modal
       window.openFile(file); // Open in Enhanced Reader
-      
+
       // Auto-slide away the AI sidebar so the user can see the note
       const panel = document.getElementById('ai-panel');
       if (panel && !panel.classList.contains('hidden') && window.togglePanel) {
         window.togglePanel();
       }
     }
-  } catch(e) {
+  } catch (e) {
     console.error("Failed to read note:", e);
   }
 }
@@ -1934,7 +1926,7 @@ window.openDiagramBuilderForExternalEditor = openDiagramBuilderForExternalEditor
 function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
   const overlay = document.getElementById('external-notes-overlay');
   const codeBlock = `\n\n\`\`\`mermaid\n${(mermaidCode || '').trim()}\n\`\`\`\n\n`;
-  
+
   if (!overlay || overlay.style.display === 'none') {
     // If Full Editor is closed, save it as a new Global Note
     if (window.notesRepo) {
@@ -1979,171 +1971,171 @@ function insertDiagramIntoExternalEditor(svgHtml, mermaidCode) {
 }
 window.insertDiagramIntoExternalEditor = insertDiagramIntoExternalEditor;
 
-window.openStylusDrawing = function() {
-    if (!window.StylusEngine || !window.StylusEngine.isSupported) {
-        if (window.showToast) window.showToast('Drawing requires a modern browser with Pointer Events support.');
-        else alert('Drawing requires a modern browser with Pointer Events support.');
-        return;
+window.openStylusDrawing = function () {
+  if (!window.StylusEngine || !window.StylusEngine.isSupported) {
+    if (window.showToast) window.showToast('Drawing requires a modern browser with Pointer Events support.');
+    else alert('Drawing requires a modern browser with Pointer Events support.');
+    return;
+  }
+
+  // Switch to visual mode if not already
+  if (window.currentEditorMode === 'markdown') {
+    if (typeof toggleEditorMode === 'function') {
+      toggleEditorMode();
     }
-    
-    // Switch to visual mode if not already
-    if (window.currentEditorMode === 'markdown') {
-        if (typeof toggleEditorMode === 'function') {
-            toggleEditorMode();
+  }
+
+  if (window.quillEditor) {
+    const selection = window.quillEditor.getSelection(true);
+    const index = selection ? selection.index : window.quillEditor.getLength();
+
+    // Insert a new stylus canvas block
+    window.quillEditor.insertEmbed(index, 'stylus-canvas', {
+      strokes: '[]',
+      svg: '',
+      meta: { version: 1 }
+    }, 'user');
+
+    // Add a newline after
+    window.quillEditor.insertText(index + 1, '\n', 'user');
+    window.quillEditor.setSelection(index + 2, 'silent');
+
+    // Focus the newly inserted node to activate Stylus Mode immediately
+    setTimeout(() => {
+      const nodes = window.quillEditor.root.querySelectorAll('.ql-stylus-canvas');
+      if (nodes.length > 0) {
+        const newNode = nodes[nodes.length - 1];
+        newNode.focus();
+        // Manually trigger activation just in case focus doesn't propagate
+        if (window.StylusEngine && window.StylusEngine.activate) {
+          window.StylusEngine.activate(newNode);
         }
-    }
-    
-    if (window.quillEditor) {
-        const selection = window.quillEditor.getSelection(true);
-        const index = selection ? selection.index : window.quillEditor.getLength();
-        
-        // Insert a new stylus canvas block
-        window.quillEditor.insertEmbed(index, 'stylus-canvas', {
-            strokes: '[]',
-            svg: '',
-            meta: { version: 1 }
-        }, 'user');
-        
-        // Add a newline after
-        window.quillEditor.insertText(index + 1, '\n', 'user');
-        window.quillEditor.setSelection(index + 2, 'silent');
-        
-        // Focus the newly inserted node to activate Stylus Mode immediately
-        setTimeout(() => {
-            const nodes = window.quillEditor.root.querySelectorAll('.ql-stylus-canvas');
-            if (nodes.length > 0) {
-                const newNode = nodes[nodes.length - 1];
-                newNode.focus();
-                // Manually trigger activation just in case focus doesn't propagate
-                if (window.StylusEngine && window.StylusEngine.activate) {
-                    window.StylusEngine.activate(newNode);
-                }
-            }
-        }, 50);
-    } else {
-        console.warn("Cannot insert drawing, quillEditor is not initialized.");
-    }
+      }
+    }, 50);
+  } else {
+    console.warn("Cannot insert drawing, quillEditor is not initialized.");
+  }
 };
 
-window.duplicateExternalNote = async function(id) {
-    if (!window.notesRepo) return;
-    const note = await window.notesRepo.getNote(id);
-    if (!note) return;
-    
-    // Deep clone to safely alter properties
-    const newNote = JSON.parse(JSON.stringify(note));
-    delete newNote.id; // ensure we get a new ID in saveNote logic
-    newNote.title = (newNote.title || 'Untitled') + '_copy';
-    newNote.updatedAt = Date.now();
-    newNote.createdAt = Date.now();
+window.duplicateExternalNote = async function (id) {
+  if (!window.notesRepo) return;
+  const note = await window.notesRepo.getNote(id);
+  if (!note) return;
 
-    await window.notesRepo.saveNote(newNote);
-    if (typeof loadExternalNotesList === 'function') {
+  // Deep clone to safely alter properties
+  const newNote = JSON.parse(JSON.stringify(note));
+  delete newNote.id; // ensure we get a new ID in saveNote logic
+  newNote.title = (newNote.title || 'Untitled') + '_copy';
+  newNote.updatedAt = Date.now();
+  newNote.createdAt = Date.now();
+
+  await window.notesRepo.saveNote(newNote);
+  if (typeof loadExternalNotesList === 'function') {
+    loadExternalNotesList();
+  }
+  if (window.showToast) window.showToast('Note duplicated');
+};
+
+window.exportExternalNoteRAW = async function () {
+  if (!window.notesRepo) return;
+  const id = window.currentExternalNoteId || (typeof currentExternalNoteId !== 'undefined' ? currentExternalNoteId : null);
+  if (!id) {
+    alert("No note is currently open.");
+    return;
+  }
+
+  // Auto-save any pending typing in the editor before grabbing it from the DB
+  if (typeof saveExternalNote === 'function') {
+    await saveExternalNote(true);
+  }
+
+  const note = await window.notesRepo.getNote(id);
+  if (!note) return;
+
+  const dataStr = JSON.stringify(note, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  const safeTitle = (note.title || 'Untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  a.download = `${safeTitle}.auranote.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+window.importExternalNoteRAW = function (event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function (e) {
+    try {
+      const parsedNote = JSON.parse(e.target.result);
+      if (typeof parsedNote !== 'object' || !parsedNote) throw new Error("Invalid note format");
+
+      parsedNote.id = Date.now().toString(); // Always assign new ID to avoid overwriting existing
+      parsedNote.updatedAt = Date.now();
+      parsedNote.createdAt = Date.now();
+
+      if (!window.notesRepo) {
+        alert("Notes repository not initialized.");
+        return;
+      }
+
+      // AUTO-CATEGORIZATION LOGIC
+      // If the note doesn't already have a book prefix, and we have a book open, attach it
+      if (!/^\[book:[^\]]+\]/.test(parsedNote.title || '')) {
+        let targetBookId = null;
+        const bookRegex = /^\[book:([^\]]+)\](?:\[ch:(\d+)\]\s*)?(.*)$/;
+
+        if (window.currentExternalNoteId) {
+          const notes = await window.notesRepo.getAllNotes();
+          const currentNote = notes.find(n => String(n.id) === String(window.currentExternalNoteId));
+          if (currentNote) {
+            const m = bookRegex.exec(currentNote.title);
+            if (m) {
+              targetBookId = m[1];
+            }
+          }
+        }
+
+        if (targetBookId) {
+          const confirmAdd = confirm("You have a project open. Do you want to add this uploaded note to the current project?\n\nClick OK to add as a new chapter, or Cancel to keep it as an Uncategorized note.");
+          if (confirmAdd) {
+            // Find max chapter for this book
+            const notes = await window.notesRepo.getAllNotes();
+            let maxCh = 0;
+            for (const n of notes) {
+              const m = bookRegex.exec(n.title);
+              if (m && m[1] === targetBookId && m[2]) {
+                maxCh = Math.max(maxCh, parseInt(m[2], 10));
+              }
+            }
+            const newCh = maxCh + 1;
+            const oldTitle = parsedNote.title || 'Imported Note';
+            parsedNote.title = `[book:${targetBookId}][ch:${newCh}] ${oldTitle}`;
+          }
+        }
+      }
+
+      await window.notesRepo.saveNote(parsedNote);
+      if (typeof loadExternalNotesList === 'function') {
         loadExternalNotesList();
-    }
-    if (window.showToast) window.showToast('Note duplicated');
-};
+      }
+      if (window.showToast) window.showToast('Note imported successfully');
 
-window.exportExternalNoteRAW = async function() {
-    if (!window.notesRepo) return;
-    const id = window.currentExternalNoteId || (typeof currentExternalNoteId !== 'undefined' ? currentExternalNoteId : null);
-    if (!id) {
-        alert("No note is currently open.");
-        return;
+    } catch (err) {
+      console.error(err);
+      alert("Failed to parse RAW note file. Make sure it is a valid .auranote.json file.");
     }
-    
-    // Auto-save any pending typing in the editor before grabbing it from the DB
-    if (typeof saveExternalNote === 'function') {
-        await saveExternalNote(true);
-    }
-    
-    const note = await window.notesRepo.getNote(id);
-    if (!note) return;
-    
-    const dataStr = JSON.stringify(note, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    const safeTitle = (note.title || 'Untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    a.download = `${safeTitle}.auranote.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
 
-window.importExternalNoteRAW = function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        try {
-            const parsedNote = JSON.parse(e.target.result);
-            if (typeof parsedNote !== 'object' || !parsedNote) throw new Error("Invalid note format");
-            
-            parsedNote.id = Date.now().toString(); // Always assign new ID to avoid overwriting existing
-            parsedNote.updatedAt = Date.now();
-            parsedNote.createdAt = Date.now();
-            
-            if (!window.notesRepo) {
-                alert("Notes repository not initialized.");
-                return;
-            }
-            
-            // AUTO-CATEGORIZATION LOGIC
-            // If the note doesn't already have a book prefix, and we have a book open, attach it
-            if (!/^\[book:[^\]]+\]/.test(parsedNote.title || '')) {
-                let targetBookId = null;
-                const bookRegex = /^\[book:([^\]]+)\](?:\[ch:(\d+)\]\s*)?(.*)$/;
-                
-                if (window.currentExternalNoteId) {
-                    const notes = await window.notesRepo.getAllNotes();
-                    const currentNote = notes.find(n => String(n.id) === String(window.currentExternalNoteId));
-                    if (currentNote) {
-                        const m = bookRegex.exec(currentNote.title);
-                        if (m) {
-                            targetBookId = m[1];
-                        }
-                    }
-                }
-                
-                if (targetBookId) {
-                    const confirmAdd = confirm("You have a project open. Do you want to add this uploaded note to the current project?\n\nClick OK to add as a new chapter, or Cancel to keep it as an Uncategorized note.");
-                    if (confirmAdd) {
-                        // Find max chapter for this book
-                        const notes = await window.notesRepo.getAllNotes();
-                        let maxCh = 0;
-                        for (const n of notes) {
-                            const m = bookRegex.exec(n.title);
-                            if (m && m[1] === targetBookId && m[2]) {
-                                maxCh = Math.max(maxCh, parseInt(m[2], 10));
-                            }
-                        }
-                        const newCh = maxCh + 1;
-                        const oldTitle = parsedNote.title || 'Imported Note';
-                        parsedNote.title = `[book:${targetBookId}][ch:${newCh}] ${oldTitle}`;
-                    }
-                }
-            }
-            
-            await window.notesRepo.saveNote(parsedNote);
-            if (typeof loadExternalNotesList === 'function') {
-                loadExternalNotesList();
-            }
-            if (window.showToast) window.showToast('Note imported successfully');
-            
-        } catch (err) {
-            console.error(err);
-            alert("Failed to parse RAW note file. Make sure it is a valid .auranote.json file.");
-        }
-        
-        // Reset input so the same file can be selected again
-        event.target.value = '';
-    };
-    reader.readAsText(file);
+    // Reset input so the same file can be selected again
+    event.target.value = '';
+  };
+  reader.readAsText(file);
 };
 if (typeof Worker !== 'undefined') {
   window.MarkdownWorker = new Worker('/static/js/workers/markdown-worker.js');
@@ -2151,50 +2143,51 @@ if (typeof Worker !== 'undefined') {
 
 // --- Template Manager Integration ---
 function initTemplateManager() {
-    console.log('[TemplateManager] initTemplateManager called for Sidebar!');
-    const menuContainer = document.getElementById('templates-sidebar-content') || document.getElementById('tools-dropdown-menu');
-    
-    if (!menuContainer) {
-        console.warn('[TemplateManager] Missing menuContainer!');
-        return false;
-    }
-    if (typeof TemplateManager === 'undefined') {
-        console.warn('[TemplateManager] Missing TemplateManager class!');
-        return false;
-    }
-    if (typeof EditorAdapter === 'undefined') {
-        console.warn('[TemplateManager] Missing EditorAdapter class!');
-        return false;
-    }
+  console.log('[TemplateManager] initTemplateManager called for Sidebar!');
+  const menuContainer = document.getElementById('templates-sidebar-content') || document.getElementById('tools-dropdown-menu');
 
-    TemplateManager.renderDropdown(menuContainer, (strategy) => {
-        console.log('[TemplateManager] Clicked strategy:', strategy.id);
-        const quillContainer = document.getElementById('quill-editor') || document.getElementById('quill-editor-container');
-        const mdEditor = document.getElementById('markdown-source-editor') || document.getElementById('external-notes-editor-md');
-        
-        const adapter = new EditorAdapter(window.quillEditor, quillContainer, mdEditor);
-        adapter.insertStrategy(strategy);
-        
-        const sidebar = document.getElementById('templates-sidebar');
-        if (sidebar) sidebar.style.right = '-250px';
-    });
-    return true;
+  if (!menuContainer) {
+    console.warn('[TemplateManager] Missing menuContainer!');
+    return false;
+  }
+  if (typeof TemplateManager === 'undefined') {
+    console.warn('[TemplateManager] Missing TemplateManager class!');
+    return false;
+  }
+  if (typeof EditorAdapter === 'undefined') {
+    console.warn('[TemplateManager] Missing EditorAdapter class!');
+    return false;
+  }
+
+  TemplateManager.renderDropdown(menuContainer, (strategy) => {
+    console.log('[TemplateManager] Clicked strategy:', strategy.id);
+    const quillContainer = document.getElementById('quill-editor') || document.getElementById('quill-editor-container');
+    const mdEditor = document.getElementById('markdown-source-editor') || document.getElementById('external-notes-editor-md');
+
+    const adapter = new EditorAdapter(window.quillEditor, quillContainer, mdEditor);
+    adapter.insertStrategy(strategy);
+
+    const sidebar = document.getElementById('templates-sidebar');
+    if (sidebar) sidebar.style.right = '-250px';
+  });
+  return true;
 }
 
 // Try initializing immediately, if fail, try when DOM loaded, if fail, poll a few times
 if (!initTemplateManager()) {
-    document.addEventListener('DOMContentLoaded', () => {
-        if (!initTemplateManager()) {
-            let retries = 5;
-            let timer = setInterval(() => {
-                if (initTemplateManager() || retries <= 0) {
-                    clearInterval(timer);
-                }
-                retries--;
-            }, 500);
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!initTemplateManager()) {
+      let retries = 5;
+      let timer = setInterval(() => {
+        if (initTemplateManager() || retries <= 0) {
+          clearInterval(timer);
         }
-    });
+        retries--;
+      }, 500);
+    }
+  });
 }
+
 
 
 
