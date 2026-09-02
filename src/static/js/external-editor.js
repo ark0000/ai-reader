@@ -253,6 +253,9 @@ function initQuillEditor() {
         const Delta = Quill.import('delta');
         let html = node.outerHTML;
         
+        // Identify elements that were originally styled as pills/boxes and mark them
+        html = html.replace(/<(span|a|code|strong|em|div|p)([^>]*)style="([^"]*(?:background|border)[^"]*)"/gi, '< data-pill="true"=""');
+
         // Strip ALL inline background and text colors from pasted tables 
         // to ensure they don't clash with the app's dark theme
         html = html.replace(/background(?:-color)?:\s*[^;"]+;?/gi, '');
@@ -2211,6 +2214,7 @@ if (!initTemplateManager()) {
     }
   });
 }
+
 
 
 
