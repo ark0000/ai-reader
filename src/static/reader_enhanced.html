@@ -1584,7 +1584,7 @@
             <button id="conn-mgr-delete-btn" class="tb-btn"
               style="color:#ef4444; border-color:rgba(239,68,68,0.3); padding:8px 16px; border-radius:6px; font-weight:600;"
               onclick="connMgrDelete()">Delete</button>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
               <button class="tb-btn" style="padding:8px 16px; border-radius:6px; font-weight:600;"
                 onclick="document.getElementById('conn-mgr-sidebar').style.display='flex'; document.getElementById('conn-mgr-detail').style.display='none'">Cancel</button>
               <button class="tb-btn"
@@ -1741,7 +1741,7 @@
   style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; animation:fadeIn 0.2s ease-out both;">
   <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; width:90%; max-width:600px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,0.5); overflow:hidden;">
     <div style="padding:16px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03);">
-      <button class="tb-btn" onclick="document.getElementById('external-notes-sidebar').style.display = document.getElementById('external-notes-sidebar').style.display === 'none' ? 'flex' : 'none';" style="padding:6px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text-1); cursor:pointer;" title="Toggle Sidebar">☰</button> <h2 style="margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">
+      <button class="tb-btn" onclick="document.getElementById('external-notes-sidebar').style.display = document.getElementById('external-notes-sidebar').style.display === 'none' ? 'flex' : 'none';" style="padding:6px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text-1); cursor:pointer;" title="Toggle Sidebar">☰</button> <h2 style="white-space:nowrap; flex-shrink:0; margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">
         &#128218; Document Library - <span id="library-username-display" style="color:var(--accent);"></span>
       </h2>
       <button class="tb-btn" style="border:none; background:transparent; font-size:24px; color:var(--text-2); padding: 0 8px;" onclick="document.getElementById('library-modal').style.display='none'">&times;</button>
@@ -1789,11 +1789,11 @@
     <!-- Top Header -->
     <div style="padding:12px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02);">
       <div style="display:flex; align-items:center; gap:16px;">
-        <button class="tb-btn" onclick="document.getElementById('external-notes-sidebar').style.display = document.getElementById('external-notes-sidebar').style.display === 'none' ? 'flex' : 'none';" style="padding:6px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text-1); cursor:pointer;" title="Toggle Sidebar">☰</button> <h2 style="margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">📝 Notes Editor</h2>
-        <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:6px 12px; border-radius:6px; width:300px; outline:none; font-family:var(--font-ui);">
+        <button class="tb-btn" onclick="document.getElementById('external-notes-sidebar').style.display = document.getElementById('external-notes-sidebar').style.display === 'none' ? 'flex' : 'none';" style="padding:6px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--text-1); cursor:pointer;" title="Toggle Sidebar">☰</button> <h2 style="white-space:nowrap; flex-shrink:0; margin:0; font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px;">📝 Notes Editor</h2>
+        <input type="text" id="external-note-title" placeholder="Untitled Note" style="background:var(--bg-body); border:1px solid var(--border); color:var(--text-1); padding:6px 12px; border-radius:6px; width:100%; max-width:300px; min-width:120px; outline:none; font-family:var(--font-ui);">
       </div>
-      <div style="display:flex; gap:8px;">
-        <span id="text-note-tools" style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span id="text-note-tools" style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="mode-toggle-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
           <button id="md-convert-btn" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
           <button id="btn-diagram-ext" class="tb-btn" style="padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05);" onclick="openDiagramBuilderForExternalEditor()" title="Build Mermaid Diagram">📊 Diagram</button>
@@ -2110,6 +2110,7 @@
 </script>
 </body>
 </html>
+
 
 
 
