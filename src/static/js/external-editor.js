@@ -253,9 +253,10 @@ function initQuillEditor() {
         const Delta = Quill.import('delta');
         let html = node.outerHTML;
         
-        // Strip light-mode inline styles from the pasted table that clash with dark theme
-        html = html.replace(/\s*style="[^"]*background(?:-color)?:\s*(?:white|#fff|#ffffff|rgb\(255,\s*255,\s*255\))[^"]*"/gi, '');
-        html = html.replace(/\s*style="[^"]*color:\s*(?:black|#000|#000000)[^"]*"/gi, '');
+        // Strip ALL inline background and text colors from pasted tables 
+        // to ensure they don't clash with the app's dark theme
+        html = html.replace(/background(?:-color)?:\s*[^;"]+;?/gi, '');
+        html = html.replace(/color:\s*[^;"]+;?/gi, '');
         
         return new Delta().insert({ 'custom-table': html });
       });
