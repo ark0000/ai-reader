@@ -178,6 +178,7 @@ class BookSidebarRenderer extends SidebarRenderStrategy {
           📖 ${book.title}
         </div>
         <div style="display:flex; gap:4px;">
+           <button class="tb-btn" style="padding: 2px 8px; font-size: 11px; font-weight: 600; color: #fff; background: var(--accent); border: 1px solid var(--accent); border-radius: 4px;" onclick="event.stopPropagation(); readFullBookInReader('${bookId}')" title="Read entire book continuously in reader">📖 Read</button>
            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #4299e1; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); downloadBook('${bookId}')">Download</button>
            <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${bookId}', true)">Delete</button>
         </div>

@@ -1940,6 +1940,49 @@ async function readNoteInReader(id) {
   }
 }
 
+// Open the ENTIRE Book (all chapters in sequential order) continuously in Enhanced Reader
+async function readFullBookInReader(bookId) {
+  if (!window.notesRepo) {
+    alert("Notes repository not initialized.");
+    return;
+  }
+
+  try {
+    const allNotes = await window.notesRepo.getAllNotes();
+    if (typeof window.BookAssemblerFacade === 'undefined') {
+      alert("Book Assembler Facade is not loaded.");
+      return;
+    }
+
+    const assembled = window.BookAssemblerFacade.assembleBook(bookId, allNotes);
+    const continuousMd = window.BookAssemblerFacade.generateContinuousMarkdown(assembled);
+
+    const blob = new Blob([continuousMd], { type: 'text/markdown;charset=utf-8;' });
+    const cleanFileName = (assembled.bookTitle || 'Book').replace(/[/\\?%*:|"<>]/g, '_') + '.md';
+    const file = new File([blob], cleanFileName, { type: 'text/markdown' });
+
+    if (typeof closeExternalNotes === 'function') {
+      closeExternalNotes(); // Close the modal
+    }
+
+    if (window.openFile) {
+      await window.openFile(file);
+
+      // Auto-slide away the AI sidebar so the user can see the book
+      const panel = document.getElementById('ai-panel');
+      if (panel && !panel.classList.contains('hidden') && window.togglePanel) {
+        window.togglePanel();
+      }
+    } else {
+      console.error("window.openFile is not available to load book.");
+    }
+  } catch (e) {
+    console.error("Failed to read full book:", e);
+    alert("Could not load book: " + e.message);
+  }
+}
+window.readFullBookInReader = readFullBookInReader;
+
 // ── Diagram Builder Integration for External Notes Editor ────────────────
 function openDiagramBuilderForExternalEditor() {
   if (window.DiagramBuilder && typeof window.DiagramBuilder.open === 'function') {

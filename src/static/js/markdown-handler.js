@@ -20,10 +20,75 @@ class MarkdownDocumentHandler {
   }
   
   _onScroll() {
+    this._updateBookScrollSpy();
     if (this._scrollSaveTimer) clearTimeout(this._scrollSaveTimer);
     this._scrollSaveTimer = setTimeout(() => {
       if (window.triggerStateSave) window.triggerStateSave();
     }, 1000);
+  }
+
+  _initBookScrollSpy() {
+    let banner = document.getElementById('book-sticky-banner');
+    if (!banner && window.contentEl) {
+      banner = document.createElement('div');
+      banner.id = 'book-sticky-banner';
+      banner.style.cssText = 'position:sticky; top:12px; z-index:100; margin:0 auto -38px; width:fit-content; max-width:85%; display:none; align-items:center; gap:8px; padding:6px 16px; border-radius:20px; background:rgba(22,27,34,0.85); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.12); box-shadow:0 6px 20px rgba(0,0,0,0.4); font-size:12px; color:var(--text-1); pointer-events:none; transition:opacity 0.2s, transform 0.2s; user-select:none;';
+      banner.innerHTML = `
+        <span style="font-size:13px;">📖</span>
+        <span id="book-sticky-chapter-name" style="font-weight:600; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px;">Book Overview</span>
+        <span style="color:var(--text-3);">&bull;</span>
+        <span id="book-sticky-progress" style="font-size:11px; color:var(--text-2); font-variant-numeric:tabular-nums;">0%</span>
+      `;
+      window.contentEl.insertBefore(banner, window.contentEl.firstChild);
+    }
+    this._updateBookScrollSpy();
+  }
+
+  _updateBookScrollSpy() {
+    const banner = document.getElementById('book-sticky-banner');
+    if (!banner || !window.contentEl) return;
+
+    const dividers = window.contentEl.querySelectorAll('.book-chapter-divider');
+    if (!dividers || dividers.length === 0) {
+      banner.style.display = 'none';
+      return;
+    }
+
+    const scrollTop = window.contentEl.scrollTop;
+    const scrollHeight = window.contentEl.scrollHeight;
+    const clientHeight = window.contentEl.clientHeight;
+
+    if (scrollTop > 70) {
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+
+    const maxScroll = scrollHeight - clientHeight;
+    const pct = maxScroll > 0 ? Math.min(100, Math.max(0, Math.round((scrollTop / maxScroll) * 100))) : 0;
+    const progressEl = document.getElementById('book-sticky-progress');
+    if (progressEl) progressEl.textContent = pct + '%';
+
+    const containerTop = window.contentEl.getBoundingClientRect().top;
+    let activeTitle = 'Book Overview';
+
+    dividers.forEach(div => {
+      const rect = div.getBoundingClientRect();
+      if (rect.top - containerTop <= 160) {
+        const chTitle = div.getAttribute('data-title') || div.textContent;
+        const chNum = div.getAttribute('data-ch');
+        if (chNum && chNum !== '0') {
+          activeTitle = `Ch ${chNum}: ${chTitle}`;
+        } else {
+          activeTitle = chTitle;
+        }
+      }
+    });
+
+    const titleEl = document.getElementById('book-sticky-chapter-name');
+    if (titleEl && titleEl.textContent !== activeTitle) {
+      titleEl.textContent = activeTitle;
+    }
   }
 
   clearSearch() {
@@ -659,6 +724,14 @@ class MarkdownDocumentHandler {
            }, delay);
        });
        setTimeout(() => { window.pendingScrollState = null; }, 3100);
+    }
+    
+    // Initialize Book Multi-Chapter Scroll Spy if this document is an assembled book
+    if (window.contentEl && window.contentEl.querySelector('.book-chapter-divider')) {
+      this._initBookScrollSpy();
+    } else {
+      const banner = document.getElementById('book-sticky-banner');
+      if (banner) banner.style.display = 'none';
     }
     
     if (window.triggerLibrarySave) {
