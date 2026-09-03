@@ -1798,6 +1798,10 @@
           <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="exportExternalNoteRAW()">Export RAW</button>
           <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="exportExternalNotePDF()">Export PDF</button>
         </span>
+        <span id="canvas-note-tools" style="display:none; gap:6px; flex-wrap:nowrap; align-items:center;">
+          <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="if(window.StylusEngine) { window.StylusEngine.activate(document.getElementById('pure-canvas-container')); if(typeof _restoreToolbarStateToEngine === 'function') _restoreToolbarStateToEngine(); }" title="Show Stylus Tools">🖍️ Tools</button>
+          <button class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); white-space:nowrap;" onclick="if(window.StylusEngine && window.StylusEngine.activeFacade) { window.StylusEngine.activeFacade.repo.clear(); }">🗑️ Clear</button>
+        </span>
         <div style="position:relative; display:inline-block;" id="tablet-dropdown-wrapper">
           <button id="tablet-dropdown-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="document.getElementById('tablet-menu-options').style.display = document.getElementById('tablet-menu-options').style.display === 'none' ? 'flex' : 'none';" title="Connect Tablet Devices">📱 Tablet ▼</button>
           <div id="tablet-menu-options" style="display:none; position:absolute; top:calc(100% + 5px); right:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; flex-direction:column; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:1000; overflow:hidden;">
