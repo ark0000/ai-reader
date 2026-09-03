@@ -32,6 +32,11 @@ window.switchNotesTab = function (tab) {
     title.textContent = tab === 'text' ? 'TEXT NOTES' : 'CANVAS NOTES';
   }
 
+  const templatesSidebar = document.getElementById('templates-sidebar');
+  if (templatesSidebar) {
+    templatesSidebar.style.display = tab === 'canvas' ? 'none' : 'flex';
+  }
+
   if (typeof loadExternalNotesList === 'function') {
     loadExternalNotesList();
   }
@@ -1184,6 +1189,9 @@ async function createNewExternalNote() {
     if (txtTools) txtTools.style.display = 'none';
     const canvasTools = document.getElementById('canvas-note-tools');
     if (canvasTools) canvasTools.style.display = 'flex';
+    
+    const tSidebar = document.getElementById('templates-sidebar');
+    if (tSidebar) tSidebar.style.display = 'none';
 
     const canvasContainer = document.getElementById('pure-canvas-container');
     if (canvasContainer) {
@@ -1200,6 +1208,9 @@ async function createNewExternalNote() {
     if (txtTools) txtTools.style.display = 'flex';
     const canvasTools = document.getElementById('canvas-note-tools');
     if (canvasTools) canvasTools.style.display = 'none';
+
+    const tSidebar = document.getElementById('templates-sidebar');
+    if (tSidebar) tSidebar.style.display = 'flex';
 
     const canvasContainer = document.getElementById('pure-canvas-container');
     if (canvasContainer) {
@@ -1419,6 +1430,8 @@ async function loadExternalNote(id) {
         }
       } else {
         document.getElementById('quill-editor').style.display = 'block';
+        const tSidebar = document.getElementById('templates-sidebar');
+        if (tSidebar) tSidebar.style.display = 'flex';
         const qlToolbar = document.querySelector('.ql-toolbar');
         if (qlToolbar) qlToolbar.style.display = 'block';
 

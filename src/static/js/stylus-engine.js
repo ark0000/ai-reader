@@ -800,23 +800,11 @@
                 registerStylusBlot();
             }
             
-            document.addEventListener('focusin', (e) => {
-                if (e.target && e.target.classList && e.target.classList.contains('ql-stylus-canvas')) {
+            const handleOutsideClick = (e) => {
+                if (e.type === 'focusin' && e.target && e.target.classList && e.target.classList.contains('ql-stylus-canvas')) {
                     this.activate(e.target);
-                } else if (this.activeFacade && !this.activeFacade.container.contains(e.target)
-                    && !e.target.closest('#stylus-toolbar')
-                    && !e.target.closest('#tablet-toolbar')
-                    && !e.target.closest('#top-nav')
-                    && !e.target.closest('.stylus-rename-modal')
-                    && !e.target.closest('#hamburger-btn')
-                    && !e.target.closest('#hamburger-sidebar')
-                    && !e.target.closest('#tablet-sync-btn')
-                    && !e.target.closest('#tablet-qr-modal')) {
-                    this.deactivate();
+                    return;
                 }
-            });
-            
-            document.addEventListener('click', (e) => {
                 if (this.activeFacade && !this.activeFacade.container.contains(e.target)
                     && !e.target.closest('#stylus-toolbar')
                     && !e.target.closest('#tablet-toolbar')
@@ -825,10 +813,15 @@
                     && !e.target.closest('#hamburger-btn')
                     && !e.target.closest('#hamburger-sidebar')
                     && !e.target.closest('#tablet-sync-btn')
-                    && !e.target.closest('#tablet-qr-modal')) {
+                    && !e.target.closest('#tablet-qr-modal')
+                    && !e.target.closest('#external-notes-sidebar')
+                    && !e.target.closest('#canvas-note-tools')) {
                     this.deactivate();
                 }
-            });
+            };
+            
+            document.addEventListener('focusin', handleOutsideClick);
+            document.addEventListener('click', handleOutsideClick);
         },
         
         insertCanvas() {
