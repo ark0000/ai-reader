@@ -89,7 +89,7 @@
         theme: 'dark',
         themeVariables: {
           darkMode: true,
-          background: '#0d1117',
+          background: 'transparent',
           primaryColor: '#161b22',
           primaryTextColor: '#c9d1d9',
           primaryBorderColor: '#8b949e',
@@ -132,26 +132,13 @@
         svgEl.style.display = 'block';
         svgEl.style.maxWidth = 'none';
         
-        // Preserve natural size for PanZoom bounds calculation
-        const w = svgEl.getAttribute('width') || svgEl.viewBox?.baseVal?.width || 800;
-        const h = svgEl.getAttribute('height') || svgEl.viewBox?.baseVal?.height || 600;
+        const w = svgEl.getAttribute('width');
+        const h = svgEl.getAttribute('height');
         const vb = svgEl.getAttribute('viewBox');
-        svgEl.setAttribute('data-natural-width', w);
-        svgEl.setAttribute('data-natural-height', h);
+        if (w) svgEl.setAttribute('data-natural-width', w);
+        if (h) svgEl.setAttribute('data-natural-height', h);
         if (vb) svgEl.setAttribute('data-natural-viewbox', vb);
         
-        // Let the SVG overflow so zooming an inner group doesn't clip
-        svgEl.style.overflow = 'visible';
-        
-        // Wrap everything inside the SVG in a zoom group
-        const zoomGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        zoomGroup.id = 'dgb-zoom-group';
-        // Extract all existing children of the SVG into the zoom group
-        while (svgEl.firstChild) {
-          zoomGroup.appendChild(svgEl.firstChild);
-        }
-        svgEl.appendChild(zoomGroup);
-
         svgEl.classList.add('dgb-dom-svg');
       }
     }
@@ -341,15 +328,18 @@
     // ── Public API ──────────────────────────────────────────────────────────
 
     fitToView() {
-      const svgEl = this._layer.querySelector('.dgb-dom-svg');
+      // Reset to identity so getBCR gives true pixel size
+      this._m = new DOMMatrix();
+      this._apply(false);
+
+      const svgEl = this._layer.querySelector('svg, canvas');
       if (!svgEl) return;
 
+      const svgRect = svgEl.getBoundingClientRect();
       const vpW = this._vp.clientWidth  || this._vp.offsetWidth;
       const vpH = this._vp.clientHeight || this._vp.offsetHeight;
-      
-      const cW = parseFloat(svgEl.getAttribute('data-natural-width')) || 800;
-      const cH = parseFloat(svgEl.getAttribute('data-natural-height')) || 600;
-
+      const cW  = svgRect.width;
+      const cH  = svgRect.height;
       if (!cW || !cH || !vpW || !vpH) return;
 
       // contain-fit with 6% padding
@@ -440,23 +430,12 @@
     }
 
     _commit(smooth) {
-      const zoomGroup = this._layer.querySelector('#dgb-zoom-group');
-      if (zoomGroup) {
-        if (smooth) {
-          zoomGroup.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
-        } else {
-          zoomGroup.style.transition = 'none';
-        }
-        zoomGroup.setAttribute('transform', this._m.toString());
+      if (smooth) {
+        this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
       } else {
-        // Fallback for non-SVG / older structure
-        if (smooth) {
-          this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
-        } else {
-          if (this._layer.style.transition) this._layer.style.transition = 'none';
-        }
-        this._layer.style.transform = this._m.toString();
+        if (this._layer.style.transition) this._layer.style.transition = 'none';
       }
+      this._layer.style.transform = this._m.toString();
       this._onScale(this.getScalePct());
     }
 

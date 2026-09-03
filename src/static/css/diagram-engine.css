@@ -302,7 +302,6 @@
   min-width: 0;
   overflow: hidden;
   position: relative;  /* required: zoom bar inside uses position:absolute */
-  isolation: isolate;
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -319,25 +318,17 @@
 #dgb-layer {
   display: inline-block;
   transform-origin: 0 0;
-  position: relative;  /* required for z-index to take effect */
-  z-index: 0;          /* EXPLICIT 0 — zoom bar's z-index:9000 always wins */
+  position: relative;
   /* transition added/removed dynamically by PanZoomEngine._apply() */
 }
 
 #dgb-canvas {
   display: inline-block;
-  /* box-shadow instead of filter:drop-shadow on the SVG.
-     box-shadow does NOT create a stacking context, so it never
-     interferes with the zoom bar's z-index. */
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0,0,0,.55);
 }
 
 #dgb-canvas svg {
   display: block;
   max-width: none !important;
-  border-radius: 8px;
-  /* filter removed — filter creates inner stacking contexts that fight z-index */
 }
 
 /* ─── Placeholder ─────────────────────────────────────────────────────────── */
