@@ -366,3 +366,60 @@ describe("SVG generation", function() {
         expect(svg).not.toContain("<path");
     });
 });
+
+// ================================================================
+// 7. Click Outside Deactivation Logic
+// ================================================================
+describe("StylusEngine Facade — Click Outside", function() {
+    var facade;
+    beforeEach(function() {
+        stubGlobals(); 
+        loadEngine();
+        
+        // Setup mock UI elements to test click outside ignoring
+        document.body.innerHTML += `
+            <div id="external-notes-sidebar">
+                <button id="new-note-btn">+ New</button>
+            </div>
+            <div id="canvas-note-tools">
+                <button id="clear-btn">Clear</button>
+            </div>
+            <div id="stylus-toolbar"></div>
+            <div id="random-div"></div>
+        `;
+        
+        mountContainer("click-test");
+        facade = window.StylusEngine.activeFacade;
+    });
+    afterEach(teardown);
+
+    test("Clicking outside the canvas on an ignored element (sidebar) does NOT deactivate", function() {
+        const btn = document.getElementById("new-note-btn");
+        const clickEvent = new window.Event("click", { bubbles: true });
+        Object.defineProperty(clickEvent, 'target', { value: btn });
+        
+        document.dispatchEvent(clickEvent);
+        
+        expect(window.StylusEngine.activeFacade).not.toBeNull();
+    });
+
+    test("Clicking outside the canvas on an ignored element (canvas tools) does NOT deactivate", function() {
+        const btn = document.getElementById("clear-btn");
+        const clickEvent = new window.Event("click", { bubbles: true });
+        Object.defineProperty(clickEvent, 'target', { value: btn });
+        
+        document.dispatchEvent(clickEvent);
+        
+        expect(window.StylusEngine.activeFacade).not.toBeNull();
+    });
+
+    test("Clicking outside the canvas on a non-ignored element DOES deactivate", function() {
+        const div = document.getElementById("random-div");
+        const clickEvent = new window.Event("click", { bubbles: true });
+        Object.defineProperty(clickEvent, 'target', { value: div });
+        
+        document.dispatchEvent(clickEvent);
+        
+        expect(window.StylusEngine.activeFacade).toBeNull();
+    });
+});

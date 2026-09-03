@@ -3,10 +3,10 @@
 
 a = Analysis(
     ['src\\run_desktop.py'],
-    pathex=['.'],
+    pathex=[],
     binaries=[],
     datas=[('src/static', 'src/static'), ('.env', '.')],
-    hiddenimports=['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on', 'src.main'],
+    hiddenimports=['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

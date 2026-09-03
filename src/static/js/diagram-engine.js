@@ -294,9 +294,6 @@
       this._inertiaRaf = null;
       this._isFullscreen = false;
 
-      // Opt-3: Set will-change ONCE in constructor — not on every _apply() call.
-      // Re-assigning the same value every rAF is a wasted style mutation.
-      this._layer.style.willChange = 'transform';
 
       // Opt-2: Cache getBoundingClientRect() via ResizeObserver.
       // wheel events fire at 60+Hz — calling getBCR() each time forces a layout
