@@ -89,7 +89,7 @@
         theme: 'dark',
         securityLevel: 'loose',
         fontFamily: 'Inter, system-ui, sans-serif',
-        flowchart: { curve: 'basis', useMaxWidth: false },
+        flowchart: { curve: 'basis', useMaxWidth: false, htmlLabels: false },
         sequence:  { useMaxWidth: false },
         gantt:     { useMaxWidth: false }
       });
