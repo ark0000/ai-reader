@@ -132,25 +132,16 @@
         svgEl.style.display = 'block';
         svgEl.style.maxWidth = 'none';
         
-        // Preserve natural size for PanZoom bounds calculation if needed
-        const w = svgEl.getAttribute('width');
-        const h = svgEl.getAttribute('height');
+        // Preserve natural size for PanZoom bounds calculation
+        const w = svgEl.getAttribute('width') || svgEl.viewBox?.baseVal?.width || 800;
+        const h = svgEl.getAttribute('height') || svgEl.viewBox?.baseVal?.height || 600;
         const vb = svgEl.getAttribute('viewBox');
-        if (w) svgEl.setAttribute('data-natural-width', w);
-        if (h) svgEl.setAttribute('data-natural-height', h);
+        svgEl.setAttribute('data-natural-width', w);
+        svgEl.setAttribute('data-natural-height', h);
         if (vb) svgEl.setAttribute('data-natural-viewbox', vb);
         
-        // Let the SVG overflow so zooming an inner group doesn't clip
-        svgEl.style.overflow = 'visible';
-        
-        // Wrap everything inside the SVG in a zoom group
-        const zoomGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        zoomGroup.id = 'dgb-zoom-group';
-        // Extract all existing children of the SVG into the zoom group
-        while (svgEl.firstChild) {
-          zoomGroup.appendChild(svgEl.firstChild);
-        }
-        svgEl.appendChild(zoomGroup);
+        // Let PanZoom control the viewBox directly!
+        svgEl.setAttribute('preserveAspectRatio', 'none');
 
         svgEl.classList.add('dgb-dom-svg');
       }
@@ -341,18 +332,15 @@
     // ── Public API ──────────────────────────────────────────────────────────
 
     fitToView() {
-      // Reset to identity so getBCR gives true pixel size
-      this._m = new DOMMatrix();
-      this._apply(false);
-
-      const svgEl = this._layer.querySelector('svg, canvas');
+      const svgEl = this._layer.querySelector('.dgb-dom-svg');
       if (!svgEl) return;
 
-      const svgRect = svgEl.getBoundingClientRect();
       const vpW = this._vp.clientWidth  || this._vp.offsetWidth;
       const vpH = this._vp.clientHeight || this._vp.offsetHeight;
-      const cW  = svgRect.width;
-      const cH  = svgRect.height;
+      
+      const cW = parseFloat(svgEl.getAttribute('data-natural-width')) || 800;
+      const cH = parseFloat(svgEl.getAttribute('data-natural-height')) || 600;
+
       if (!cW || !cH || !vpW || !vpH) return;
 
       // contain-fit with 6% padding
@@ -363,7 +351,7 @@
       const ty     = (vpH - cH * scale) / 2;
       
       this._m = new DOMMatrix().translate(tx, ty).scale(scale);
-      this._apply(true);   // smooth transition for fit
+      this._applyDirect(false); // viewBox animation via transition doesn't work well, so we snap it
     }
 
     zoomIn()  { this._zoomCenter(1.25, true);  }
@@ -443,15 +431,27 @@
     }
 
     _commit(smooth) {
-      const zoomGroup = this._layer.querySelector('#dgb-zoom-group');
-      if (zoomGroup) {
-        if (smooth) {
-          zoomGroup.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
-        } else {
-          zoomGroup.style.transition = 'none';
-        }
-        zoomGroup.setAttribute('transform', this._m.toString());
+      const svg = this._layer.querySelector('.dgb-dom-svg');
+      if (svg) {
+        const vpW = this._vp.clientWidth  || this._vp.offsetWidth;
+        const vpH = this._vp.clientHeight || this._vp.offsetHeight;
+        const scale = this._m.a;
+        const tx = this._m.e;
+        const ty = this._m.f;
+        
+        const vbX = -tx / scale;
+        const vbY = -ty / scale;
+        const vbW = vpW / scale;
+        const vbH = vpH / scale;
+        
+        svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+        svg.style.width = vpW + 'px';
+        svg.style.height = vpH + 'px';
+        
+        // Remove any old transforms on the layer
+        this._layer.style.transform = 'none';
       } else {
+        // Fallback for non-SVG / older structure
         if (smooth) {
           this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
         } else {
@@ -840,17 +840,29 @@
 
     // ── Export ───────────────────────────────────────────────────────────────
     async _exportPNG() {
-      const renderedNode = this._canvas.querySelector('svg, canvas');
-      if (!renderedNode) { alert('Run a diagram first before exporting.'); return; }
+      const svg = this._canvas.querySelector('.dgb-dom-svg');
+      if (!svg) { alert('Run a diagram first before exporting.'); return; }
       this._setStatus('Exporting PNG\u2026', 'info');
       
-      const oldM = this._pz ? this._pz._m : null;
-      if (this._pz) this._pz.reset();
+      // Temporarily restore natural size and disable viewBox zoom for export
+      const oldW = svg.style.width;
+      const oldH = svg.style.height;
+      const oldVB = svg.getAttribute('viewBox');
+      
+      const natW = svg.getAttribute('data-natural-width') || 800;
+      const natH = svg.getAttribute('data-natural-height') || 600;
+      const natVB = svg.getAttribute('data-natural-viewbox');
+      
+      svg.style.width = natW + 'px';
+      svg.style.height = natH + 'px';
+      if (natVB) svg.setAttribute('viewBox', natVB);
+      else svg.removeAttribute('viewBox');
+      
       await new Promise(r => setTimeout(r, 50));
       
       try {
         if (typeof htmlToImage === 'undefined') throw new Error('html-to-image not available.');
-        const url = await htmlToImage.toPng(this._canvas, {
+        const url = await htmlToImage.toPng(svg, {
           pixelRatio: 3, backgroundColor: '#1a1a2e', style: { overflow: 'visible' }
         });
         this._download(url, 'diagram.png');
@@ -859,10 +871,9 @@
         this._setStatus('PNG export failed', 'error');
         console.error('[DiagramEngine] PNG error:', e);
       } finally {
-        if (this._pz && oldM) {
-          this._pz._m = oldM;
-          this._pz._apply(false);
-        }
+        svg.style.width = oldW;
+        svg.style.height = oldH;
+        if (oldVB) svg.setAttribute('viewBox', oldVB);
       }
     }
 
