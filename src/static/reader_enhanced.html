@@ -1838,11 +1838,11 @@
             <button class="notes-tab-btn" onclick="switchNotesTab('canvas')" id="tab-canvas-notes" style="flex:1; padding:10px; border:none; background:transparent; cursor:pointer; font-weight:bold; color:var(--text-3); border-bottom:3px solid transparent;">Canvas Notes</button>
         </div>
         <div style="padding:0 16px 16px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-          <h3 id="notes-list-title" style="margin:0; font-size:14px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">TEXT NOTES</h3>
-          <div style="display:flex; gap:4px;">
+          <h3 id="notes-list-title" style="margin:0; font-size:14px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">TEXT NOTES</h3>
+          <div style="display:flex; gap:4px; flex-shrink:0;">
             <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="const c = document.getElementById('notes-search-wrapper'); c.style.display = c.style.display === 'none' ? 'block' : 'none'; if(c.style.display==='block') document.getElementById('notes-search-input').focus();" title="Search Notes">🔍</button>
             <input type="file" id="raw-note-upload-input" accept=".json" style="display:none;" onchange="importExternalNoteRAW(event)">
-            <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="document.getElementById('raw-note-upload-input').click()" title="Upload RAW note">⬆️ Upload</button>
+            <button class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="document.getElementById('raw-note-upload-input').click()" title="Upload RAW note">⬆️</button>
             <div style="position:relative; display:inline-block;" id="new-note-dropdown-wrapper">
               <button id="new-note-btn" class="tb-btn" style="padding:4px 8px; font-size:12px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-1);" onclick="handleNewNoteClick()">+ New</button>
               <div id="new-note-menu-options" style="display:none; position:absolute; top:calc(100% + 5px); right:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; flex-direction:column; min-width:140px; box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:1000; overflow:hidden;">
