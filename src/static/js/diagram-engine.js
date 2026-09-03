@@ -87,9 +87,19 @@
       mermaid.initialize({
         startOnLoad: false,
         theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: '#0d1117',
+          primaryColor: '#161b22',
+          primaryTextColor: '#c9d1d9',
+          primaryBorderColor: '#8b949e',
+          lineColor: '#8b949e',
+          secondaryColor: '#21262d',
+          tertiaryColor: '#30363d'
+        },
         securityLevel: 'loose',
         fontFamily: 'Inter, system-ui, sans-serif',
-        flowchart: { curve: 'basis', useMaxWidth: false, htmlLabels: false },
+        flowchart: { curve: 'basis', useMaxWidth: false, htmlLabels: true },
         sequence:  { useMaxWidth: false },
         gantt:     { useMaxWidth: false }
       });
@@ -121,6 +131,27 @@
       if (svgEl) {
         svgEl.style.display = 'block';
         svgEl.style.maxWidth = 'none';
+        
+        // Preserve natural size for PanZoom bounds calculation if needed
+        const w = svgEl.getAttribute('width');
+        const h = svgEl.getAttribute('height');
+        const vb = svgEl.getAttribute('viewBox');
+        if (w) svgEl.setAttribute('data-natural-width', w);
+        if (h) svgEl.setAttribute('data-natural-height', h);
+        if (vb) svgEl.setAttribute('data-natural-viewbox', vb);
+        
+        // Let the SVG overflow so zooming an inner group doesn't clip
+        svgEl.style.overflow = 'visible';
+        
+        // Wrap everything inside the SVG in a zoom group
+        const zoomGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        zoomGroup.id = 'dgb-zoom-group';
+        // Extract all existing children of the SVG into the zoom group
+        while (svgEl.firstChild) {
+          zoomGroup.appendChild(svgEl.firstChild);
+        }
+        svgEl.appendChild(zoomGroup);
+
         svgEl.classList.add('dgb-dom-svg');
       }
     }
@@ -412,12 +443,22 @@
     }
 
     _commit(smooth) {
-      if (smooth) {
-        this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
+      const zoomGroup = this._layer.querySelector('#dgb-zoom-group');
+      if (zoomGroup) {
+        if (smooth) {
+          zoomGroup.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
+        } else {
+          zoomGroup.style.transition = 'none';
+        }
+        zoomGroup.setAttribute('transform', this._m.toString());
       } else {
-        if (this._layer.style.transition) this._layer.style.transition = 'none';
+        if (smooth) {
+          this._layer.style.transition = 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)';
+        } else {
+          if (this._layer.style.transition) this._layer.style.transition = 'none';
+        }
+        this._layer.style.transform = this._m.toString();
       }
-      this._layer.style.transform = this._m.toString();
       this._onScale(this.getScalePct());
     }
 
@@ -802,6 +843,11 @@
       const renderedNode = this._canvas.querySelector('svg, canvas');
       if (!renderedNode) { alert('Run a diagram first before exporting.'); return; }
       this._setStatus('Exporting PNG\u2026', 'info');
+      
+      const oldM = this._pz ? this._pz._m : null;
+      if (this._pz) this._pz.reset();
+      await new Promise(r => setTimeout(r, 50));
+      
       try {
         if (typeof htmlToImage === 'undefined') throw new Error('html-to-image not available.');
         const url = await htmlToImage.toPng(this._canvas, {
@@ -812,6 +858,11 @@
       } catch (e) {
         this._setStatus('PNG export failed', 'error');
         console.error('[DiagramEngine] PNG error:', e);
+      } finally {
+        if (this._pz && oldM) {
+          this._pz._m = oldM;
+          this._pz._apply(false);
+        }
       }
     }
 

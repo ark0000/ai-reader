@@ -319,7 +319,6 @@
 #dgb-layer {
   display: inline-block;
   transform-origin: 0 0;
-  will-change: transform;
   position: relative;  /* required for z-index to take effect */
   z-index: 0;          /* EXPLICIT 0 — zoom bar's z-index:9000 always wins */
   /* transition added/removed dynamically by PanZoomEngine._apply() */
