@@ -40,7 +40,19 @@ class LocalChromaRAGProvider(IRAGProvider):
             os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
             os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
             try:
-                self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2', local_files_only=True)
+                # Prefer cached model; fall back to downloading if not cached.
+                # Note: local_files_only kwarg is only available in sentence-transformers>=3.x
+                import inspect
+                st_init_params = inspect.signature(SentenceTransformer.__init__).parameters
+                if "local_files_only" in st_init_params:
+                    self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2', local_files_only=True)
+                else:
+                    # Older sentence-transformers: set HF_HUB_OFFLINE to try cache first
+                    os.environ["HF_HUB_OFFLINE"] = "1"
+                    try:
+                        self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                    finally:
+                        os.environ.pop("HF_HUB_OFFLINE", None)
             except Exception:
                 self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
         return self._embedding_model

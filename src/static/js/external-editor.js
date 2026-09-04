@@ -810,8 +810,8 @@ class MarkdownIntelligenceEngine {
     if (/^```[\s\S]*?```$/m.test(text) || /\b(mermaid|graph LR|graph TD|subgraph)\b/i.test(text)) score += 4;
     // List items & Unicode bullets
     if (/^(\s*[-*+]|\s*\d+\.|\s*[•●▪◦⁃–])\s+.+$/m.test(text)) score += 2;
-    // Tab-separated tables (Disabled to prevent corrupting ambiguous clipboard data)
-    // if (/\t[^\n]+\t/m.test(text) || /^Table\t/m.test(text)) score += 3;
+    // Tab-separated tables (Requires multiple tabs per line to be confident it's tabular data)
+    if (/\t[^\n]+\t/m.test(text) || /^Table\t/m.test(text)) score += 3;
     // Blockquotes
     if (/^>\s+.+$/m.test(text)) score += 2;
     // Links / Images
