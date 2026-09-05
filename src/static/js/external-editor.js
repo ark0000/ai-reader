@@ -1078,6 +1078,35 @@ class EditorModeController {
     }
   }
 
+  /**
+   * Explicitly switch to a target mode without toggling.
+   * Safe to call even if already in the target mode (no-op).
+   */
+  forceMode(targetMode) {
+    if (!window.quillEditor) return;
+    if (targetMode === 'markdown' && this.mode !== 'markdown') {
+      this.switchToMarkdown();
+    } else if (targetMode === 'visual' && this.mode !== 'visual') {
+      this.switchToVisual();
+    }
+    // If already in target mode, just make sure the UI matches
+    this._syncButtonUI();
+  }
+
+  _syncButtonUI() {
+    const toggleBtn = document.getElementById('mode-toggle-btn');
+    if (!toggleBtn) return;
+    if (this.mode === 'markdown') {
+      toggleBtn.innerHTML = '\uD83D\uDC41\uFE0F Visual View';
+      toggleBtn.style.background = 'var(--accent)';
+      toggleBtn.style.color = '#fff';
+    } else {
+      toggleBtn.innerHTML = '\uD83D\uDCDD Markdown Source';
+      toggleBtn.style.background = 'rgba(255,255,255,0.05)';
+      toggleBtn.style.color = 'var(--text-1)';
+    }
+  }
+
   async switchToMarkdown() {
     const rawEditor = document.getElementById('markdown-source-editor');
     const visualEditor = document.getElementById('quill-editor');
@@ -1087,7 +1116,7 @@ class EditorModeController {
 
     if (toggleBtn) {
       toggleBtn.disabled = true;
-      toggleBtn.innerHTML = '⏳ Converting...';
+      toggleBtn.innerHTML = '\u23F3 Converting...';
     }
 
     // Convert current Quill HTML to Markdown
@@ -1119,11 +1148,13 @@ class EditorModeController {
 
     if (toggleBtn) {
       toggleBtn.disabled = false;
-      toggleBtn.innerHTML = '👁️ Visual View';
+      toggleBtn.innerHTML = '\uD83D\uDC41\uFE0F Visual View';
       toggleBtn.style.background = 'var(--accent)';
       toggleBtn.style.color = '#fff';
     }
     this.mode = 'markdown';
+    // Persist user preference so the next note load restores this mode
+    try { localStorage.setItem('aura_editor_mode', 'markdown'); } catch(e) {}
   }
 
   switchToVisual() {
@@ -1147,8 +1178,8 @@ class EditorModeController {
         let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
         return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
       });
-      // Handle the Base64 image fallback injected by markdown-worker
-      html = html.replace(/<img[^>]*src=['"]data:image\/svg\+xml;base64,[^'"]*['"][^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
+      // Handle the Base64 image fallback injected by markdown-worker (mermaid code hidden in title)
+      html = html.replace(/<img[^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
         return `<div class="ql-diagram-container" data-mermaid="${encodedMermaid}"></div>`;
       });
     } else {
@@ -1168,11 +1199,13 @@ class EditorModeController {
     window.quillEditor.focus();
 
     if (toggleBtn) {
-      toggleBtn.innerHTML = '📝 Markdown Source';
+      toggleBtn.innerHTML = '\uD83D\uDCDD Markdown Source';
       toggleBtn.style.background = 'rgba(255,255,255,0.05)';
       toggleBtn.style.color = 'var(--text-1)';
     }
     this.mode = 'visual';
+    // Persist user preference so the next note load restores this mode
+    try { localStorage.setItem('aura_editor_mode', 'visual'); } catch(e) {}
   }
 
   syncBeforeSave() {
@@ -1187,6 +1220,13 @@ class EditorModeController {
           html = marked.parse(normalized);
           html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
             return `<div class="ql-custom-table-container">${match}</div>`;
+          });
+          html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi, (match, mermaidCode) => {
+            let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+            return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
+          });
+          html = html.replace(/<img[^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
+            return `<div class="ql-diagram-container" data-mermaid="${encodedMermaid}"></div>`;
           });
           // Use 'api' source for setText so auto-save timer is NOT triggered on blank content mid-sync
           if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
@@ -1517,6 +1557,9 @@ async function loadExternalNote(id) {
 
         const html = note.content || '';
         
+        // Determine which mode to load into. Respect user preference stored in localStorage.
+        const userPreferredMode = (() => { try { return localStorage.getItem('aura_editor_mode') || 'visual'; } catch(e) { return 'visual'; } })();
+        
         if (html.length > 25000) {
             // SAFETY: Note is too massive. Force Markdown Source mode to prevent browser freezing.
             window.isExternalNoteLoading = true;
@@ -1534,6 +1577,7 @@ async function loadExternalNote(id) {
               }
               if (window.editorModeController) {
                   window.editorModeController.mode = 'markdown';
+                  window.editorModeController._syncButtonUI();
               }
 
               if (rawEditor) {
@@ -1586,11 +1630,28 @@ async function loadExternalNote(id) {
             const qlToolbar = document.querySelector('.ql-toolbar');
             if (qlToolbar) qlToolbar.style.display = 'block';
 
-            // Ensure we aren't stuck in markdown mode if it was toggled previously
+            // Restore user's preferred mode: visual for normal-size notes unless user previously chose markdown
             const mdEditor = document.getElementById('markdown-source-editor');
-            if (mdEditor && mdEditor.style.display !== 'none') {
-                mdEditor.value = ''; // FIX: Prevent switchToVisual from synchronously parsing the previous massive note
-                if (typeof toggleEditorMode === 'function') window.toggleEditorMode();
+            if (userPreferredMode === 'markdown' && window.editorModeController) {
+                // User prefers markdown mode — switch to it after Quill loads
+                // First ensure visual is showing so we have content to convert
+                if (mdEditor && mdEditor.style.display !== 'none') {
+                    mdEditor.value = '';
+                    mdEditor.style.display = 'none';
+                }
+                if (qlToolbar) qlToolbar.style.display = 'block';
+                document.getElementById('quill-editor').style.display = 'block';
+                window.editorModeController.mode = 'visual'; // temporarily so switchToMarkdown runs correctly
+            } else {
+                // Default: visual mode
+                if (mdEditor && mdEditor.style.display !== 'none') {
+                    mdEditor.value = '';
+                    mdEditor.style.display = 'none';
+                }
+                if (window.editorModeController) {
+                    window.editorModeController.mode = 'visual';
+                    window.editorModeController._syncButtonUI();
+                }
             }
 
             if (window.quillEditor) {
@@ -1611,6 +1672,15 @@ async function loadExternalNote(id) {
                 } finally {
                   if (window.currentExternalNoteId === note.id) {
                     window.isExternalNoteLoading = false;
+                    // If user prefers markdown mode, switch after content loads into Quill
+                    if (userPreferredMode === 'markdown' && window.editorModeController) {
+                      // Give Quill a moment to render before converting
+                      setTimeout(() => {
+                        if (window.currentExternalNoteId === note.id && window.editorModeController.mode === 'visual') {
+                          window.editorModeController.switchToMarkdown();
+                        }
+                      }, 100);
+                    }
                   }
                 }
               }, 20);
