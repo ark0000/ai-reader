@@ -1509,13 +1509,13 @@ async function loadExternalNote(id) {
           }
         }
       } else {
-        // TEXT NOTES — always open in Markdown Source mode by default
-        // The user can click "👁️ Visual View" to switch at any time.
-        document.getElementById('quill-editor').style.display = 'none';
+        // TEXT NOTES — open in Visual View by default.
+        // User can click "📝 Markdown Source" to switch to raw text.
+        document.getElementById('quill-editor').style.display = 'block';
         const tSidebar = document.getElementById('templates-sidebar');
         if (tSidebar) tSidebar.style.display = 'flex';
         const qlToolbar = document.querySelector('.ql-toolbar');
-        if (qlToolbar) qlToolbar.style.display = 'none';
+        if (qlToolbar) qlToolbar.style.display = 'block';
 
         const txtTools = document.getElementById('text-note-tools');
         if (txtTools) txtTools.style.display = 'flex';
@@ -1529,62 +1529,89 @@ async function loadExternalNote(id) {
         }
 
         const rawEditor = document.getElementById('markdown-source-editor');
-        rawEditor.style.display = 'block';
+        if (rawEditor) { rawEditor.value = ''; rawEditor.style.display = 'none'; }
 
-        // Set controller state to markdown
+        // Reset to visual mode
         if (window.editorModeController) {
-          window.editorModeController.mode = 'markdown';
+          window.editorModeController.mode = 'visual';
           window.editorModeController._syncButtonUI();
         }
 
         const html = note.content || '';
 
-        // Fast path: pre-computed rawText exists — use directly
-        if (note.rawText) {
-          rawEditor.value = note.rawText;
-          rawEditor.focus();
-        } else if (html) {
-          // Convert HTML → Markdown (worker for large, inline for small)
+        if (html.length > 25000) {
+          // SAFETY: Massive note — force Markdown Source to prevent browser freeze
           window.isExternalNoteLoading = true;
-          rawEditor.value = '*Loading...*';
-
-          if (html.length > 5000 && window.MarkdownWorker) {
-            const msgId = Date.now() + Math.random();
-            let settled = false;
-            const handler = (e) => {
-              if (e.data.id === msgId) {
-                settled = true;
-                window.MarkdownWorker.removeEventListener('message', handler);
-                if (window.currentExternalNoteId === note.id) {
-                  rawEditor.value = e.data.md;
-                  rawEditor.focus();
-                  window.isExternalNoteLoading = false;
-                }
+          try {
+            document.getElementById('quill-editor').style.display = 'none';
+            if (qlToolbar) qlToolbar.style.display = 'none';
+            if (rawEditor) rawEditor.style.display = 'block';
+            if (window.editorModeController) {
+              window.editorModeController.mode = 'markdown';
+              window.editorModeController._syncButtonUI();
+            }
+            if (rawEditor) {
+              if (note.rawText) {
+                rawEditor.value = note.rawText;
+                window.isExternalNoteLoading = false;
+              } else if (window.MarkdownWorker) {
+                rawEditor.value = '*Loading massive note in background... Please wait...*';
+                const msgId = Date.now() + Math.random();
+                let settled = false;
+                const handler = (e) => {
+                  if (e.data.id === msgId) {
+                    settled = true;
+                    window.MarkdownWorker.removeEventListener('message', handler);
+                    if (window.currentExternalNoteId === note.id) {
+                      rawEditor.value = e.data.md;
+                      window.isExternalNoteLoading = false;
+                    }
+                  }
+                };
+                window.MarkdownWorker.addEventListener('message', handler);
+                window.MarkdownWorker.postMessage({ id: msgId, html: html });
+                setTimeout(() => {
+                  if (!settled) {
+                    window.MarkdownWorker.removeEventListener('message', handler);
+                    if (window.currentExternalNoteId === note.id) {
+                      rawEditor.value = typeof htmlToMarkdown === 'function' ? htmlToMarkdown(html) : html;
+                      window.isExternalNoteLoading = false;
+                    }
+                  }
+                }, 10000);
+              } else {
+                rawEditor.value = typeof htmlToMarkdown === 'function' ? htmlToMarkdown(html) : html;
+                window.isExternalNoteLoading = false;
               }
-            };
-            window.MarkdownWorker.addEventListener('message', handler);
-            window.MarkdownWorker.postMessage({ id: msgId, html: html });
-            setTimeout(() => {
-              if (!settled) {
-                window.MarkdownWorker.removeEventListener('message', handler);
-                if (window.currentExternalNoteId === note.id) {
-                  rawEditor.value = typeof htmlToMarkdown === 'function' ? htmlToMarkdown(html) : html;
-                  rawEditor.focus();
-                  window.isExternalNoteLoading = false;
-                }
-              }
-            }, 10000);
-          } else {
-            // Small note — convert inline synchronously
-            rawEditor.value = typeof htmlToMarkdown === 'function' ? htmlToMarkdown(html) : html;
-            rawEditor.focus();
+            } else {
+              window.isExternalNoteLoading = false;
+            }
+          } catch (err) {
             window.isExternalNoteLoading = false;
+            console.error(err);
           }
-        } else {
-          rawEditor.value = '';
-          rawEditor.focus();
+        } else if (window.quillEditor) {
+          // Normal note: load into Quill visual editor
+          window.isExternalNoteLoading = true;
+          window.quillEditor.root.innerHTML = '<p style="color:#8b949e;font-style:italic;">Loading...</p>';
+          setTimeout(() => {
+            if (window.currentExternalNoteId !== note.id) return;
+            try {
+              if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+                window.quillEditor.setText('\n');
+                window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+              } else {
+                window.quillEditor.root.innerHTML = html;
+              }
+            } finally {
+              if (window.currentExternalNoteId === note.id) {
+                window.isExternalNoteLoading = false;
+              }
+            }
+          }, 20);
         }
       }
+
 
 
 
