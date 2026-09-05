@@ -1142,44 +1142,60 @@ class EditorModeController {
     const toggleBtn = document.getElementById('mode-toggle-btn');
     if (!rawEditor || !visualEditor || !window.quillEditor) return;
 
-    const md = rawEditor.value;
-    const normalized = SmartMarkdownNormalizer.normalize(md);
-    let html = '';
-    if (typeof marked !== 'undefined' && marked.parse) {
-      MarkedConfigAdapter.configure();
-      html = marked.parse(normalized);
-      html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
-        return `<div class="ql-custom-table-container">${match}</div>`;
-      });
-      html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi, (match, mermaidCode) => {
-        let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-        return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
-      });
-      html = html.replace(/<img[^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
-        return `<div class="ql-diagram-container" data-mermaid="${encodedMermaid}"></div>`;
-      });
-    } else {
-      html = normalized.replace(/\n/g, '<br>');
-    }
-
-    if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-      window.quillEditor.setText('\n', 'api');
-      window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'user');
-    } else {
-      window.quillEditor.root.innerHTML = html;
-    }
-
-    rawEditor.style.display = 'none';
-    if (qlToolbar) qlToolbar.style.display = 'block';
-    visualEditor.style.display = 'block';
-    window.quillEditor.focus();
-
     if (toggleBtn) {
-      toggleBtn.innerHTML = '\uD83D\uDCDD Markdown Source';
-      toggleBtn.style.background = 'rgba(255,255,255,0.05)';
-      toggleBtn.style.color = 'var(--text-1)';
+      toggleBtn.disabled = true;
+      toggleBtn.innerHTML = '⏳ Rendering...';
     }
-    this.mode = 'visual';
+
+    const md = rawEditor.value;
+
+    setTimeout(() => {
+      try {
+        const normalized = SmartMarkdownNormalizer.normalize(md);
+        let html = '';
+        if (typeof marked !== 'undefined' && marked.parse) {
+          MarkedConfigAdapter.configure();
+          html = marked.parse(normalized);
+          html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
+            return `<div class="ql-custom-table-container">${match}</div>`;
+          });
+          html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi, (match, mermaidCode) => {
+            let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+            return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
+          });
+          html = html.replace(/<img[^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
+            return `<div class="ql-diagram-container" data-mermaid="${encodedMermaid}"></div>`;
+          });
+        } else {
+          html = normalized.replace(/\n/g, '<br>');
+        }
+
+        if (html.length > 25000) {
+          // Bypass dangerouslyPasteHTML for massive notes to prevent Quill from freezing/crashing
+          window.quillEditor.root.innerHTML = html;
+        } else if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+          window.quillEditor.setText('\n', 'api');
+          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'user');
+        } else {
+          window.quillEditor.root.innerHTML = html;
+        }
+
+        rawEditor.style.display = 'none';
+        if (qlToolbar) qlToolbar.style.display = 'block';
+        visualEditor.style.display = 'block';
+        window.quillEditor.focus();
+
+        this.mode = 'visual';
+      } catch (err) {
+        console.error("Failed to switch to visual view:", err);
+        alert("Note is too complex to render fully. Try reducing its size.");
+      } finally {
+        if (toggleBtn) {
+          toggleBtn.disabled = false;
+          this._syncButtonUI();
+        }
+      }
+    }, 50);
   }
 
   syncBeforeSave() {
