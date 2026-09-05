@@ -18,6 +18,7 @@ class NotesRepository {
         uname = localStorage.getItem('username') || window.currentUsername || 'guest';
     } catch(e) {}
     
+    this.username = uname; // FIX Bug 6: Must be assigned so token guards (this.username !== 'guest') work correctly
     this.dbName = 'NotesDB_' + uname;
     this.storeName = 'global_notes';
     this.localStorageBackupKey = 'aura_global_notes_backup_' + uname;

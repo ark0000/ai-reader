@@ -166,7 +166,7 @@ class RemoteNotesEngine {
 
     handleRPC(msg) {
         if (msg.command === 'FORCE_SAVE') {
-            if (typeof window.saveExternalNote === 'function') {
+            if (!window.isExternalNoteLoading && typeof window.saveExternalNote === 'function') { // FIX Bug 4: Respect loading lock
                 window.saveExternalNote(true);
             }
         } else if (msg.command === 'SWITCH_NOTE') {
@@ -190,7 +190,7 @@ class RemoteNotesEngine {
             if (titleInput) {
                 titleInput.value = msg.new_title;
             }
-            if (typeof window.saveExternalNote === 'function') {
+            if (!window.isExternalNoteLoading && typeof window.saveExternalNote === 'function') { // FIX Bug 4: Respect loading lock
                 window.saveExternalNote(true);
             }
         }

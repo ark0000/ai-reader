@@ -332,8 +332,14 @@ function initQuillEditor() {
         window.RemoteNotesEngineInstance.broadcastLocalDelta(delta);
       }
 
+      // FIX Bug 3: Capture the note ID *now* (at typing time), so a delayed save cannot
+      // accidentally write to a different note the user has since switched to.
+      const savedNoteIdAtChange = currentExternalNoteId;
       clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => saveExternalNote(true), 5000); // Auto-save every 5 seconds
+      saveTimeout = setTimeout(() => {
+        if (currentExternalNoteId !== savedNoteIdAtChange) return; // Note changed, abort stale save
+        saveExternalNote(true);
+      }, 5000); // Auto-save every 5 seconds
     });
   } catch (err) {
     console.error("Failed to initialize Quill editor:", err);
@@ -1459,23 +1465,30 @@ async function loadExternalNote(id) {
         
         if (html.length > 50000) {
             // SAFETY: Note is too massive. Force Markdown Source mode to prevent browser freezing.
-            const qlEditor = document.getElementById('quill-editor');
-            const qlToolbar = document.querySelector('.ql-toolbar');
-            const toggleBtn = document.getElementById('mode-toggle-btn');
-            
-            if (qlEditor) qlEditor.style.display = 'none';
-            if (qlToolbar) qlToolbar.style.display = 'none';
-            if (rawEditor) {
-                rawEditor.style.display = 'block';
-                rawEditor.value = note.rawText || (window.turndownService ? window.turndownService.turndown(html) : html);
-            }
-            if (toggleBtn) {
-                toggleBtn.innerHTML = '👁️ Visual View';
-                toggleBtn.style.background = 'var(--accent)';
-                toggleBtn.style.color = '#fff';
-            }
-            if (window.editorModeController) {
-                window.editorModeController.mode = 'markdown';
+            // FIX Bug 1: Set loading lock BEFORE the synchronous turndown conversion which can block
+            // the main thread for several seconds, preventing auto-save from writing garbage.
+            window.isExternalNoteLoading = true;
+            try {
+              const qlEditor = document.getElementById('quill-editor');
+              const qlToolbar = document.querySelector('.ql-toolbar');
+              const toggleBtn = document.getElementById('mode-toggle-btn');
+              
+              if (qlEditor) qlEditor.style.display = 'none';
+              if (qlToolbar) qlToolbar.style.display = 'none';
+              if (rawEditor) {
+                  rawEditor.style.display = 'block';
+                  rawEditor.value = note.rawText || (window.turndownService ? window.turndownService.turndown(html) : html);
+              }
+              if (toggleBtn) {
+                  toggleBtn.innerHTML = '👁️ Visual View';
+                  toggleBtn.style.background = 'var(--accent)';
+                  toggleBtn.style.color = '#fff';
+              }
+              if (window.editorModeController) {
+                  window.editorModeController.mode = 'markdown';
+              }
+            } finally {
+              window.isExternalNoteLoading = false; // FIX Bug 1: Always release lock after conversion
             }
         } else {
             document.getElementById('quill-editor').style.display = 'block';
@@ -1517,11 +1530,8 @@ async function loadExternalNote(id) {
       document.querySelectorAll('#external-notes-list .sidebar-note-item').forEach(el => {
         const isSelected = el.dataset.id === String(note.id);
         el.style.background = isSelected ? 'rgba(255,107,0,0.1)' : 'transparent';
-        if (el.dataset.type === 'chapter') {
-          el.style.borderLeft = '3px solid transparent';
-        } else {
-          el.style.borderLeft = isSelected ? '3px solid var(--accent)' : '3px solid transparent';
-        }
+        // FIX Bug 5: Chapters also show accent border when selected (removed blanket transparent override)
+        el.style.borderLeft = isSelected ? '3px solid var(--accent)' : '3px solid transparent';
       });
 
       // Notify Tablet that the active note has changed
@@ -1530,6 +1540,7 @@ async function loadExternalNote(id) {
       }
     }
   } catch (e) {
+    window.isExternalNoteLoading = false; // FIX Bug 2: Always release lock on any unhandled error
     console.error("Failed to load note:", e);
   }
 }
