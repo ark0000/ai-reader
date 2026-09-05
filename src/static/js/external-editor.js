@@ -271,6 +271,26 @@ function initQuillEditor() {
         
         return new Delta().insert({ 'custom-table': html });
       });
+
+      // Add clipboard matcher for SVGs to prevent Quill from stripping the tag and dumping raw CSS text
+      window.quillEditor.clipboard.addMatcher('SVG', function(node, delta) {
+        const Delta = Quill.import('delta');
+        const html = node.outerHTML;
+        // Ignore tiny UI SVGs (like ChatGPT's copy/execute icons), but preserve actual diagrams
+        if (html.length > 500 || html.includes('mermaid')) {
+            return new Delta().insert({ 'custom-diagram': { svg: html } });
+        }
+        return new Delta(); // Strip tiny UI icons
+      });
+
+      // Add clipboard matcher to strip out AI chat UI artifacts (Execute, Edit, Copy icons)
+      window.quillEditor.clipboard.addMatcher('IMG', function(node, delta) {
+        const alt = (node.getAttribute('alt') || '').toLowerCase();
+        if (alt === 'execute' || alt === 'edit' || alt === 'copy') {
+            return new Quill.import('delta')(); // Return empty delta to drop it
+        }
+        return delta;
+      });
     }
 
     // Click listener for Diagram editing via Popup Menu

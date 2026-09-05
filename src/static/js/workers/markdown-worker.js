@@ -67,6 +67,15 @@ self.addEventListener('message', function(e) {
   // Links
   md = md.replace(/<a[^>]*href=['"]([^'"]*)['"][^>]*>(.*?)<\/a>/gi, '[$2]($1)');
 
+  // Extract custom Mermaid diagram blocks before stripping tags
+  md = md.replace(/<div[^>]*class=['"][^'"]*ql-diagram-container[^'"]*['"][^>]*data-mermaid=['"]([^'"]+)['"][^>]*>[\s\S]*?<\/div>/gi, (match, encMermaid) => {
+    try {
+      return '\n```mermaid\n' + decodeURIComponent(encMermaid).trim() + '\n```\n\n';
+    } catch (e) {
+      return '\n<!-- diagram -->\n';
+    }
+  });
+
   // Strip remaining tags
   md = md.replace(/<[^>]+>/g, '');
   

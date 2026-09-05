@@ -83,3 +83,5 @@ C:/temp/pyi_dist
 # PyInstaller Outputs
 Reader_Desktop/
 Reader_Desktop.zip
+release_build/
+Reader_Desktop.zip
