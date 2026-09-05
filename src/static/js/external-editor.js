@@ -296,7 +296,8 @@ function initQuillEditor() {
       window.quillEditor.clipboard.addMatcher('IMG', function(node, delta) {
         const alt = (node.getAttribute('alt') || '').toLowerCase();
         if (alt === 'execute' || alt === 'edit' || alt === 'copy') {
-            return new Quill.import('delta')(); // Return empty delta to drop it
+            const Delta = Quill.import('delta');
+            return new Delta(); // Return empty delta to drop it
         }
         return delta;
       });
