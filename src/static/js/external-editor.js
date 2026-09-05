@@ -1170,12 +1170,9 @@ class EditorModeController {
           html = normalized.replace(/\n/g, '<br>');
         }
 
-        if (html.length > 25000) {
-          // Bypass dangerouslyPasteHTML for massive notes to prevent Quill from freezing/crashing
-          window.quillEditor.root.innerHTML = html;
-        } else if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+        if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
           window.quillEditor.setText('\n', 'api');
-          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'user');
+          window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
         } else {
           window.quillEditor.root.innerHTML = html;
         }
