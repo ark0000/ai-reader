@@ -1,15 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all
+
+chroma_datas, chroma_binaries, chroma_hiddenimports = collect_all('chromadb')
 
 hiddenimports = ['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on']
-hiddenimports += collect_submodules('chromadb')
-
+hiddenimports += chroma_hiddenimports
 
 a = Analysis(
     ['src\\run_desktop.py'],
     pathex=[],
-    binaries=[],
-    datas=[('src/static', 'src/static'), ('.env', '.')],
+    binaries=chroma_binaries,
+    datas=[('src/static', 'src/static'), ('.env', '.')] + chroma_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
