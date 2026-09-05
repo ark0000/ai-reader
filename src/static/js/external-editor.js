@@ -72,6 +72,15 @@ if (typeof Quill !== 'undefined') {
           node.innerHTML = value.svg || '';
           if (value.mermaid) {
             node.setAttribute('data-mermaid', encodeURIComponent(value.mermaid));
+            // Trigger auto-render if SVG is empty (e.g. restored from Markdown)
+            if (!value.svg || value.svg.trim() === '') {
+              node.innerHTML = '<div style="color:#8b949e; padding:20px; font-style:italic;">Rendering Diagram...</div>';
+              setTimeout(() => {
+                if (window.DiagramBuilder && window.DiagramBuilder.engine) {
+                  window.DiagramBuilder.engine.render(value.mermaid, node);
+                }
+              }, 100);
+            }
           }
         }
         node.setAttribute('contenteditable', 'false'); // SVG diagrams shouldn't be editable text
@@ -1134,6 +1143,10 @@ class EditorModeController {
       html = html.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
         return `<div class="ql-custom-table-container">${match}</div>`;
       });
+      html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi, (match, mermaidCode) => {
+        let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+        return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
+      });
     } else {
       html = normalized.replace(/\n/g, '<br>');
     }
@@ -1641,6 +1654,13 @@ async function saveExternalNote(silent = false) {
     if (typeof marked !== 'undefined' && marked.parse) {
       if (window.MarkedConfigAdapter) window.MarkedConfigAdapter.configure();
       content = marked.parse(md);
+      content = content.replace(/<table(\s*[^>]*)>([\s\S]*?)<\/table>/gi, (match) => {
+        return `<div class="ql-custom-table-container">${match}</div>`;
+      });
+      content = content.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi, (match, mermaidCode) => {
+        let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+        return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
+      });
     } else if (typeof SmartMarkdownNormalizer !== 'undefined') {
       content = SmartMarkdownNormalizer.normalize(md).replace(/\n/g, '<br>');
     } else {
