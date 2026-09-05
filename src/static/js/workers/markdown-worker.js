@@ -24,17 +24,32 @@ self.addEventListener('message', function(e) {
     return '\n> ' + p1.replace(/\n/g, '\n> ') + '\n\n';
   });
   
-  // Lists
-  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (match, p1) => {
-    return '\n' + p1.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n') + '\n';
-  });
-  
-  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (match, p1) => {
-    let i = 1;
-    return '\n' + p1.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (m, liText) => {
-      return `${i++}. ${liText}\n`;
-    }) + '\n';
-  });
+  // FIX Bug L: Single-pass non-greedy regex fails on nested lists — it converts
+  // the innermost <ul> first but leaves outer fragments with dangling <li> HTML tags.
+  // Fix: loop until no <ul>/<ol> tags remain, each pass handling the innermost level.
+  // This correctly serialises arbitrarily-deep nesting with 2-space indentation.
+  function convertListsPass(html) {
+    // Replace innermost <ul> (those that contain no child <ul>/<ol>)
+    html = html.replace(/<ul[^>]*>((?:(?!<ul|<ol)[\s\S])*?)<\/ul>/gi, function(match, inner) {
+      return '\n' + inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, function(m, liText) {
+        // Indent already-converted nested lines by 2 more spaces
+        return '- ' + liText.replace(/\n/g, '\n  ').trim() + '\n';
+      }) + '\n';
+    });
+    // Replace innermost <ol> (those that contain no child <ul>/<ol>)
+    html = html.replace(/<ol[^>]*>((?:(?!<ul|<ol)[\s\S])*?)<\/ol>/gi, function(match, inner) {
+      let i = 1;
+      return '\n' + inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, function(m, liText) {
+        return (i++) + '. ' + liText.replace(/\n/g, '\n   ').trim() + '\n';
+      }) + '\n';
+    });
+    return html;
+  }
+  // Keep converting until no list tags remain (handles arbitrary nesting depth)
+  let safetyLimit = 20;
+  while (/<ul|<ol/i.test(md) && safetyLimit-- > 0) {
+    md = convertListsPass(md);
+  }
   
   // Blocks
   md = md.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');

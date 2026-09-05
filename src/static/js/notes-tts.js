@@ -381,7 +381,7 @@ window.openAllNotesInEditor = async function() {
   } else if (typeof openExternalNotes === 'function') {
     openExternalNotes();
     setTimeout(function() {
-      if (typeof createNewExternalNote === 'function') {
+        if (typeof createNewExternalNote === 'function') {
         createNewExternalNote();
         var titleEl = document.getElementById('external-note-title');
         if (titleEl) titleEl.value = exportTitle;
@@ -391,7 +391,11 @@ window.openAllNotesInEditor = async function() {
           } else {
             window.quillEditor.root.innerHTML = fullHtml;
           }
-          if (typeof saveExternalNote === 'function') saveExternalNote(true);
+          // FIX Bug I: dangerouslyPasteHTML is async in Quill's render pipeline.
+          // Yield 50ms so the DOM settles before saveExternalNote reads quillEditor.root.innerHTML.
+          setTimeout(function() {
+            if (typeof saveExternalNote === 'function') saveExternalNote(true);
+          }, 50);
         }
       }
     }, 200);

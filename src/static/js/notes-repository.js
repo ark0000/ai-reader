@@ -245,14 +245,19 @@ class NotesRepository {
         noteMap.set(String(n.id), n);
         
         // AUTO-SYNC: If the local note is not on the server, upload it now
+        // FIX Bug K: Guard with token check — without this, an expired-session user would
+        // POST their private notes without a token, falling back to user_id=1 (guest).
         if (!serverIds.has(String(n.id))) {
-          const headers = this._getHeaders();
-          headers['Content-Type'] = 'application/json';
-          fetch(this.apiBase, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(n)
-          }).catch(e => console.warn("Failed to auto-sync local note to server:", e));
+          const syncToken = localStorage.getItem('token');
+          if (this.username === 'guest' || syncToken) {
+            const headers = this._getHeaders();
+            headers['Content-Type'] = 'application/json';
+            fetch(this.apiBase, {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify(n)
+            }).catch(e => console.warn("Failed to auto-sync local note to server:", e));
+          }
         }
       }
       

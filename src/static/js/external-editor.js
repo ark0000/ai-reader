@@ -1404,10 +1404,12 @@ async function loadExternalNote(id) {
       currentExternalNoteId = note.id;
       window.currentExternalNoteId = note.id;
       currentSessionNoteId = null; // Clear session note context
+      // FIX Bug J: Guard against null titleEl (overlay may not be mounted yet, e.g. tablet RPC on startup)
       const titleEl = document.getElementById('external-note-title');
+      if (!titleEl) return;
       const match = (note.title || '').match(/^(\[book:[^\]]+\](?:\[ch:\d+\]\s*)?)(.*)$/);
       if (match) {
-        titleEl.dataset.bookPrefix = match[1];
+        titleEl.dataset.bookPrefix = match[1] || ''; // FIX Bug J: match[1] can be undefined when no prefix
         titleEl.value = match[2];
       } else {
         titleEl.dataset.bookPrefix = '';

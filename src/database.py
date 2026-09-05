@@ -462,15 +462,30 @@ class GlobalNotesRepository:
     def save(user_id: int, note_id: int, title: str, content: str, raw_text: str, created_at: float, updated_at: float):
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO global_notes (id, user_id, title, content, raw_text, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    title=excluded.title,
-                    content=excluded.content,
-                    raw_text=excluded.raw_text,
-                    updated_at=excluded.updated_at
-            """, (note_id, user_id, title, content, raw_text, created_at, updated_at))
+            # FIX Bug H: Use explicit ownership-safe upsert.
+            # ON CONFLICT(id) DO UPDATE with no WHERE guard would let a client overwrite
+            # any other user's note if they know the numeric ID. Instead:
+            # 1. Try to UPDATE only rows owned by this user.
+            # 2. If nothing updated (new note), INSERT.
+            cursor.execute(
+                "SELECT id FROM global_notes WHERE id = ? AND user_id = ?",
+                (note_id, user_id)
+            )
+            exists = cursor.fetchone()
+            if exists:
+                cursor.execute(
+                    """UPDATE global_notes
+                       SET title=?, content=?, raw_text=?, updated_at=?, deleted_at=NULL
+                       WHERE id=? AND user_id=?""",
+                    (title, content, raw_text, updated_at, note_id, user_id)
+                )
+            else:
+                cursor.execute(
+                    """INSERT INTO global_notes
+                       (id, user_id, title, content, raw_text, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (note_id, user_id, title, content, raw_text, created_at, updated_at)
+                )
             return True
 
     @staticmethod
