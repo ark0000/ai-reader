@@ -10,7 +10,7 @@ button { cursor: pointer; font-family: inherit; }
 
 /* TOP TOOLBAR */
 #top-bar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow-x: auto;
   padding: 7px 16px; background: var(--bg-toolbar);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 2px 20px rgba(0,0,0,.4); z-index: 200; flex-shrink: 0;
@@ -26,7 +26,7 @@ button { cursor: pointer; font-family: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .tb-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
 .tb-lbl { font-size: .7rem; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
