@@ -68,7 +68,7 @@ self.addEventListener('message', function(e) {
   md = md.replace(/<a[^>]*href=['"]([^'"]*)['"][^>]*>(.*?)<\/a>/gi, '[$2]($1)');
 
   // Extract custom Mermaid diagram blocks or preserve raw SVG diagrams before stripping tags
-  md = md.replace(/<div[^>]*class=['"][^'"]*ql-diagram-container[^'"]*['"][^>]*>([\s\S]*?)<\/div>/gi, (match, innerHTML) => {
+  md = md.replace(/<div[^>]*(?:data-mermaid=['"][^'"]+['"]|class=['"][^'"]*ql-diagram-container[^'"]*['"])[^>]*>([\s\S]*?)<\/div>/gi, (match, innerHTML) => {
     const mermaidMatch = match.match(/data-mermaid=['"]([^'"]+)['"]/i);
     if (mermaidMatch && mermaidMatch[1]) {
       try {
