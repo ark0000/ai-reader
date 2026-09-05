@@ -480,12 +480,16 @@ class GlobalNotesRepository:
                     (title, content, raw_text, updated_at, note_id, user_id)
                 )
             else:
-                cursor.execute(
-                    """INSERT INTO global_notes
-                       (id, user_id, title, content, raw_text, created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (note_id, user_id, title, content, raw_text, created_at, updated_at)
-                )
+                try:
+                    cursor.execute(
+                        """INSERT INTO global_notes
+                           (id, user_id, title, content, raw_text, created_at, updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (note_id, user_id, title, content, raw_text, created_at, updated_at)
+                    )
+                except sqlite3.IntegrityError:
+                    # Another user owns this note ID. Prevent overwrite and fail gracefully.
+                    return False
             return True
 
     @staticmethod
