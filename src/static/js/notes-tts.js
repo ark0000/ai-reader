@@ -239,9 +239,10 @@ window.renderNotes = function(){
       qContent = '"'+n.q.substring(0,100)+(n.q.length>100?'...':'')+'"';
     }
     
+    var safeId = typeof n.id === 'string' ? `'${n.id.replace(/'/g, "\\'")}'` : n.id;
     var controls = '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">';
-    controls += '<button class="tb-btn" onclick="editNote('+n.id+')" style="padding:4px 8px; font-size:12px;">&#9998; Edit</button>';
-    controls += '<button class="tb-btn" onclick="deleteNote('+n.id+')" style="padding:4px 8px; font-size:12px; color:#fc8181;">&#10005; Delete</button>';
+    controls += '<button class="tb-btn" onclick="editNote('+safeId+')" style="padding:4px 8px; font-size:12px;">&#9998; Edit</button>';
+    controls += '<button class="tb-btn" onclick="deleteNote('+safeId+')" style="padding:4px 8px; font-size:12px; color:#fc8181;">&#10005; Delete</button>';
     controls += '</div>';
 
     var txtBlock = '<div class="note-rte-content" style="margin-top:6px; color:var(--text-1); line-height:1.5;">' + textContent + '</div>';
@@ -308,11 +309,56 @@ window.exportNotes = function(format) {
     doc.write('</body></html>');
     doc.close();
     
-    iframe.contentWindow.focus();
-    setTimeout(function() {
-      iframe.contentWindow.print();
-      setTimeout(function() { document.body.removeChild(iframe); }, 1000);
-    }, 250);
+    var printed = false;
+    var fallbackTimer = null;
+    var printWhenReady = function() {
+      if (printed) return;
+      printed = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      try {
+        iframe.contentWindow.focus();
+        setTimeout(function() {
+          try {
+            iframe.contentWindow.print();
+          } catch (e) {
+            console.warn("Print dialog failed:", e);
+          }
+          setTimeout(function() {
+            if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+          }, 1000);
+        }, 50); // slight buffer for paint
+      } catch (e) {
+        if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }
+    };
+
+    var images = doc.getElementsByTagName('img');
+    var loadedCount = 0;
+    var totalImages = images.length;
+    
+    if (totalImages === 0) {
+      printWhenReady();
+    } else {
+      var imgLoaded = function() {
+        loadedCount++;
+        if (loadedCount >= totalImages) printWhenReady();
+      };
+      // fallback timeout to prevent hanging forever on broken images
+      fallbackTimer = setTimeout(printWhenReady, 3000);
+      for (var i = 0; i < totalImages; i++) {
+        if (images[i].complete) {
+          imgLoaded();
+        } else {
+          images[i].onload = imgLoaded;
+          images[i].onerror = imgLoaded;
+        }
+      }
+      
+      // If all images were already complete, printWhenReady was triggered.
+      if (loadedCount >= totalImages) {
+        clearTimeout(fallbackTimer);
+      }
+    }
   }
 };
 
@@ -386,15 +432,20 @@ window.openAllNotesInEditor = async function() {
         var titleEl = document.getElementById('external-note-title');
         if (titleEl) titleEl.value = exportTitle;
         if (window.quillEditor) {
+          window.isExternalNoteLoading = true;
           if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-            window.quillEditor.clipboard.dangerouslyPasteHTML(0, fullHtml);
+            window.quillEditor.clipboard.dangerouslyPasteHTML(0, fullHtml, 'api');
           } else {
             window.quillEditor.root.innerHTML = fullHtml;
           }
           // FIX Bug I: dangerouslyPasteHTML is async in Quill's render pipeline.
           // Yield 50ms so the DOM settles before saveExternalNote reads quillEditor.root.innerHTML.
-          setTimeout(function() {
-            if (typeof saveExternalNote === 'function') saveExternalNote(true);
+          setTimeout(async function() {
+            try {
+              if (typeof saveExternalNote === 'function') await saveExternalNote(true);
+            } finally {
+              window.isExternalNoteLoading = false;
+            }
           }, 50);
         }
       }

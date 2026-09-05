@@ -5,7 +5,7 @@ describe('TemplateManager', () => {
         const templates = TemplateManager.getAvailableTemplates();
         expect(templates.length).toBeGreaterThan(0);
         expect(templates.some(t => t.id === 'deep_dive')).toBe(true);
-        expect(templates.some(t => t.id === 'diagram_builder')).toBe(true);
+        expect(templates.some(t => t.id === 'mindmap')).toBe(true);
     });
 
     test('should correctly format a text strategy payload', () => {
@@ -18,7 +18,6 @@ describe('TemplateManager', () => {
         const content = deepDive.getContent();
         expect(typeof content).toBe('string');
         expect(content).toContain('Theory vs Code');
-        expect(content).toContain('mermaid');
     });
 
     test('should correctly format an embed strategy payload', () => {

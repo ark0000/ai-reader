@@ -80,8 +80,26 @@ class NotesRepository {
         const backupRaw = localStorage.getItem(this.localStorageBackupKey);
         let list = backupRaw ? JSON.parse(backupRaw) : [];
         list = list.filter(n => String(n.id) !== String(note.id));
-        list.unshift(note);
-        localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
+        
+        // Safely estimate note size to avoid blowing up the 5MB localStorage quota
+        const noteSize = (note.content ? note.content.length : 0) + (note.rawText ? note.rawText.length : 0);
+        if (noteSize < 500000) { // Only backup notes under ~500kb to localStorage
+            list.unshift(note);
+        }
+        
+        // Keep only the 50 most recently modified notes in localStorage fallback
+        if (list.length > 50) {
+            list = list.slice(0, 50);
+        }
+        
+        try {
+            localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
+        } catch (quotaErr) {
+            console.warn("localStorage quota exceeded, clearing old backups...", quotaErr);
+            // Emergency clear if quota still exceeded
+            list = list.slice(0, 10);
+            localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
+        }
       } catch (e) {
         console.warn("localStorage note backup error:", e);
       }

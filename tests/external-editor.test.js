@@ -246,6 +246,9 @@ describe('Notes Full Editor — Robustness Tests', () => {
       });
 
       await window._loadExternalNote(1);
+      
+      // Wait for the 20ms yield to main thread introduced in Round 2
+      await new Promise(r => setTimeout(r, 50));
 
       expect(window.quillEditor.clipboard.dangerouslyPasteHTML)
         .toHaveBeenCalledWith(0, '<p>Note content</p>', 'api');

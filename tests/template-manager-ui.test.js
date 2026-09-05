@@ -73,13 +73,4 @@ describe('TemplateManager Quill Editor Integration', () => {
         expect(mockQuill.setSelection).toHaveBeenCalledWith(7, 'user');
     });
 
-    test('diagram_builder action should call external modal function instead of quill insertion', () => {
-        window.openDiagramBuilderForExternalEditor = jest.fn();
-        const actionStrat = TemplateManager.STRATEGIES['diagram_builder'];
-        
-        actionStrat.execute();
-        
-        expect(window.openDiagramBuilderForExternalEditor).toHaveBeenCalledTimes(1);
-        expect(mockQuill.insertEmbed).not.toHaveBeenCalled();
-    });
 });

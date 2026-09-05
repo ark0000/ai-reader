@@ -37,6 +37,7 @@ class SidebarRenderStrategy {
       if (typeof loadExternalNote === 'function') loadExternalNote(note.id);
     };
     
+    const safeNoteId = String(note.id).replace(/'/g, "\\'");
     const title = note.title || 'Untitled Note';
     const date = new Date(note.updatedAt).toLocaleString();
     
@@ -59,7 +60,7 @@ class SidebarRenderStrategy {
                       <span>Canvas ${idx + 1}</span>
                     </div>
                     <div style="display:flex; gap:4px;">
-                      <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); if(window.StylusEngine && window.StylusEngine.activeFacade){ window.StylusEngine.activeFacade.repo.clear(); } if(typeof loadExternalNote === 'function') loadExternalNote('${note.id}'); setTimeout(() => { const el = document.querySelector('.ql-stylus-canvas[data-id=\\'${cId}\\']'); if(el) el.scrollIntoView({behavior:'smooth', block:'center'}); }, 500);">Open</button>
+                      <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); if(window.StylusEngine && window.StylusEngine.activeFacade){ window.StylusEngine.activeFacade.repo.clear(); } if(typeof loadExternalNote === 'function') loadExternalNote('${safeNoteId}'); setTimeout(() => { const el = document.querySelector('.ql-stylus-canvas[data-id=\\'${String(cId).replace(/'/g, "\\'")}\\']'); if(el) el.scrollIntoView({behavior:'smooth', block:'center'}); }, 500);">Open</button>
                     </div>
                   </div>
                 `;
@@ -90,13 +91,12 @@ class SidebarRenderStrategy {
     if (isChild) metaEl.style.paddingLeft = '8px';
     
     const isRootOverview = title === 'Book Overview';
-    
     metaEl.innerHTML = `
       <div style="font-size:11px; color:var(--text-3);">${date}</div>
       <div style="display:flex; gap:4px;">
-        ${!isRootOverview ? `<button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); duplicateExternalNote('${note.id}')">Copy</button>` : ''}
-        <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${note.id}')">Read</button>
-        ${!isRootOverview ? `<button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${note.id}')">Delete</button>` : ''}
+        ${!isRootOverview ? `<button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); duplicateExternalNote('${safeNoteId}')">Copy</button>` : ''}
+        <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); readNoteInReader('${safeNoteId}')">Read</button>
+        ${!isRootOverview ? `<button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${safeNoteId}')">Delete</button>` : ''}
       </div>
     `;
 
@@ -174,15 +174,16 @@ class BookSidebarRenderer extends SidebarRenderStrategy {
       // Expand/Collapse state
       let expanded = true; 
       
+      const safeBookId = String(bookId).replace(/'/g, "\\'");
       headerDiv.innerHTML = `
         <div style="font-weight:700; font-size:15px; color:var(--text-1); display:flex; align-items:center; gap:8px;">
           <span class="book-toggle-icon" style="display:inline-block; transition:transform 0.2s;">▼</span>
           📖 ${book.title}
         </div>
         <div style="display:flex; gap:4px;">
-           <button class="tb-btn" style="padding: 2px 8px; font-size: 11px; font-weight: 600; color: #fff; background: var(--accent); border: 1px solid var(--accent); border-radius: 4px;" onclick="event.stopPropagation(); readFullBookInReader('${bookId}')" title="Read entire book continuously in reader">📖 Read</button>
-           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #4299e1; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); downloadBook('${bookId}')">Download</button>
-           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${bookId}', true)">Delete</button>
+           <button class="tb-btn" style="padding: 2px 8px; font-size: 11px; font-weight: 600; color: #fff; background: var(--accent); border: 1px solid var(--accent); border-radius: 4px;" onclick="event.stopPropagation(); readFullBookInReader('${safeBookId}')" title="Read entire book continuously in reader">📖 Read</button>
+           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #4299e1; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); downloadBook('${safeBookId}')">Download</button>
+           <button class="tb-btn" style="padding: 2px 6px; font-size: 10px; color: #e53e3e; background: transparent; border: 1px solid var(--border); border-radius: 4px;" onclick="event.stopPropagation(); deleteExternalNote('${safeBookId}', true)">Delete</button>
         </div>
       `;
       

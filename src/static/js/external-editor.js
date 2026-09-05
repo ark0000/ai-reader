@@ -254,7 +254,7 @@ function initQuillEditor() {
     window.mdIntelligence = new MarkdownIntelligenceEngine(window.quillEditor);
 
     // Add clipboard matcher for tables so pasting preserves them instead of squishing text
-    if (window.quillEditor && window.quillEditor.clipboard) {
+    if (window.quillEditor && window.quillEditor.clipboard && typeof window.quillEditor.clipboard.addMatcher === 'function') {
       window.quillEditor.clipboard.addMatcher('TABLE', function(node, delta) {
         const Delta = Quill.import('delta');
         let html = node.outerHTML;
@@ -334,10 +334,15 @@ function initQuillEditor() {
 
       // FIX Bug 3: Capture the note ID *now* (at typing time), so a delayed save cannot
       // accidentally write to a different note the user has since switched to.
-      const savedNoteIdAtChange = currentExternalNoteId;
+      const savedNoteIdAtChange = window.currentExternalNoteId !== undefined && window.currentExternalNoteId !== null
+        ? window.currentExternalNoteId
+        : currentExternalNoteId;
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
-        if (currentExternalNoteId !== savedNoteIdAtChange) return; // Note changed, abort stale save
+        const activeId = window.currentExternalNoteId !== undefined && window.currentExternalNoteId !== null
+          ? window.currentExternalNoteId
+          : currentExternalNoteId;
+        if (activeId !== savedNoteIdAtChange) return; // Note changed, abort stale save
         saveExternalNote(true);
       }, 5000); // Auto-save every 5 seconds
     });
@@ -949,16 +954,16 @@ window.openExternalEditorWithContent = async function (title, htmlContent) {
   window.isExternalNoteLoading = true;
   try {
     if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
-      editor.clipboard.dangerouslyPasteHTML(0, htmlContent);
+      editor.clipboard.dangerouslyPasteHTML(0, htmlContent, 'api');
     } else {
       editor.root.innerHTML = htmlContent;
     }
+    // Yield to the browser paint cycle so Quill DOM settles before we read it
+    await new Promise(r => setTimeout(r, 50));
+    await saveExternalNote(true);
   } finally {
     window.isExternalNoteLoading = false;
   }
-  // Yield to the browser paint cycle so Quill DOM settles before we read it
-  await new Promise(r => setTimeout(r, 50));
-  await saveExternalNote(true);
   loadExternalNotesList();
 };
 
@@ -1160,7 +1165,9 @@ class EditorModeController {
 }
 window.editorModeController = new EditorModeController();
 window.toggleEditorMode = function () {
-  window.editorModeController.toggleMode();
+  if (window.editorModeController && typeof window.editorModeController.toggleMode === 'function') {
+    window.editorModeController.toggleMode();
+  }
 };
 
 function updateMarkdownUI() {
@@ -1475,8 +1482,6 @@ async function loadExternalNote(id) {
         
         if (html.length > 50000) {
             // SAFETY: Note is too massive. Force Markdown Source mode to prevent browser freezing.
-            // FIX Bug 1: Set loading lock BEFORE the synchronous turndown conversion which can block
-            // the main thread for several seconds, preventing auto-save from writing garbage.
             window.isExternalNoteLoading = true;
             try {
               const qlEditor = document.getElementById('quill-editor');
@@ -1485,10 +1490,6 @@ async function loadExternalNote(id) {
               
               if (qlEditor) qlEditor.style.display = 'none';
               if (qlToolbar) qlToolbar.style.display = 'none';
-              if (rawEditor) {
-                  rawEditor.style.display = 'block';
-                  rawEditor.value = note.rawText || (window.turndownService ? window.turndownService.turndown(html) : html);
-              }
               if (toggleBtn) {
                   toggleBtn.innerHTML = '👁️ Visual View';
                   toggleBtn.style.background = 'var(--accent)';
@@ -1497,8 +1498,49 @@ async function loadExternalNote(id) {
               if (window.editorModeController) {
                   window.editorModeController.mode = 'markdown';
               }
-            } finally {
-              window.isExternalNoteLoading = false; // FIX Bug 1: Always release lock after conversion
+
+              if (rawEditor) {
+                  rawEditor.style.display = 'block';
+                  
+                  if (note.rawText) {
+                      rawEditor.value = note.rawText;
+                      window.isExternalNoteLoading = false;
+                  } else if (window.MarkdownWorker) {
+                      rawEditor.value = '*Loading massive note in background... Please wait...*';
+                      const msgId = Date.now() + Math.random();
+                      let settled = false;
+                      const handler = (e) => {
+                          if (e.data.id === msgId) {
+                              settled = true;
+                              window.MarkdownWorker.removeEventListener('message', handler);
+                              if (window.currentExternalNoteId === note.id) {
+                                  rawEditor.value = e.data.md;
+                                  window.isExternalNoteLoading = false;
+                              }
+                          }
+                      };
+                      window.MarkdownWorker.addEventListener('message', handler);
+                      window.MarkdownWorker.postMessage({ id: msgId, html: html });
+                      
+                      setTimeout(() => {
+                          if (!settled) {
+                              window.MarkdownWorker.removeEventListener('message', handler);
+                              if (window.currentExternalNoteId === note.id) {
+                                  rawEditor.value = window.turndownService ? window.turndownService.turndown(html) : html;
+                                  window.isExternalNoteLoading = false;
+                              }
+                          }
+                      }, 10000);
+                  } else {
+                      rawEditor.value = window.turndownService ? window.turndownService.turndown(html) : html;
+                      window.isExternalNoteLoading = false;
+                  }
+              } else {
+                  window.isExternalNoteLoading = false;
+              }
+            } catch (err) {
+              window.isExternalNoteLoading = false;
+              console.error(err);
             }
         } else {
             document.getElementById('quill-editor').style.display = 'block';
@@ -1510,6 +1552,7 @@ async function loadExternalNote(id) {
             // Ensure we aren't stuck in markdown mode if it was toggled previously
             const mdEditor = document.getElementById('markdown-source-editor');
             if (mdEditor && mdEditor.style.display !== 'none') {
+                mdEditor.value = ''; // FIX: Prevent switchToVisual from synchronously parsing the previous massive note
                 if (typeof toggleEditorMode === 'function') window.toggleEditorMode();
             }
 
@@ -1520,8 +1563,8 @@ async function loadExternalNote(id) {
               
               // Yield to main thread so browser can paint the sidebar highlight
               setTimeout(() => {
+                if (window.currentExternalNoteId !== note.id) return; // Note switched while waiting for paint
                 try {
-                  if (window.currentExternalNoteId !== note.id) return; // Note switched while loading
                   if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
                     window.quillEditor.setText('\n');
                     window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
@@ -1529,7 +1572,9 @@ async function loadExternalNote(id) {
                     window.quillEditor.root.innerHTML = html;
                   }
                 } finally {
-                  window.isExternalNoteLoading = false;
+                  if (window.currentExternalNoteId === note.id) {
+                    window.isExternalNoteLoading = false;
+                  }
                 }
               }, 20);
             }
@@ -1675,8 +1720,12 @@ async function saveExternalNote(silent = false) {
   // Fallback to Global Notes repository
   if (!window.notesRepo) return;
 
+  const activeNoteId = window.currentExternalNoteId !== undefined && window.currentExternalNoteId !== null
+    ? window.currentExternalNoteId
+    : currentExternalNoteId;
+
   const noteToSave = {
-    id: currentExternalNoteId || Date.now(), // Create new ID if it's a new global note
+    id: activeNoteId || Date.now(), // Create new ID if it's a new global note
     title: title || (window.currentNotesTab === 'canvas' ? 'Untitled Canvas' : 'Untitled Note'),
     content: content,
     rawText: rawText,
