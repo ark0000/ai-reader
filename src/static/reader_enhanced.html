@@ -1790,8 +1790,8 @@
       </div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; flex-shrink:0;">
         <span id="text-note-tools" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-          <button id="mode-toggle-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="toggleEditorMode()" title="Toggle between Markdown Source and Visual View">📝 Markdown Source</button>
-          <button id="md-convert-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
+          <!-- Mode toggle removed: editor is always in Markdown Source mode -->
+          <button id="md-convert-btn" class="tb-btn" style="display:none; padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="convertCurrentNoteFromMarkdown()" title="Recognize and convert raw Markdown in editor to styled rich text">✨ Markdown</button>
           <button id="btn-diagram-ext" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="openDiagramBuilderForExternalEditor()" title="Build Mermaid Diagram">📊 Diagram</button>
           <button id="external-draw-btn" class="tb-btn" style="padding:4px 10px; font-size:11.5px; border-radius:20px; border:1px solid var(--border); background:rgba(255,255,255,0.05); white-space:nowrap;" onclick="StylusEngine.insertCanvas()" title="Insert a freehand drawing canvas">🖍️ Draw</button>
           <div style="position:relative; display:inline-block;" id="export-dropdown-wrapper">
@@ -1892,8 +1892,8 @@
       
       <!-- Editor Area -->
       <div style="flex:1; display:flex; flex-direction:column; background:var(--bg-body); position:relative; overflow:hidden;">
-        <div id="quill-editor" style="flex:1; height:100%; border:none; color:var(--text-1);"></div>
-        <textarea id="markdown-source-editor" placeholder="Write or paste Markdown here (supports pipe tables | col 1 | col 2 |, mermaid, etc.)..." style="display:none; flex:1; width:100%; height:100%; box-sizing:border-box; padding:20px; background:var(--bg-body); color:var(--text-1); border:none; outline:none; font-family:var(--font-mono, monospace); font-size:14px; line-height:1.6; resize:none; white-space:pre-wrap;"></textarea>
+        <div id="quill-editor" style="display:none; flex:1; height:100%; border:none; color:var(--text-1);"></div>
+        <textarea id="markdown-source-editor" placeholder="Write or paste Markdown here (supports pipe tables | col 1 | col 2 |, mermaid, etc.)..." style="display:flex; flex:1; width:100%; height:100%; box-sizing:border-box; padding:20px; background:var(--bg-body); color:var(--text-1); border:none; outline:none; font-family:var(--font-mono, monospace); font-size:14px; line-height:1.6; resize:none; white-space:pre-wrap;"></textarea>
         
         <!-- Pure Canvas Container -->
         <div id="pure-canvas-container" class="ql-stylus-canvas" data-id="" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgb(255, 255, 255); z-index:100; touch-action:none; cursor:crosshair;">
