@@ -135,6 +135,15 @@ class ReaderDragDropManager {
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
         const file = files[0];
+        const fileName = (file.name || '').toLowerCase();
+        
+        // Ensure we only process supported file formats
+        const validExtensions = ['.pdf', '.md', '.txt', '.epub'];
+        if (!validExtensions.some(ext => fileName.endsWith(ext))) {
+            alert('Unsupported file type! Please drop a PDF, EPUB, MD, or TXT file.');
+            return;
+        }
+
         console.log("File dropped:", file.name, file.type, file.size);
         
         // Always try to fetch from window in case it was updated late
