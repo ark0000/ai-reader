@@ -22,6 +22,12 @@ button { cursor: pointer; font-family: inherit; }
   color: var(--text-1); margin-right: auto; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 200px;
 }
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .tb-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
 .tb-lbl { font-size: .7rem; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
 .tb-sel { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text-1);
