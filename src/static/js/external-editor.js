@@ -1973,10 +1973,15 @@ function htmlToMarkdown(htmlOrNode) {
           let mermaidSrc = node.getAttribute('data-mermaid') || '';
           if (mermaidSrc) {
             try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch (e) { }
+            return `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`;
+          } else {
+            // If it's a pasted SVG diagram without Mermaid source, preserve the SVG HTML
+            const svgMatch = node.innerHTML.match(/<svg[\s\S]*<\/svg>/i);
+            if (svgMatch) {
+              return `\n\n${svgMatch[0]}\n\n`;
+            }
           }
-          return mermaidSrc
-            ? `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`
-            : `\n<!-- diagram -->\n`;
+          return `\n<!-- diagram -->\n`;
         }
         // Handle Canvas drawings: emit the raw SVG so it isn't lost
         if (node.classList && node.classList.contains('ql-stylus-canvas')) {

@@ -67,13 +67,21 @@ self.addEventListener('message', function(e) {
   // Links
   md = md.replace(/<a[^>]*href=['"]([^'"]*)['"][^>]*>(.*?)<\/a>/gi, '[$2]($1)');
 
-  // Extract custom Mermaid diagram blocks before stripping tags
-  md = md.replace(/<div[^>]*data-mermaid=['"]([^'"]+)['"][^>]*>[\s\S]*?<\/div>/gi, (match, encMermaid) => {
-    try {
-      return '\n```mermaid\n' + decodeURIComponent(encMermaid).trim() + '\n```\n\n';
-    } catch (e) {
-      return '\n<!-- diagram -->\n';
+  // Extract custom Mermaid diagram blocks or preserve raw SVG diagrams before stripping tags
+  md = md.replace(/<div[^>]*class=['"][^'"]*ql-diagram-container[^'"]*['"][^>]*>([\s\S]*?)<\/div>/gi, (match, innerHTML) => {
+    const mermaidMatch = match.match(/data-mermaid=['"]([^'"]+)['"]/i);
+    if (mermaidMatch && mermaidMatch[1]) {
+      try {
+        return '\n```mermaid\n' + decodeURIComponent(mermaidMatch[1]).trim() + '\n```\n\n';
+      } catch (e) {
+        return '\n<!-- diagram -->\n';
+      }
     }
+    // If it's a pasted SVG diagram without Mermaid source, preserve the SVG HTML directly
+    if (innerHTML.includes('<svg')) {
+      return '\n\n' + innerHTML.trim() + '\n\n';
+    }
+    return '\n<!-- diagram -->\n';
   });
 
   // Strip remaining tags
