@@ -1147,6 +1147,10 @@ class EditorModeController {
         let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
         return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
       });
+      // Handle the Base64 image fallback injected by markdown-worker
+      html = html.replace(/<img[^>]*src=['"]data:image\/svg\+xml;base64,[^'"]*['"][^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
+        return `<div class="ql-diagram-container" data-mermaid="${encodedMermaid}"></div>`;
+      });
     } else {
       html = normalized.replace(/\n/g, '<br>');
     }
@@ -1661,6 +1665,9 @@ async function saveExternalNote(silent = false) {
         let code = mermaidCode.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
         return `<div class="ql-diagram-container" data-mermaid="${encodeURIComponent(code)}"></div>`;
       });
+      content = content.replace(/<img[^>]*src=['"]data:image\/svg\+xml;base64,[^'"]*['"][^>]*title=['"]mermaid:([^'"]+)['"][^>]*>/gi, (match, encodedMermaid) => {
+        return `<div class="ql-diagram-container" data-mermaid="${encodedMermaid}"></div>`;
+      });
     } else if (typeof SmartMarkdownNormalizer !== 'undefined') {
       content = SmartMarkdownNormalizer.normalize(md).replace(/\n/g, '<br>');
     } else {
@@ -1991,21 +1998,22 @@ function htmlToMarkdown(htmlOrNode) {
         // Handle Mermaid diagram blots: emit fenced mermaid block for clean MD/TXT export
         if (node.classList && node.classList.contains('ql-diagram-container')) {
           let mermaidSrc = node.getAttribute('data-mermaid') || '';
+          const svgMatch = node.innerHTML.match(/<svg[\s\S]*?<\/svg>/i);
+          if (svgMatch) {
+            try {
+              const b64 = btoa(unescape(encodeURIComponent(svgMatch[0])));
+              const titleAttr = mermaidSrc ? ` "mermaid:${mermaidSrc}"` : '';
+              return `\n\n![Diagram](data:image/svg+xml;base64,${b64}${titleAttr})\n\n`;
+            } catch(e) {
+              if (mermaidSrc) {
+                try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch (e) { }
+                return `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`;
+              }
+            }
+          }
           if (mermaidSrc) {
             try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch (e) { }
             return `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`;
-          } else {
-            // If it's a pasted SVG diagram without Mermaid source, convert it to a Base64 image
-            // to keep the Markdown source clean and allow Marked/Quill to render it as a standard image.
-            const svgMatch = node.innerHTML.match(/<svg[\s\S]*<\/svg>/i);
-            if (svgMatch) {
-              try {
-                const b64 = btoa(unescape(encodeURIComponent(svgMatch[0])));
-                return `\n\n![Pasted Diagram](data:image/svg+xml;base64,${b64})\n\n`;
-              } catch(e) {
-                return `\n\n${svgMatch[0]}\n\n`; // Fallback to raw HTML
-              }
-            }
           }
           return `\n<!-- diagram -->\n`;
         }

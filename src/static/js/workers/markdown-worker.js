@@ -68,28 +68,38 @@ self.addEventListener('message', function(e) {
   md = md.replace(/<a[^>]*href=['"]([^'"]*)['"][^>]*>(.*?)<\/a>/gi, '[$2]($1)');
 
   // Extract custom Mermaid diagram blocks or preserve raw SVG diagrams before stripping tags
-  md = md.replace(/<div[^>]*(?:data-mermaid=['"][^'"]+['"]|class=['"][^'"]*ql-diagram-container[^'"]*['"])[^>]*>([\s\S]*?)<\/div>/gi, (match, innerHTML) => {
+  md = md.replace(/<div[^>]*class=['"][^'"]*ql-diagram-container[^'"]*['"][^>]*>([\s\S]*?)<\/div>/gi, (match, innerHTML) => {
+    let mermaidSrc = '';
     const mermaidMatch = match.match(/data-mermaid=['"]([^'"]+)['"]/i);
     if (mermaidMatch && mermaidMatch[1]) {
+      try { mermaidSrc = decodeURIComponent(mermaidMatch[1]); } catch (e) {}
+    }
+    
+    // Always convert to Base64 image for clean Markdown rendering
+    const svgMatch = innerHTML.match(/<svg[\s\S]*?<\/svg>/i);
+    if (svgMatch) {
       try {
-        return '\n```mermaid\n' + decodeURIComponent(mermaidMatch[1]).trim() + '\n```\n\n';
-      } catch (e) {
+        const b64 = btoa(unescape(encodeURIComponent(svgMatch[0])));
+        const titleAttr = mermaidSrc ? ` "mermaid:${encodeURIComponent(mermaidSrc)}"` : '';
+        return `\n\n![Diagram](data:image/svg+xml;base64,${b64}${titleAttr})\n\n`;
+      } catch(e) {
+        if (mermaidSrc) return '\n```mermaid\n' + mermaidSrc.trim() + '\n```\n\n';
         return '\n<!-- diagram -->\n';
       }
     }
-    // If it's a pasted SVG diagram without Mermaid source, convert it to a Base64 image
-    if (innerHTML.includes('<svg')) {
-      const svgMatch = innerHTML.match(/<svg[\s\S]*<\/svg>/i);
-      if (svgMatch) {
-        try {
-          const b64 = btoa(unescape(encodeURIComponent(svgMatch[0])));
-          return `\n\n![Pasted Diagram](data:image/svg+xml;base64,${b64})\n\n`;
-        } catch(e) {
-          return '\n\n' + innerHTML.trim() + '\n\n';
-        }
-      }
-    }
+    
+    if (mermaidSrc) return '\n```mermaid\n' + mermaidSrc.trim() + '\n```\n\n';
     return '\n<!-- diagram -->\n';
+  });
+
+  // Also catch any raw SVGs that aren't inside a ql-diagram-container
+  md = md.replace(/<svg[\s\S]*?<\/svg>/gi, (svgContent) => {
+    try {
+      const b64 = btoa(unescape(encodeURIComponent(svgContent)));
+      return `\n\n![Diagram](data:image/svg+xml;base64,${b64})\n\n`;
+    } catch(e) {
+      return '';
+    }
   });
 
   // Strip remaining tags
