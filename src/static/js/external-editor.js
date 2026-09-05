@@ -944,12 +944,20 @@ window.openExternalEditorWithContent = async function (title, htmlContent) {
     titleInput.value = title || 'Untitled Note';
   }
 
-  if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
-    editor.clipboard.dangerouslyPasteHTML(0, htmlContent);
-  } else {
-    editor.root.innerHTML = htmlContent;
+  // FIX Bug E: dangerouslyPasteHTML is async in Quill's render pipeline.
+  // Set the loading lock so auto-save cannot fire mid-paste, then yield one frame before saving.
+  window.isExternalNoteLoading = true;
+  try {
+    if (editor.clipboard && editor.clipboard.dangerouslyPasteHTML) {
+      editor.clipboard.dangerouslyPasteHTML(0, htmlContent);
+    } else {
+      editor.root.innerHTML = htmlContent;
+    }
+  } finally {
+    window.isExternalNoteLoading = false;
   }
-
+  // Yield to the browser paint cycle so Quill DOM settles before we read it
+  await new Promise(r => setTimeout(r, 50));
   await saveExternalNote(true);
   loadExternalNotesList();
 };
@@ -1548,12 +1556,34 @@ async function loadExternalNote(id) {
 async function saveExternalNote(silent = false) {
   if (window.isExternalNoteLoading) return; // FIX: Prevent race condition where "Loading..." text is saved
   if (!window.quillEditor) return;
-  if (window.editorModeController) window.editorModeController.syncBeforeSave();
 
+  // FIX Bug G: Guard against null titleEl (e.g. if notes overlay DOM is not yet mounted)
   const titleEl = document.getElementById('external-note-title');
+  if (!titleEl) return;
   const prefix = titleEl.dataset.bookPrefix || '';
   const title = prefix + titleEl.value.trim();
-  let content = window.quillEditor.root.innerHTML;
+
+  // FIX Bug C: In Markdown mode, read content directly from the textarea — NOT from Quill's DOM.
+  // Quill's dangerouslyPasteHTML (called by syncBeforeSave) is async; reading .root.innerHTML
+  // immediately after can capture stale/partial HTML before Quill finishes rendering.
+  let content;
+  const inMarkdownMode = window.editorModeController && window.editorModeController.mode === 'markdown';
+  if (inMarkdownMode) {
+    const rawEditor = document.getElementById('markdown-source-editor');
+    const md = rawEditor ? rawEditor.value : '';
+    if (typeof marked !== 'undefined' && marked.parse) {
+      if (window.MarkedConfigAdapter) window.MarkedConfigAdapter.configure();
+      content = marked.parse(md);
+    } else if (typeof SmartMarkdownNormalizer !== 'undefined') {
+      content = SmartMarkdownNormalizer.normalize(md).replace(/\n/g, '<br>');
+    } else {
+      content = md.replace(/\n/g, '<br>');
+    }
+  } else {
+    // Not in markdown mode — sync the textarea back to Quill first, then read from Quill
+    if (window.editorModeController) window.editorModeController.syncBeforeSave();
+    content = window.quillEditor.root.innerHTML;
+  }
 
   if (window.currentNotesTab === 'canvas') {
     const canvasContainer = document.getElementById('pure-canvas-container');
@@ -1567,26 +1597,43 @@ async function saveExternalNote(silent = false) {
   let rawText = '';
   if (window.currentNotesTab !== 'canvas' && typeof htmlToMarkdown === 'function') {
     if (content.length > 50000 && window.MarkdownWorker) {
-      // Offload to worker for massive documents to avoid main-thread freeze
+      // FIX Bug D: Add a 10-second cleanup timeout to prevent handler accumulation.
+      // If the worker never replies (delayed/wrong msgId), the handler is removed and we fall back.
       rawText = await new Promise((resolve) => {
         const msgId = Date.now() + Math.random();
+        let settled = false;
         const handler = (e) => {
           if (e.data.id === msgId) {
+            settled = true;
             window.MarkdownWorker.removeEventListener('message', handler);
             resolve(e.data.md);
           }
         };
         window.MarkdownWorker.addEventListener('message', handler);
         window.MarkdownWorker.postMessage({ id: msgId, html: content });
+        // Cleanup: if no matching reply in 10 seconds, remove handler and resolve empty
+        setTimeout(() => {
+          if (!settled) {
+            window.MarkdownWorker.removeEventListener('message', handler);
+            console.warn('[MarkdownWorker] Timed out waiting for conversion result, falling back to sync.');
+            resolve(typeof htmlToMarkdown === 'function' ? htmlToMarkdown(content) : '');
+          }
+        }, 10000);
       });
     } else {
       rawText = htmlToMarkdown(content);
     }
   } else {
-    rawText = window.quillEditor.getText().trim();
+    rawText = inMarkdownMode
+      ? (document.getElementById('markdown-source-editor') || {}).value || ''
+      : window.quillEditor.getText().trim();
   }
 
-  if ((!content || content === '<p><br></p>') && window.currentNotesTab !== 'canvas') {
+  // FIX Bug B: Allow title-only saves (e.g. Book Overview or renamed empty note).
+  // Only block if BOTH content is empty AND the title is blank/default.
+  const isContentEmpty = (!content || content === '<p><br></p>') && window.currentNotesTab !== 'canvas';
+  const isTitleMeaningful = title && title !== 'Untitled Note' && title !== 'Untitled Canvas';
+  if (isContentEmpty && !isTitleMeaningful) {
     if (!silent) alert("Cannot save an empty note.");
     return;
   }

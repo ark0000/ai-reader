@@ -18,7 +18,8 @@ class SidebarRenderStrategy {
     div.style.borderLeft = isSelected ? '3px solid var(--accent)' : '3px solid transparent';
     div.style.transition = 'all 0.2s ease';
     if (isChild) {
-      div.style.borderLeft = '3px solid transparent';
+      // FIX Bug A: Do NOT overwrite borderLeft here — the selection-aware value set above (L18) must survive.
+      // Only set position:relative so the L-bracket can be absolutely positioned inside.
       div.style.position = 'relative';
       // Little L-bracket for children
       const bracket = document.createElement('div');
