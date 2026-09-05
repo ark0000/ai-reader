@@ -73,15 +73,23 @@ class NotesRepository {
 
 
   async _saveLocal(note) {
-    // 1. Save to localStorage backup
-    try {
-      const backupRaw = localStorage.getItem(this.localStorageBackupKey);
-      let list = backupRaw ? JSON.parse(backupRaw) : [];
-      list = list.filter(n => String(n.id) !== String(note.id));
-      list.unshift(note);
-      localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
-    } catch (e) {
-      console.warn("localStorage note backup error:", e);
+    // 1. localStorage backup — deferred to idle time (tertiary fallback, not time-critical)
+    const _doLocalStorageBackup = () => {
+      try {
+        const backupRaw = localStorage.getItem(this.localStorageBackupKey);
+        let list = backupRaw ? JSON.parse(backupRaw) : [];
+        list = list.filter(n => String(n.id) !== String(note.id));
+        list.unshift(note);
+        localStorage.setItem(this.localStorageBackupKey, JSON.stringify(list));
+      } catch (e) {
+        console.warn("localStorage note backup error:", e);
+      }
+    };
+    
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(_doLocalStorageBackup, { timeout: 5000 });
+    } else {
+      setTimeout(_doLocalStorageBackup, 0);
     }
 
     // 2. Save to IndexedDB

@@ -79,3 +79,7 @@ src-tauri/*.pdb
 # Build scripts
 C:/temp/pyi_build
 C:/temp/pyi_dist
+
+# PyInstaller Outputs
+Reader_Desktop/
+Reader_Desktop.zip

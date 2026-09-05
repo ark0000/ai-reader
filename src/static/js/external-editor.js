@@ -332,7 +332,7 @@ function initQuillEditor() {
       }
 
       clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(saveExternalNote, 5000); // Auto-save every 5 seconds
+      saveTimeout = setTimeout(() => saveExternalNote(true), 5000); // Auto-save every 5 seconds
     });
   } catch (err) {
     console.error("Failed to initialize Quill editor:", err);
@@ -694,6 +694,10 @@ class MarkdownIntelligenceEngine {
     // preventing getLine() calls on every single character.
     this.quill.on('text-change', (delta, oldDelta, source) => {
       if (source !== 'user') return;
+      // Shortcuts only fire on space or enter — skip O(n) getLine for all other keys.
+      const lastOp = delta.ops && delta.ops[delta.ops.length - 1];
+      const typed = (lastOp && typeof lastOp.insert === 'string') ? lastOp.insert : '';
+      if (typed !== ' ' && typed !== '\n') return;
       clearTimeout(this._textChangeTimer);
       this._textChangeTimer = setTimeout(() => this._handleTextChange(), 50);
     });
@@ -1448,20 +1452,30 @@ async function loadExternalNote(id) {
 
         if (window.quillEditor) {
           const html = note.content || '';
-          if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-            window.quillEditor.setText('\n');
-            window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
-          } else {
-            window.quillEditor.root.innerHTML = html;
-          }
+          // Instantly clear and show loading so the UI doesn't freeze on click
+          window.quillEditor.root.innerHTML = '<p style="color: #8b949e; font-style: italic;">Loading large note...</p>';
+          
+          // Yield to main thread so browser can paint the sidebar highlight
+          setTimeout(() => {
+            if (window.currentExternalNoteId !== note.id) return; // Note switched while loading
+            if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+              window.quillEditor.setText('\n');
+              window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+            } else {
+              window.quillEditor.root.innerHTML = html;
+            }
+          }, 20);
         }
         const rawEditor = document.getElementById('markdown-source-editor');
-        if (rawEditor) {
-          rawEditor.value = htmlToMarkdown(note.content || '');
-        }
+        // Lazy: switchToMarkdown() computes this on-demand. Pre-computing blocks the
+        // main thread for large notes on every sidebar click with no benefit.
+        if (rawEditor) rawEditor.value = '';
       }
 
-      loadExternalNotesList(); // Refresh list to update selection highlight
+      // Update selection highlight directly without triggering a full network refresh.
+      document.querySelectorAll('#external-notes-list .note-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.id === String(note.id));
+      });
 
       // Notify Tablet that the active note has changed
       if (window.RemoteNotesEngineInstance) {

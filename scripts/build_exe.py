@@ -32,6 +32,7 @@ def build_executable():
         "--hidden-import=uvicorn.protocols.websockets.auto",
         "--hidden-import=uvicorn.lifespan",
         "--hidden-import=uvicorn.lifespan.on",
+        "--collect-submodules=chromadb",
         "--add-data", f"src/static{os.pathsep}src/static",  # Bundle frontend files
         "--add-data", f".env{os.pathsep}.",                   # Bundle .env config
         "src/run_desktop.py"

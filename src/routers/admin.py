@@ -562,6 +562,15 @@ async def get_system_info(_: None = Depends(require_dev_mode)):
     except ImportError:
         resources = {"note": "Install psutil for resource metrics"}
 
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = "127.0.0.1"
+
     return {
         "python_version": sys.version,
         "debug_mode":     settings.debug_console == "1",
@@ -570,6 +579,7 @@ async def get_system_info(_: None = Depends(require_dev_mode)):
         "temp_size_mb":    round(temp_size / 1024**2, 2),
         "server_uptime_s": round(time.time() - _startup_time),
         "resources":       resources,
+        "local_ip":        local_ip,
     }
 
 

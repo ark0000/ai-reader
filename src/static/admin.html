@@ -788,7 +788,8 @@ async function loadFiles() {
         const readBtn = isCompatible ? `<button class="action-btn" style="padding: 2px 8px; font-size: 11px;" onclick="window.openAppUrl('/reader-enhanced?task_id=${f.task_id}')">📖 Read</button>` : '';
         
         let btn = f.is_shared ? 
-            `<button class="action-btn danger" style="padding: 2px 8px; font-size: 11px;" onclick="toggleShare('${f.task_id}', '${f.filename}', false)">🚫 Unshare</button>` :
+            `<button class="action-btn danger" style="padding: 2px 8px; font-size: 11px;" onclick="toggleShare('${f.task_id}', '${f.filename}', false)">🚫 Unshare</button>
+             <button class="action-btn" style="padding: 2px 8px; font-size: 11px; color: #2ea043; border-color: rgba(46,160,67,0.4);" onclick="showVaultQR('${f.task_id}', '${f.filename}')">📱 QR</button>` :
             `<button class="action-btn" style="padding: 2px 8px; font-size: 11px;" onclick="toggleShare('${f.task_id}', '${f.filename}', true)">🌐 Share</button>`;
             
         return `<tr>
@@ -828,6 +829,34 @@ async function toggleShare(taskId, filename, share) {
         alert("Failed to toggle share: " + e.message);
     }
 }
+
+window.showVaultQR = function(taskId, filename) {
+    let host = (_data.system && _data.system.local_ip) ? _data.system.local_ip : window.location.hostname;
+    const port = window.location.port ? ':' + window.location.port : '';
+    const url = `http://${host}${port}/api/download-file/${taskId}`;
+    
+    let modal = document.getElementById('vault-qr-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'vault-qr-modal';
+        modal.style.cssText = 'display:flex;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;align-items:center;justify-content:center;';
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        };
+        document.body.appendChild(modal);
+    }
+    
+    modal.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:30px;display:flex;flex-direction:column;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,0.5);max-width:300px;text-align:center;">
+            <h3 style="margin-top:0;margin-bottom:20px;color:var(--text-1);">📱 Scan to Download</h3>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}" style="width:200px;height:200px;margin-bottom:15px;border-radius:8px;background:white;padding:10px;">
+            <div style="color:var(--text-2);font-size:13px;line-height:1.4;word-break:break-all;">${filename}</div>
+            <div style="color:var(--text-3);font-size:11px;margin-top:5px;word-break:break-all;">${url}</div>
+            <button class="action-btn" style="margin-top:20px;width:100%;" onclick="document.getElementById('vault-qr-modal').style.display='none'">Close</button>
+        </div>
+    `;
+    modal.style.display = 'flex';
+};
 
 async function loadSystem() {
   const d = await apiFetch('/api/admin/system');
