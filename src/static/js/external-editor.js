@@ -1,6 +1,7 @@
 window.quillEditor = null;
 let currentExternalNoteId = null; // Used for global notes
 window.currentExternalNoteId = null;
+window.isExternalNoteLoading = false;
 let currentSessionNoteId = null;  // Used for highlight notes
 let saveTimeout = null;
 window.currentNotesTab = window.currentNotesTab || 'text';
@@ -1449,27 +1450,67 @@ async function loadExternalNote(id) {
           canvasContainer.style.display = 'none';
           if (window.StylusEngine) window.StylusEngine.deactivate();
         }
-
-        if (window.quillEditor) {
-          const html = note.content || '';
-          // Instantly clear and show loading so the UI doesn't freeze on click
-          window.quillEditor.root.innerHTML = '<p style="color: #8b949e; font-style: italic;">Loading large note...</p>';
-          
-          // Yield to main thread so browser can paint the sidebar highlight
-          setTimeout(() => {
-            if (window.currentExternalNoteId !== note.id) return; // Note switched while loading
-            if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
-              window.quillEditor.setText('\n');
-              window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
-            } else {
-              window.quillEditor.root.innerHTML = html;
-            }
-          }, 20);
-        }
+        
         const rawEditor = document.getElementById('markdown-source-editor');
-        // Lazy: switchToMarkdown() computes this on-demand. Pre-computing blocks the
-        // main thread for large notes on every sidebar click with no benefit.
+        // Lazy: switchToMarkdown() computes this on-demand. Pre-computing blocks the main thread for large notes on every sidebar click with no benefit.
         if (rawEditor) rawEditor.value = '';
+
+        const html = note.content || '';
+        
+        if (html.length > 50000) {
+            // SAFETY: Note is too massive. Force Markdown Source mode to prevent browser freezing.
+            const qlEditor = document.getElementById('quill-editor');
+            const qlToolbar = document.querySelector('.ql-toolbar');
+            const toggleBtn = document.getElementById('mode-toggle-btn');
+            
+            if (qlEditor) qlEditor.style.display = 'none';
+            if (qlToolbar) qlToolbar.style.display = 'none';
+            if (rawEditor) {
+                rawEditor.style.display = 'block';
+                rawEditor.value = note.rawText || (window.turndownService ? window.turndownService.turndown(html) : html);
+            }
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '👁️ Visual View';
+                toggleBtn.style.background = 'var(--accent)';
+                toggleBtn.style.color = '#fff';
+            }
+            if (window.editorModeController) {
+                window.editorModeController.mode = 'markdown';
+            }
+        } else {
+            document.getElementById('quill-editor').style.display = 'block';
+            const tSidebar = document.getElementById('templates-sidebar');
+            if (tSidebar) tSidebar.style.display = 'flex';
+            const qlToolbar = document.querySelector('.ql-toolbar');
+            if (qlToolbar) qlToolbar.style.display = 'block';
+
+            // Ensure we aren't stuck in markdown mode if it was toggled previously
+            const mdEditor = document.getElementById('markdown-source-editor');
+            if (mdEditor && mdEditor.style.display !== 'none') {
+                if (typeof toggleEditorMode === 'function') window.toggleEditorMode();
+            }
+
+            if (window.quillEditor) {
+              window.isExternalNoteLoading = true;
+              // Instantly clear and show loading so the UI doesn't freeze on click
+              window.quillEditor.root.innerHTML = '<p style="color: #8b949e; font-style: italic;">Loading large note...</p>';
+              
+              // Yield to main thread so browser can paint the sidebar highlight
+              setTimeout(() => {
+                try {
+                  if (window.currentExternalNoteId !== note.id) return; // Note switched while loading
+                  if (window.quillEditor.clipboard && window.quillEditor.clipboard.dangerouslyPasteHTML) {
+                    window.quillEditor.setText('\n');
+                    window.quillEditor.clipboard.dangerouslyPasteHTML(0, html, 'api');
+                  } else {
+                    window.quillEditor.root.innerHTML = html;
+                  }
+                } finally {
+                  window.isExternalNoteLoading = false;
+                }
+              }, 20);
+            }
+        }
       }
 
       // Update selection highlight directly without triggering a full network refresh.
@@ -1494,6 +1535,7 @@ async function loadExternalNote(id) {
 }
 
 async function saveExternalNote(silent = false) {
+  if (window.isExternalNoteLoading) return; // FIX: Prevent race condition where "Loading..." text is saved
   if (!window.quillEditor) return;
   if (window.editorModeController) window.editorModeController.syncBeforeSave();
 
