@@ -1065,7 +1065,7 @@ class EditorModeController {
     const html = window.quillEditor.root.innerHTML;
     let md = '';
 
-    if (html.length > 50000 && window.MarkdownWorker) {
+    if (html.length > 5000 && window.MarkdownWorker) {
       md = await new Promise((resolve) => {
         const msgId = Date.now() + Math.random();
         const handler = (e) => {
@@ -1480,7 +1480,7 @@ async function loadExternalNote(id) {
 
         const html = note.content || '';
         
-        if (html.length > 50000) {
+        if (html.length > 25000) {
             // SAFETY: Note is too massive. Force Markdown Source mode to prevent browser freezing.
             window.isExternalNoteLoading = true;
             try {
@@ -1643,7 +1643,7 @@ async function saveExternalNote(silent = false) {
 
   let rawText = '';
   if (window.currentNotesTab !== 'canvas' && typeof htmlToMarkdown === 'function') {
-    if (content.length > 50000 && window.MarkdownWorker) {
+    if (content.length > 5000 && window.MarkdownWorker) {
       // FIX Bug D: Add a 10-second cleanup timeout to prevent handler accumulation.
       // If the worker never replies (delayed/wrong msgId), the handler is removed and we fall back.
       rawText = await new Promise((resolve) => {
