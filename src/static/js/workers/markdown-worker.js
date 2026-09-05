@@ -77,9 +77,17 @@ self.addEventListener('message', function(e) {
         return '\n<!-- diagram -->\n';
       }
     }
-    // If it's a pasted SVG diagram without Mermaid source, preserve the SVG HTML directly
+    // If it's a pasted SVG diagram without Mermaid source, convert it to a Base64 image
     if (innerHTML.includes('<svg')) {
-      return '\n\n' + innerHTML.trim() + '\n\n';
+      const svgMatch = innerHTML.match(/<svg[\s\S]*<\/svg>/i);
+      if (svgMatch) {
+        try {
+          const b64 = btoa(unescape(encodeURIComponent(svgMatch[0])));
+          return `\n\n![Pasted Diagram](data:image/svg+xml;base64,${b64})\n\n`;
+        } catch(e) {
+          return '\n\n' + innerHTML.trim() + '\n\n';
+        }
+      }
     }
     return '\n<!-- diagram -->\n';
   });

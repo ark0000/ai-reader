@@ -1975,10 +1975,16 @@ function htmlToMarkdown(htmlOrNode) {
             try { mermaidSrc = decodeURIComponent(mermaidSrc); } catch (e) { }
             return `\n\`\`\`mermaid\n${mermaidSrc.trim()}\n\`\`\`\n\n`;
           } else {
-            // If it's a pasted SVG diagram without Mermaid source, preserve the SVG HTML
+            // If it's a pasted SVG diagram without Mermaid source, convert it to a Base64 image
+            // to keep the Markdown source clean and allow Marked/Quill to render it as a standard image.
             const svgMatch = node.innerHTML.match(/<svg[\s\S]*<\/svg>/i);
             if (svgMatch) {
-              return `\n\n${svgMatch[0]}\n\n`;
+              try {
+                const b64 = btoa(unescape(encodeURIComponent(svgMatch[0])));
+                return `\n\n![Pasted Diagram](data:image/svg+xml;base64,${b64})\n\n`;
+              } catch(e) {
+                return `\n\n${svgMatch[0]}\n\n`; // Fallback to raw HTML
+              }
             }
           }
           return `\n<!-- diagram -->\n`;
