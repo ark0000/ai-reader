@@ -1473,8 +1473,14 @@ async function loadExternalNote(id) {
       }
 
       // Update selection highlight directly without triggering a full network refresh.
-      document.querySelectorAll('#external-notes-list .note-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.id === String(note.id));
+      document.querySelectorAll('#external-notes-list .sidebar-note-item').forEach(el => {
+        const isSelected = el.dataset.id === String(note.id);
+        el.style.background = isSelected ? 'rgba(255,107,0,0.1)' : 'transparent';
+        if (el.dataset.type === 'chapter') {
+          el.style.borderLeft = '3px solid transparent';
+        } else {
+          el.style.borderLeft = isSelected ? '3px solid var(--accent)' : '3px solid transparent';
+        }
       });
 
       // Notify Tablet that the active note has changed

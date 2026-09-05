@@ -8,6 +8,7 @@ class SidebarRenderStrategy {
     const isSelected = currentExternalNoteId === note.id;
     const div = document.createElement('div');
     div.className = 'sidebar-note-item';
+    div.dataset.id = note.id;
     div.dataset.title = (note.title || 'Untitled Note').toLowerCase();
     div.dataset.type = isChild ? 'chapter' : 'standalone';
     div.style.padding = isChild ? '8px 16px 8px 32px' : '12px 16px';
